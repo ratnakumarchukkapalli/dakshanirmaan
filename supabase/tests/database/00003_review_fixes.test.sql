@@ -35,8 +35,9 @@ insert into parties (name, type, state_code) values ('Review Fix Test Party', 'c
 
 create temp table _inv as
 with ins as (
-  insert into sales_invoices (invoice_date, party_id, place_of_supply)
-  select current_date, p.id, '37' from parties p where p.name = 'Review Fix Test Party'
+  insert into sales_invoices (invoice_date, party_id, place_of_supply, warehouse_id)
+  select current_date, p.id, '37', (select id from warehouses where is_default limit 1)
+  from parties p where p.name = 'Review Fix Test Party'
   returning id, updated_at
 )
 select * from ins;

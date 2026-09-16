@@ -12,16 +12,17 @@ Contract: `openspec/specs/api-architecture/spec.md`. No separate backend: Postgr
 ## Every server action, same shape
 1. `'use server'`; parse input with the zod schema from `src/schemas/` (shared with the client form — never define a second schema).
 2. Role check via `app_users` (roles: `admin`, `user`). The DB re-checks — that's intentional defense in depth, don't "optimize" either side away.
-3. Draft writes → user-scoped Supabase client (RLS applies). Post/cancel → `.rpc('post_*')`. **No business math in TypeScript** — the DB recomputes from snapshots and is authoritative; client totals are previews.
+3. Draft writes → user-scoped Supabase client (RLS applies). Post/cancel → `.rpc('post_*'/'cancel_document')`, **also on the user-scoped client, never the service-role client**. `post_*`/`cancel_document` derive the actor from `auth.uid()` inside the function (no `p_actor` param exists) and are not even granted to `service_role` — a service-role call fails `DN_FORBIDDEN` (auth.uid() is NULL under that key), which looks like an auth bug, not the client-choice bug it actually is. **No business math in TypeScript** — the DB recomputes from snapshots and is authoritative; client totals are previews.
 4. `revalidatePath` affected routes.
 5. Return the envelope — never throw to the UI:
 
 ```ts
 type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; code: ErrorCode };
-// codes: validation | forbidden | period_locked | negative_stock | credit_limit | not_draft | conflict | internal
+// codes: validation | forbidden | period_locked | negative_stock | credit_limit | not_draft
+//      | not_posted | has_allocations | unbalanced | conflict | partial | no_period | internal
 ```
 
-Map Postgres `DN_*` RAISEs to codes; `error` is a user-fixable sentence ("June is locked — GSTR-1 already filed"). Unknown errors → log server-side, return `internal`, never leak raw Postgres text.
+Map Postgres `DN_*` RAISEs to codes (`DN_VALIDATION:<detail>` → `validation` with `<detail>` in `error`; `DN_NOT_POSTED` covers both "still a draft" and "already cancelled" — the DB doesn't distinguish, and the UI can if it wants to by reading the document's own status first). `error` is a user-fixable sentence ("June is locked — GSTR-1 already filed"). Unknown errors → log server-side, return `internal`, never leak raw Postgres text.
 
 ## Validation invariants
 - Money/qty travel as **strings**, validated `^\d+(\.\d{1,4})?$`, cast to NUMERIC in SQL. `parseFloat` for stored values is a review-reject (float drift corrupts books).

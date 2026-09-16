@@ -241,7 +241,7 @@ Actor = `auth.uid()`; `RAISE 'DN_FORBIDDEN'` when null or not an active `app_use
 
 ### Tax and rounding (changes 03, 04, 20)
 - Line: `taxable_value = round(qty × rate × (1 − discount_pct/100), 2)`; intra-state (party/place-of-supply state = org state): `cgst_amt = sgst_amt = round(taxable × gst_rate/200, 2)`, `igst_amt = 0`; inter-state: `igst_amt = round(taxable × gst_rate/100, 2)`.
-- Header totals = Σ lines. `grand_total = round(taxable_total + tax totals, 0)`; `round_off = grand_total − unrounded sum` (range −0.50…+0.49) posted to `round_off`: Dr when negative, Cr when positive.
+- Header totals = Σ lines. `grand_total = round(taxable_total + tax totals, 0)`; `round_off = grand_total − unrounded sum` posted to `round_off`: Dr when negative, Cr when positive. Postgres `round(numeric)` is half-away-from-zero, so the true range is **[−0.49, +0.50]**, not the reverse.
 - The function overwrites header totals with its own computation; client-submitted totals are ignored.
 
 ### Income and stock accounts by item (change 03)

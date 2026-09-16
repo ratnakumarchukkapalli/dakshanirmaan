@@ -1,6 +1,13 @@
 -- Must pass (change 01, foundation-schema): "seed creates all system_key rows"
 -- Every system_key named in db-architecture spec's "Core tables" (15) and "Schema extensions
 -- for prototype-v2 features" -> "New system_key accounts" (10) exists exactly once.
+--
+-- Count/list updated by change 03's migration (pre-implementation audit, 2026-09-16): the audit
+-- retroactively assigns system_key to 7 more accounts ('sales_cement'/'sales_steel'/'sales_other'
+-- plus 'freight_recovered'/'discount_received'/'salaries'/'godown_rent') via an UPDATE in that
+-- migration, so this frozen count moves from 25 to 32. This is a deliberate, spec-directed
+-- change to change 01's own acceptance criteria (not an accidental break — see change 03's
+-- implementation-notes.md), made by the same authority that owns this spec section.
 begin;
 
 create extension if not exists pgtap with schema extensions;
@@ -9,8 +16,8 @@ select plan(2);
 
 select is(
   (select count(*)::int from accounts where system_key is not null),
-  25,
-  'exactly 25 system_key accounts are seeded'
+  32,
+  'exactly 32 system_key accounts are seeded (25 original + 7 added by change 03)'
 );
 
 select set_eq(
@@ -23,7 +30,10 @@ select set_eq(
     -- Schema extensions "New system_key accounts" (10)
     'bank', 'cash_over_short', 'rebate_income', 'rebate_receivable', 'stock_loss',
     'freight_inward', 'loading_unloading', 'discount_allowed', 'interest_income',
-    'goods_in_transit'
+    'goods_in_transit',
+    -- Change 03 migration retrofit (7)
+    'sales_cement', 'sales_steel', 'sales_other', 'freight_recovered',
+    'discount_received', 'salaries', 'godown_rent'
   ],
   'every spec-named system_key exists as exactly one accounts row'
 );
