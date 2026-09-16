@@ -110,4 +110,4 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 
 #### Scenario: preview never touches production data
 - WHEN a pull request deploys a Vercel preview
-- THEN its env binds to `daksha-staging` only; a preview build that references the production URL fails CI
+- THEN it is protected by Vercel Authentication and binds to the same `daksha-prod` project with a **read-only** Postgres role (`preview_reader`) whose env vars are set only on the Preview environment; a preview that carries the service-role key fails CI
