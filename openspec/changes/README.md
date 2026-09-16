@@ -35,6 +35,8 @@ Each change below is one folder `openspec/changes/<id>-<slug>/` containing `prop
 | 16 | `ops` — CI (typecheck, lint, pgTAP, Playwright smoke, bundle grep), **daily** encrypted dump workflow to family Drive, RUNBOOK.md, Sentry | Sonnet | daksh-api | security-deployment: Production topology, Dependencies & CI | "backup actually restores" (drill into the local stack) |
 | 17 | `cutover` — opening balances + opening stock import (CSV), manual-book series `DNM/`, go-live checklist | Sonnet | daksh-schema | db-architecture: Seed data; security: Rollout steps | trial balance balances after import |
 
+Numbering: each phase owns a block (Phase 1 = 01–19, Phase 2 = 20–29, Phase 3 = 30+). Gaps such as 18–19 are reserved for changes discovered mid-phase, so later phases never renumber.
+
 ## Phase 2 — accountant-ready
 
 | # | Change | Model | Skill | Spec section |
