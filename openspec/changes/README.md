@@ -2,6 +2,8 @@
 
 Written for: the implementing model (Sonnet by default; Opus for the posting engine) and the reviewer (Fable).
 
+Hosted project: `daksha-nirmaan` (`dcmgbkugdyxsjvkirmft`, ap-south-1, Postgres 17, Supabase Free). Linked via CLI; `supabase start` runs the local stack for every change; `supabase db push` to hosted only after local pgTAP passes.
+
 Each change below is one folder `openspec/changes/<id>-<slug>/` containing `proposal.md` (scope, spec sections, acceptance scenarios, brief) and, once merged, `implementation-notes.md`. Archive to `openspec/changes/archive/` after the pitch + quiz pass (see `openspec/project.md`). **Do not start before Ratna says "start".**
 
 ## Rules for every change
@@ -22,7 +24,7 @@ Each change below is one folder `openspec/changes/<id>-<slug>/` containing `prop
 | 05 | `posting-challan-transfer-dayclose` — `post_delivery_challan` + convert, `post_stock_transfer` + receive, `post_day_close` | Opus | daksh-posting | db-architecture: Schema extensions (challans, transfers, day_closes) | "challan then invoice keeps stock and books consistent"; "day close records the difference" |
 | 06 | `read-views` — all `v_*` views incl. `v_attention`, `v_party_interest`, `v_bank_recon` | Sonnet | daksh-schema | db-architecture: Views | trial balance view balances after 03–05 fixtures |
 | 07 | `app-shell` — Next.js scaffold, Tailwind tokens, glass primitives, topbar/rail/tabbar, theme + next-intl (`en`,`te`), PWA manifest + SW, security headers, middleware, Supabase clients | Sonnet | daksh-ui | frontend-architecture: Design system, Route structure, Responsive, PWA | "theme fidelity"; "reduced transparency"; "language toggle"; build clean |
-| 08 | `auth-users` — login (OTP + TOTP for admin), app_users gate, invite/disable actions, Settings → Users | Sonnet | daksh-api | api-architecture: Authorization + extensions (admin.ts); security-deployment: Accounts | "signup is a dead end"; "general user cannot cancel" |
+| 08 | `auth-users` — login (OTP + TOTP for admin), app_users gate, invite/disable actions, Settings → Users; **also set `supabase/config.toml` [auth] to match the spec** (`enable_signup=false`, `otp_expiry=600`, TOTP on) and mirror those settings in the hosted dashboard | Sonnet | daksh-api | api-architecture: Authorization + extensions (admin.ts); security-deployment: Accounts | "signup is a dead end"; "general user cannot cancel" |
 | 09 | `masters` — parties (+addresses/sites, interest rate, WhatsApp), items (dual UOM), CoA view, org settings (UPI VPA, print) | Sonnet | daksh-api + daksh-ui | api-architecture: Action catalog (parties, items, admin); frontend: parties/settings routes | zod GSTIN/state validation; new party modal matches prototype |
 | 10 | `sales-billing-ui` — sales list, invoice form (pcs↔kg, EWB panel, floating totals, UPI note), posted view w/ journal, cancel, PDF route, WhatsApp link | Sonnet | daksh-ui + daksh-api | frontend: sales routes; api: sales.ts, route handlers | "phone billing"; "client math never becomes truth" |
 | 11 | `challans-ui` — challan form, open-challans panel, convert to invoice | Sonnet | daksh-ui | frontend: sales/challans; api: challans.ts | "challan conversion is idempotent" |
