@@ -76,25 +76,27 @@ The business must be able to bill today and never lose its books, regardless of 
 - WHEN the quarterly drill restores the weekly dump into staging
 - THEN migrations apply cleanly and `v_trial_balance` balances to zero
 
-## Requirement: Production topology and plans (decided 2026-09-16)
+## Requirement: Production topology and plans (decided 2026-09-16, revised same day by the owner)
 
-Ten users at most, one business, real books. Paid tiers are chosen for backups, custom domain rights, and support — not for capacity.
+Ten users at most, one business, real books. **Decision (Ratna, as owner): run lean on free tiers; pay only when a free-tier limit actually bites.**
 
-| Layer | Choice | Why |
+| Layer | Choice | Why / what it costs us |
 |---|---|---|
-| App hosting | **Vercel Pro** (1 seat) | Hobby forbids commercial use; Pro gives the custom domain on a commercial project, 1 TB bandwidth, password-protected previews, team-less single seat is enough. Region `bom1`. |
-| Database/Auth/Storage | **Supabase Pro** (≈ $25/mo incl. $10 compute credit) — project `daksha-prod`, region **ap-south-1 (Mumbai)**; compute **Micro** (1 GB RAM) is ample for ≤ 10 users | Pro = daily backups (7-day retention), 8 GB DB, 100 GB storage, no project pausing, email support. **PITR add-on is not enabled at launch** (it is a per-project add-on billed extra); the weekly logical dump to family storage plus daily backups is the recovery story. Revisit PITR after the first FY close. |
-| Staging | second Supabase project `daksha-staging` on the **Free** tier (pauses after inactivity — acceptable for staging) | Migrations rehearse here; Vercel preview deployments bind here only. |
-| Domain | `dakshanirmaantraders.in` (registrar of choice; `.in` via a registrar such as GoDaddy/Hostinger/BigRock) — apex + `www` → Vercel; registrar lock + auto-renew + DNSSEC | Vercel DNS for the app; keep email DNS (SPF `-all`, DMARC `p=reject`) even before sending mail. |
-| Email/OTP | Supabase built-in (decision 2026-07-04) | ≤ 10 users; revisit if OTP delivery flakes (then Resend with DKIM on the domain). |
-| Errors/monitoring | Sentry free tier (Next.js SDK); Vercel built-in analytics; Supabase log drain off (dashboard logs suffice) | |
-| Backups off-platform | GitHub Actions weekly cron: `pg_dump --no-owner` → `age`-encrypted → upload to a family-owned Google Drive folder via service account; retention 12 weekly + 12 monthly | Survives losing the Supabase account. |
+| Database/Auth/Storage | **Supabase Free** — project `daksha-staging` in the existing org next to `expenses-app`, region **ap-south-1 (Mumbai)**; it is also production at go-live (rename to `daksha-prod` then) | Free = 500 MB DB (the business grows ≈ 50–100 MB/yr), 1 GB storage, 50k MAU, **no vendor backups**, **pauses after 7 idle days**. Backups are ours: **daily** `pg_dump` via GitHub Actions → age-encrypted → family Google Drive (see below). Pausing is not a risk for a shop that bills daily; un-pause is one click. Upgrade to Pro ($25/mo per org, includes one Micro) only if the owner later wants vendor-managed backups or a pause ever hurts. PITR ($100/mo) never. |
+| Staging | Local Supabase stack (Docker) for every change; the hosted project receives migrations only after local pgTAP passes | Two free projects per org are allowed; a second hosted project is added only if local rehearsal proves insufficient. |
+| App hosting | **Vercel Hobby during the build**; **at go-live either Vercel Pro ($20/mo, 1 seat) or a free host that permits commercial use** — owner decides then | Vercel's fair-use rule: Hobby is "non-commercial personal use only"; commercial = "used for the purpose of financial gain of anyone involved in any part of the production". An internal billing tool for a for-profit shop is a grey area their examples don't cover (no visitor payments, no ads, nobody paid to build it). The risk of staying on Hobby is an unannounced deployment pause, mitigated by the PWA read-only cache and the manual invoice book, but not eliminated. Region `bom1` either way. |
+| Domain | `dakshanirmaantraders.in` ≈ ₹800–1,000/yr; registrar lock + auto-renew + DNSSEC | Email DNS (SPF `-all`, DMARC `p=reject`) from day one. |
+| Email/OTP | Supabase built-in | Revisit only if delivery flakes. |
+| Errors/monitoring | Sentry free tier; Vercel built-in analytics | |
+| Backups off-platform | GitHub Actions **daily** cron (free minutes suffice): `pg_dump --no-owner` → `age`-encrypted → family-owned Google Drive via service account; retention 14 daily + 12 weekly + 12 monthly; quarterly restore drill into the local stack | Survives losing the Supabase account. This is the *primary* backup on Free. |
 
-**Estimated run cost:** Vercel Pro $20 + Supabase Pro $25 + domain ≈ ₹800/yr + Sentry $0 ≈ **$45–50/month** (verify current prices at purchase; both vendors reprice). No per-user fees — the reason the app exists.
+**Run cost:** $0 during the build. At go-live: domain only (≈ ₹80/month amortised) if the app host stays free, or ≈ $20/month (≈ ₹1,700) with Vercel Pro. For comparison Tally Prime Silver is ≈ ₹18,000/yr for a single user with no cloud.
+
+**Personal-data boundary (non-negotiable):** the business never shares a Supabase *project* with `expenses-app` (personal finances). Same org is fine; same database is not.
 
 ### Environments and promotion
-- `local` (supabase CLI, docker) → `staging` (Supabase Free, Vercel preview) → `production` (Supabase Pro, Vercel Production on the domain).
-- Migrations: `supabase db push` to staging from CI on merge to `main`; production push is a manual, approved GitHub Actions job that first takes an on-demand backup.
+- `local` (supabase CLI, docker; every change rehearses here with pgTAP) → `hosted` (`daksha-staging`, Supabase Free, Mumbai; becomes production at go-live). A separate hosted staging project is added only if a real need appears.
+- Migrations: `supabase db push` to the hosted project is a manual, approved GitHub Actions job (or `supabase db push` from a developer machine before go-live) that first runs the dump workflow.
 - Vercel env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (per environment), `SUPABASE_SERVICE_ROLE_KEY` (server-only, production + preview separately), `SENTRY_DSN`. CI greps the `.next` output for the service key on every build.
 
 ### Supabase project settings checklist (production)
