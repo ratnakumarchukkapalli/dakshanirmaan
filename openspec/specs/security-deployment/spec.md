@@ -111,3 +111,20 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 #### Scenario: preview never touches production data
 - WHEN a pull request deploys a Vercel preview
 - THEN it is protected by Vercel Authentication and binds to the same `daksha-prod` project with a **read-only** Postgres role (`preview_reader`) whose env vars are set only on the Preview environment; a preview that carries the service-role key fails CI
+
+## Requirement: Non-functional clarifications (system-design audit, 2026-09-16)
+
+- **Transactional email (decision reversed):** Supabase's built-in sender is rate-limited to a few messages per hour and intended for development only. With OTP as the sole login and 8-hour sessions, four users would exhaust it on a busy morning. **Before go-live, configure custom SMTP** (Resend free tier, 3,000 emails/month) on the domain with DKIM/SPF/DMARC; until then, local development uses the Supabase local Mailpit. Change 08 owns the config; go-live checklist (change 17) verifies a real OTP arrives.
+- **Sessions:** access token 1 h, refresh rotation on, refresh-token reuse detection on, idle expiry 8 h (Supabase "time-box user sessions"). Admin actions that unlock a period, cancel, or change users require `aal2` (TOTP verified in this session).
+- **Content-Security-Policy:** nonce-based, generated per request in middleware (Next.js `headers()` cannot vary per request); `script-src 'self' 'nonce-…' 'strict-dynamic'`; no `unsafe-eval`, no `unsafe-inline` for scripts; `style-src 'self' 'unsafe-inline'` is accepted for Tailwind; `connect-src 'self' https://dcmgbkugdyxsjvkirmft.supabase.co wss://dcmgbkugdyxsjvkirmft.supabase.co`.
+- **Rate limits:** Supabase Auth defaults on; middleware limits `/login` to 5 OTP requests per email per 15 min and 20 per IP per hour (in-memory per function instance is acceptable at this scale; no Redis).
+- **Server-action abuse:** every action re-checks the role and the DB re-checks; posting is idempotent; there is no unauthenticated action surface. Route handlers for PDF/Excel require an active member and stream at most one document per request.
+- **API keys:** use the project's **publishable** key in the browser and the **secret** key server-only (new Supabase key format); legacy `anon`/`service_role` JWTs are not used. The CI grep covers both names.
+- **Client bundle hygiene:** `NEXT_PUBLIC_*` contains only the Supabase URL and publishable key; CI fails if any other `NEXT_PUBLIC_` variable appears.
+- **Operational runbook (`RUNBOOK.md`, change 16):** restore from dump; rotate keys (Supabase secret key, Resend key, age key) after any staff or device change; un-pause a Free project; move the domain; monthly checklist (dump verified, storage < 80%, next FY periods exist from March).
+- **Observability:** Sentry on server + client with PII scrubbing (no GSTIN/phone in breadcrumbs); Supabase dashboard `pg_stat_statements` reviewed monthly; `v_attention` is the in-app alert channel (no email alerts in v1).
+- **Threats explicitly out of scope for v1:** DDoS beyond Vercel's default mitigation, malicious admin (the owners are the admins), physical theft of an unlocked signed-in device with a valid `aal2` session inside its 8-hour window (mitigated by device lock, not by the app).
+
+#### Scenario: OTP arrives on a busy morning
+- WHEN four users request login codes within ten minutes on go-live day
+- THEN all four codes arrive within a minute via the custom SMTP provider, and none are dropped by a sender-side rate limit

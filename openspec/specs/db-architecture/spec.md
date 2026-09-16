@@ -295,3 +295,45 @@ All views `WITH (security_invoker = true)` so base-table RLS applies. Admin-only
 
 ### Masters write policies (change 09)
 Admin: INSERT/UPDATE on all masters. `user`: INSERT/UPDATE on `parties` and `party_addresses` only (walk-in and new site customers at the counter), no DELETE anywhere; deactivation is `is_active = false`. `organization`, `accounts`, `items`, `warehouses`, `fiscal_periods`, `doc_sequences`: admin only. `app_users`: no client writes; invites/disable go through a `SECURITY DEFINER` function `admin_set_user(p_user_id, p_role, p_active)` that checks the caller is admin and enforces ≤ 10 active.
+
+## Requirement: Non-functional invariants (system-design audit, 2026-09-16)
+
+### Concurrency and lock ordering (changes 03–05, 20)
+- Every posting function acquires locks in this fixed order to make deadlocks impossible: (1) the document row `FOR UPDATE`; (2) the party row `FOR UPDATE` (credit-limit check reads a consistent balance); (3) every item row touched, `FOR UPDATE`, **ordered by item id**; (4) the `doc_sequences` row. Never in another order.
+- The negative-stock check runs after the item lock, so two simultaneous sales of the last bags cannot both pass.
+- Weighted average is computed after the item lock from all movements; concurrent purchases therefore serialise per item, which is correct.
+- Draft edits: `updated_at` compared in the action's WHERE clause (`UPDATE … WHERE id = $1 AND updated_at = $2`); zero rows updated → `conflict`.
+
+### Idempotency
+- `post_*` on a non-draft raises `DN_NOT_DRAFT` and writes nothing. Double-submits from the UI therefore cannot double-post.
+- `cancel_document` on an already-cancelled document raises `DN_NOT_POSTED`.
+- `receive_stock_transfer`, `deposit_cheque`, `mark_cheque_cleared` are state-machine transitions; an invalid transition raises `DN_CHEQUE_STATE` / `DN_TRANSFER_STATE`.
+
+### Cancellation edge cases
+- `cancel_document` on a sales invoice with any `payment_allocations` raises `DN_HAS_ALLOCATIONS` — the receipt must be re-allocated or reversed first. Same for purchase invoices.
+- Cancelling a purchase whose stock has since been sold raises `DN_NEGATIVE_STOCK` (the reversal would take stock below zero); the fix is a debit note for the quantity still on hand, never a forced reversal.
+- Cancelling a challan already converted to an invoice raises `DN_CONVERTED`; cancel the invoice first (which reopens the challan).
+- Credit note quantity per line ≤ invoiced quantity − prior credit notes on that invoice line (`DN_VALIDATION:qty_exceeds_invoice`).
+
+### Time zone
+- Business dates are `date` columns in **Asia/Kolkata**. Vercel functions run in UTC, so "today" is computed as `(now() AT TIME ZONE 'Asia/Kolkata')::date` in SQL and with the same zone in TS (`Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata' })`). Add `organization.timezone text NOT NULL DEFAULT 'Asia/Kolkata'`. `post_day_close` uses this date. Never `CURRENT_DATE` in functions.
+
+### Fiscal-year rollover
+- `next_doc_no` creates the next FY's sequence rows automatically (see Numbering).
+- Fiscal periods do **not** auto-create (change-02 rule: missing period blocks). Admin function `ensure_fiscal_year(p_label text)` creates the 12 rows; `v_attention` raises "Create FY 20XX-XX periods" from 1 March if next April's row is missing.
+
+### Function exposure (change 03 onward)
+- At the top of change 03's migration: `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM public;` and explicitly revoke on every function created so far (`is_active_member`, `current_app_role`, trigger functions, `touch_updated_at`). Only `post_*`, `cancel_document`, `receive_stock_transfer`, cheque transitions, `post_day_close`, `admin_set_user`, `ensure_fiscal_year`, `stock_on_hand` get `GRANT EXECUTE TO authenticated`. `next_doc_no` is internal: no grant.
+- `audit_log` gets the same `reject_mutation` trigger as the ledger (insert-only enforced by trigger, not just by missing grants).
+
+### Data volume and retention
+- Expected ≤ 50k journal lines and ≤ 5k documents per year; every list uses keyset pagination on `(date, id)`; no report needs materialisation at this scale. Re-evaluate only if a view exceeds 500 ms in `pg_stat_statements`.
+- FY close = export bundle (change 25); no rows are ever deleted. Attachments (bill photos) are the only growth risk: 5 MB cap, and the 1 GB Free storage limit is monitored in `v_attention` (admin) at 80%.
+
+#### Scenario: last bags cannot be sold twice
+- WHEN two sessions post invoices for the remaining 10 bags of an item at the same moment
+- THEN exactly one succeeds and the other raises `DN_NEGATIVE_STOCK`, and stock on hand is 0, not −10
+
+#### Scenario: cancel is blocked by an allocated receipt
+- WHEN `cancel_document` runs on an invoice that a posted receipt is allocated to
+- THEN it raises `DN_HAS_ALLOCATIONS` and nothing changes
