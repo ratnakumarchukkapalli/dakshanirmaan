@@ -13,6 +13,16 @@ Each change below is one folder `openspec/changes/<id>-<slug>/` containing `prop
 - Surprises: take the conservative option, log it in `implementation-notes.md`, keep going.
 - Visual work matches `prototype/daksh-nirmaan.html` — same tokens, same glass rules, both themes, 390 px.
 
+## Review protocol (agreed 2026-09-16 — keeps Fable usage near zero)
+
+1. **Implement** (Sonnet; Opus for 03–05 and 20). Done = must-pass tests green locally, notes written.
+2. **Fresh-context review** by a *second* agent that did not implement, loading the `daksh-review` skill: Opus for anything touching `journal_*`, `stock_movements`, `post_*`, RLS, auth, numbering; Sonnet for screens, actions, exports. The reviewer applies the skill's judgment rules and returns APPROVE / APPROVE AFTER FIXES / REJECT. Fixes go back to the implementer; the reviewer re-checks once.
+3. **Automated gates** on every change: `supabase test db` (pgTAP), `npm run build`, `npm run lint`, `npx tsc --noEmit`, and from change 16 onward the CI suite (Playwright smoke, bundle grep for the service key, `npm audit`). A red gate blocks commit.
+4. **Fable** only at three milestones, each one turn: after change 05 (posting engine complete), after change 12 (money flows end-to-end), and before go-live (security review via `/security-review`). If the Fable budget is gone, Opus runs the same milestone reviews with the `daksh-review` skill.
+5. **Push to hosted** only after step 2 approves; `supabase db push` runs from a developer machine before go-live, from CI after.
+
+Why this is enough: the first two reviews found spec gaps and default-direction judgments, not implementation errors. Those rules are now written in `daksh-review`, so any model can apply them. The guarantees of a production-grade ledger come from the database invariants and their tests, not from who reads the diff.
+
 ## Phase 1 — daily billing runs on it, and the family can check the books and file GST themselves
 
 | # | Change | Model | Skill | Governing spec section | Must pass |
