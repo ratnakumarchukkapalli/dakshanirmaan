@@ -13,7 +13,7 @@ Each change below is one folder `openspec/changes/<id>-<slug>/` containing `prop
 - Surprises: take the conservative option, log it in `implementation-notes.md`, keep going.
 - Visual work matches `prototype/daksh-nirmaan.html` — same tokens, same glass rules, both themes, 390 px.
 
-## Phase 1 — daily billing runs on it
+## Phase 1 — daily billing runs on it, and the family can check the books and file GST themselves
 
 | # | Change | Model | Skill | Governing spec section | Must pass |
 |---|---|---|---|---|---|
@@ -34,17 +34,17 @@ Each change below is one folder `openspec/changes/<id>-<slug>/` containing `prop
 | 15 | `reports-p1` — day close screen, day book, ageing (with interest column), stock, cash & bank book; Excel exports (exceljs) | Sonnet | daksh-ui + daksh-api | frontend: reports; api: route handlers | ageing totals = AR control balance |
 | 16 | `ops` — CI (typecheck, lint, pgTAP, Playwright smoke, bundle grep), **daily** encrypted dump workflow to family Drive, RUNBOOK.md, Sentry | Sonnet | daksh-api | security-deployment: Production topology, Dependencies & CI | "backup actually restores" (drill into the local stack) |
 | 17 | `cutover` — opening balances + opening stock import (CSV), manual-book series `DNM/`, go-live checklist | Sonnet | daksh-schema | db-architecture: Seed data; security: Rollout steps | trial balance balances after import |
+| 18 | `self-audit-and-gst` — trial balance, P&L, balance sheet, GSTR-1 (portal JSON + Excel), GSTR-3B summary, period locks UI, audit trail page. **Moved from Phase 2 (2026-09-16): the family files GST and validates the books themselves — there is no external accountant.** | Sonnet | daksh-ui + daksh-api | frontend: reports/settings; api: route handlers | TB Σdr = Σcr on screen; GSTR-1 JSON validates against the portal schema for a month of posted invoices |
 
 Numbering: each phase owns a block (Phase 1 = 01–19, Phase 2 = 20–29, Phase 3 = 30+). Gaps such as 18–19 are reserved for changes discovered mid-phase, so later phases never renumber.
 
-## Phase 2 — accountant-ready
+## Phase 2 — full self-accounting (notes, purchases screen, bank recon, quotes, rebates, exports)
 
 | # | Change | Model | Skill | Spec section |
 |---|---|---|---|---|
 | 20 | `notes` — credit/debit notes posting + UI | Opus (posting) / Sonnet (UI) | daksh-posting, daksh-ui | db: Posting engine (notes) |
 | 21 | `purchases-ui` — bill form (supplier ref, ITC flags, RCM block), attachments (bill photo) | Sonnet | daksh-ui + daksh-api | frontend: purchases; api: attachments.ts |
 | 22 | `bank-recon` — CSV import, matching, create-from-line | Sonnet | daksh-api | db: bank_statements; api: bank.ts |
-| 23 | `reports-p2` — trial balance, P&L, balance sheet, GSTR-1 (portal JSON + Excel), GSTR-3B, period locks UI, audit trail page | Sonnet | daksh-ui + daksh-api | frontend: reports/settings; api: route handlers |
 | 24 | `quotes-rebates-interest` — quotations, brand rebate tracker, interest debit note | Sonnet | daksh-api | db: quotations, brand_rebates, v_party_interest |
 | 25 | `exports-portability` — full-books Excel, FY archive bundle, Tally XML | Sonnet | daksh-api | security: Business continuity |
 

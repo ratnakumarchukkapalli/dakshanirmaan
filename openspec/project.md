@@ -1,5 +1,7 @@
 # Project Context — Daksha Nirmaan Traders
 
+**Purpose (owner, 2026-09-16):** the family runs the business *and* keeps its own books. There is no external accountant or CA. The app exists so the family can record, validate, and file (GST) themselves, with the double-entry engine as the safety net. Every report is a self-check tool for owners, not a hand-off to a professional.
+
 In-house accounting + inventory app for a family business trading cement, TMT steel, and construction materials (Andhra Pradesh, GST state 37). Proper double-entry bookkeeping, perpetual inventory, party credit ledgers, staff salary/advance ledgers, GST-compliant invoicing with e-way bill fields.
 
 ## Stack
