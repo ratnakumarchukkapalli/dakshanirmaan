@@ -79,9 +79,11 @@ All document header tables carry `updated_at timestamptz` (maintained by trigger
 
 1. **Balanced entries** — deferred constraint trigger on `journal_lines`: at transaction end, for each touched `entry_id`, `SUM(debit) = SUM(credit)` else RAISE.
 2. **Immutability** — BEFORE UPDATE OR DELETE on `journal_entries`, `journal_lines`, `stock_movements`: RAISE unless the only change is setting `journal_entries.reversed_by` on a previously-NULL value.
-3. **Period lock** — BEFORE INSERT on `journal_entries` and `stock_movements`: RAISE if the date's `fiscal_periods.is_locked`.
+3. **Period lock** — BEFORE INSERT on `journal_entries` and `stock_movements`: RAISE if the date's `fiscal_periods.is_locked`, or if the date has no `fiscal_periods` row at all (missing period ⇒ blocked, not allowed).
 4. **No negative stock** — in `post_*` functions (not a trigger): computed on-hand after movement must be ≥ 0, else RAISE `negative_stock` (admin may override via explicit flag).
 5. **Leaf-only postings** — BEFORE INSERT on `journal_lines`: RAISE if `accounts.is_group`.
+6. **Minimum lines** — deferred constraint trigger on `journal_entries`: an entry must have ≥ 2 lines at transaction end.
+7. **Party rule** — BEFORE INSERT on `journal_lines`: `party_id` required when the account is `is_control`, forbidden otherwise.
 
 ## Requirement: Posting engine (plpgsql, SECURITY DEFINER)
 
