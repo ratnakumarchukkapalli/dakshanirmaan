@@ -7,7 +7,7 @@ Define how the Next.js app talks to Supabase: server actions, RPC contracts, val
 ## Requirement: Access layers
 
 1. **Reads** — React Server Components query views/tables via the server Supabase client (`@supabase/ssr`, cookie-bound, RLS enforced). No client-side data fetching for business data in v1 (no SWR/React Query until a real need appears).
-2. **Writes** — Server Actions only (`'use server'`). Every action: (a) parses input with a zod schema, (b) checks the caller's `app_users.role`, (c) calls the matching Postgres function via `.rpc()` or performs draft-table writes, (d) `revalidatePath` for affected routes, (e) returns the result envelope.
+2. **Writes** — Server Actions only (`'use server'`). Every action: (a) parses input with a zod schema, (b) checks the caller's `app_users.role`, (c) calls the matching Postgres function via `.rpc()` **passing only document ids and flags — never the actor; the function reads `auth.uid()`** — or performs draft-table writes, (d) `revalidatePath` for affected routes, (e) returns the result envelope.
 3. The browser SHALL never hold the service-role key. Server actions use the user-scoped client so RLS applies; only the posting RPCs (SECURITY DEFINER) escalate.
 
 ## Requirement: Action catalog
@@ -103,3 +103,13 @@ share.ts       whatsappInvoiceLink(invoiceId) -> wa.me deep link with signed PDF
 #### Scenario: challan conversion is idempotent
 - WHEN `convertChallanToInvoice` is called twice for the same open challan
 - THEN the second call returns the existing draft invoice id and creates nothing new
+
+## Requirement: Implementation clarifications (pre-implementation audit, 2026-09-16)
+
+- **Auth (change 08):** login = `signInWithOtp({ email, options: { shouldCreateUser: false } })`; TOTP via `auth.mfa.enroll/challenge/verify`, enforced in middleware for admin (`aal2` required). Invite = server action with the service client: `auth.admin.inviteUserByEmail` then `rpc('admin_set_user')`. Middleware: session + active `app_users` row, redirect to `/login` otherwise; `/login` redirects to `/` when signed in.
+- **Draft creation sets `warehouse_id`** to the default warehouse and `place_of_supply` to the party's default address state; the form may change both.
+- **Cash sale:** `postAndReceiveCash(invoiceId, accountId)` = `postInvoice` then `saveDraftPayment`+`postPayment` for the full amount; returns both ids; if the second step fails the envelope carries `code: 'partial'` with the posted invoice id so the UI shows "Invoice posted, receipt failed — record it from Payments".
+- **PDF (change 10):** `@react-pdf/renderer` in a Node runtime route handler (`export const runtime = 'nodejs'`); UPI QR generated server-side with the `qrcode` package from `upi://pay?pa=<vpa>&pn=<legal name>&am=<grand_total>&tn=<invoice_no>&cu=INR`; amount-in-words from `src/lib/format.ts`.
+- **GSTR-1 (change 18):** before implementing, a research task fetches the current GST portal offline-tool JSON schema for B2B, B2CS, CDNR, HSN, DOC sections and saves it under `docs/research/gstr1-schema.md`; the exporter validates against that shape in a unit test with a golden file.
+- **Excel exports:** `exceljs` streaming; numbers written as numbers with `numFmt '#,##0.00'`, dates as dates; never pre-formatted strings.
+- **Error codes added:** `'partial'` (multi-step action stopped midway), `'no_period'` (maps `DN_NO_PERIOD`).

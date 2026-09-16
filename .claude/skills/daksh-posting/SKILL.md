@@ -13,7 +13,7 @@ Contract: `openspec/specs/db-architecture/spec.md` (functions section) + worked 
 
 Start new functions from `references/post-function-skeleton.sql` — don't re-derive the pattern.
 1. `SELECT ... FOR UPDATE` the document; assert `status = 'draft'` else RAISE `DN_NOT_DRAFT`.
-2. Role check (param `p_actor` → `app_users.role`): user may post sales invoices + receipts + advances ≤ ₹5,000; everything else admin. RAISE `DN_FORBIDDEN`.
+2. Role check (**actor = `auth.uid()` inside the function — never a parameter**; look up `app_users.role`): user may post sales invoices + receipts + advances ≤ ₹5,000; everything else admin. RAISE `DN_FORBIDDEN`.
 3. Assert entry date in unlocked `fiscal_periods` else RAISE `DN_PERIOD_LOCKED`.
 4. Recompute money from line snapshots — never trust stored totals from the client.
 5. Assign document number NOW via `next_doc_no()` (row-locked, gapless per FY series) — never at draft time.

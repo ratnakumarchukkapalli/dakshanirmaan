@@ -2,7 +2,7 @@
 -- Invariants this shape guarantees: draft-only, role-gated, period-locked,
 -- DB-recomputed money, gapless numbering, balanced entry, audited.
 
-CREATE OR REPLACE FUNCTION post_DOCTYPE(p_doc_id uuid, p_actor uuid)
+CREATE OR REPLACE FUNCTION post_DOCTYPE(p_doc_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -13,7 +13,9 @@ DECLARE
   v_role     app_role;
   v_entry_id uuid;
   v_doc_no   text;
+  p_actor    uuid := auth.uid();   -- NEVER a parameter: a caller could pass any uuid
 BEGIN
+  IF p_actor IS NULL THEN RAISE EXCEPTION 'DN_FORBIDDEN'; END IF;
   -- 1. Lock the document; drafts only
   SELECT * INTO v_doc FROM DOCTYPE_TABLE WHERE id = p_doc_id FOR UPDATE;
   IF NOT FOUND OR v_doc.status <> 'draft' THEN
@@ -64,3 +66,8 @@ BEGIN
   RETURN v_entry_id;
 END;
 $$;
+
+-- After CREATE: REVOKE EXECUTE ON FUNCTION post_DOCTYPE(uuid) FROM public, anon;
+--               GRANT  EXECUTE ON FUNCTION post_DOCTYPE(uuid) TO authenticated;
+-- Every RAISE uses a DN_* prefix: DN_NOT_DRAFT, DN_FORBIDDEN, DN_PERIOD_LOCKED,
+-- DN_NEGATIVE_STOCK, DN_CREDIT_LIMIT, DN_UNBALANCED, DN_VALIDATION:<detail>.

@@ -87,27 +87,27 @@ All document header tables carry `updated_at timestamptz` (maintained by trigger
 
 ## Requirement: Posting engine (plpgsql, SECURITY DEFINER)
 
-All functions run in one transaction, take a document id + acting user, validate status = 'draft', and return the created `journal_entry_id`.
+All functions run in one transaction, take a document id, **derive the actor from `auth.uid()` (never a parameter — a caller-supplied uuid would let a `user` act as admin)**, validate status = 'draft', and return the created `journal_entry_id`. `REVOKE EXECUTE … FROM public, anon; GRANT EXECUTE … TO authenticated` on every one.
 
 ```
 next_doc_no(p_series text, p_date date) RETURNS text
   -- SELECT ... FOR UPDATE on doc_sequences; gapless per FY series
-post_sales_invoice(p_invoice_id uuid, p_actor uuid) RETURNS uuid
+post_sales_invoice(p_invoice_id uuid, p_override_credit bool DEFAULT false) RETURNS uuid
   -- validates party/lines; determines CGST+SGST vs IGST from place_of_supply vs org.state_code;
   -- journal: Dr AR(party) grand_total · Cr sales income per category · Cr output tax · Dr/Cr round_off
   -- + Dr COGS / Cr Inventory at weighted-avg cost; stock_movements OUT per line;
   -- sets status='posted', journal_entry_id, snapshots verified
-post_purchase_invoice(p_invoice_id uuid, p_actor uuid) RETURNS uuid
+post_purchase_invoice(p_invoice_id uuid) RETURNS uuid
   -- Dr Inventory taxable · Dr input tax (if itc_eligible) · Cr AP(party); stock IN at cost;
   -- weighted avg recalc: new_avg = (on_hand_value + line_value) / (on_hand_qty + qty)
-post_payment(p_payment_id uuid, p_actor uuid) RETURNS uuid
+post_payment(p_payment_id uuid) RETURNS uuid
   -- receipt: Dr cash/bank · Cr AR(party) (+ Dr discount_allowed if discount>0); payment: mirrored
 post_credit_note / post_debit_note
   -- proportional reversal of revenue+tax; stock back IN at original issue cost
-post_expense_voucher(p_voucher_id uuid, p_actor uuid) RETURNS uuid
+post_expense_voucher(p_voucher_id uuid) RETURNS uuid
   -- generic Dr expense/advance lines · Cr cash/bank/salary_payable; employee advances hit
   --   employee_advance control with party_id; RCM lines additionally Cr rcm_payable + Dr input tax
-cancel_document(p_source_type source_type, p_source_id uuid, p_actor uuid) RETURNS uuid
+cancel_document(p_source_type source_type, p_source_id uuid, p_reason text) RETURNS uuid
   -- posts a mirror-image reversal entry + opposite stock movements; original keeps its number;
   -- sets status='cancelled', links reversed_by
 stock_on_hand(p_item uuid, p_warehouse uuid) RETURNS TABLE(qty numeric, value numeric, avg_rate numeric)
@@ -228,3 +228,70 @@ Lists paginate by keyset (`(date, id)` cursors), 50 rows per page. Views stay pl
 #### Scenario: day close records the difference
 - WHEN counted cash is ₹200 short of expected
 - THEN `day_closes.difference = -200`, a journal entry Dr Cash over/short 200 · Cr Cash 200 exists, and tomorrow's `v_attention` lists it
+
+## Requirement: Implementation clarifications (pre-implementation audit, 2026-09-16)
+
+Resolutions for gaps found while auditing changes 03–18 against this spec. Each is binding; the change named owns the migration.
+
+### Actor and grants (all `post_*`/`cancel_*`, change 03 onward)
+Actor = `auth.uid()`; `RAISE 'DN_FORBIDDEN'` when null or not an active `app_users` row with the required role. Functions are `SECURITY DEFINER`, `SET search_path = public, pg_temp`, `REVOKE EXECUTE FROM public, anon`, `GRANT EXECUTE TO authenticated`. `audit_log.actor` = that uid.
+
+### Numbering (change 03)
+`next_doc_no(p_series text, p_date date) RETURNS text`: `fy_label` derived from the date with April start (`'2026-27'`); if no `doc_sequences` row exists for (series, fy_label) it is created with `prefix = series || '/' || 'YY-YY' || '/'` and `next_no = 1`; row locked with `FOR UPDATE`; result = `prefix || lpad(next_no, 4, '0')` (e.g. `DN/26-27/0347`); `next_no` incremented in the same statement. Never called at draft time.
+
+### Tax and rounding (changes 03, 04, 20)
+- Line: `taxable_value = round(qty × rate × (1 − discount_pct/100), 2)`; intra-state (party/place-of-supply state = org state): `cgst_amt = sgst_amt = round(taxable × gst_rate/200, 2)`, `igst_amt = 0`; inter-state: `igst_amt = round(taxable × gst_rate/100, 2)`.
+- Header totals = Σ lines. `grand_total = round(taxable_total + tax totals, 0)`; `round_off = grand_total − unrounded sum` (range −0.50…+0.49) posted to `round_off`: Dr when negative, Cr when positive.
+- The function overwrites header totals with its own computation; client-submitted totals are ignored.
+
+### Income and stock accounts by item (change 03)
+Add `system_key` to seeded accounts via `UPDATE accounts SET system_key = …` in change 03's migration: `'sales_cement'` (4100), `'sales_steel'` (4200), `'sales_other'` (4300), `'freight_recovered'` (4400), `'discount_received'` (4500), `'salaries'` (5500), `'godown_rent'` (5400). Sales line income account = by `items.category` (cement/steel/other). Add `items.is_stock bool NOT NULL DEFAULT true`; non-stock items (freight, loading charges billed to customer) post to `freight_recovered` and create **no** stock movement; they carry the goods' GST rate (composite supply) — the UI defaults it, the function trusts the line's snapshotted `gst_rate`.
+
+### Warehouse on documents (change 03)
+Add `warehouse_id uuid NOT NULL REFERENCES warehouses` to `sales_invoices` and `purchase_invoices` (default = `warehouses.is_default` at draft creation, set by the action). Stock movements use it. Challans, transfers, adjustments carry their own.
+
+### COGS and weighted average (change 03)
+`stock_on_hand(item, warehouse)` = Σqty, Σvalue over movements; `avg_rate = round(Σvalue/Σqty, 4)` (0 when qty = 0). Sale movement: `rate = avg_rate`, `value = round(qty × rate, 2)`, qty negative. Purchase movement: `rate = line taxable_value/qty` (+ tax when `itc_eligible = false`), value positive. `DN_NEGATIVE_STOCK` when resulting on-hand < 0 unless `organization.allow_negative_stock` is true (add that column, default false; admin toggles it in Settings) **and** the actor is admin.
+
+### Credit limit (change 03)
+If `parties.credit_limit > 0` and current AR balance (from journal lines on `ar` for the party) + `grand_total` > `credit_limit`: `RAISE 'DN_CREDIT_LIMIT'` unless `p_override_credit` and actor is admin. The override is audit-logged with `after.override = true`.
+
+### Walk-in customer (change 03 seed)
+Seed one party: `name = 'Cash / Walk-in customer'`, `type = 'customer'`, `state_code = '37'`, `gstin NULL`, `credit_limit = 0`, plus `parties.is_walk_in bool DEFAULT false` set true on it. Cash sales are a normal invoice to this party followed by a receipt; the UI offers "Post & receive cash" which calls both functions in sequence (two transactions; the second failing leaves a posted unpaid invoice, which is correct).
+
+### Stock adjustments (change 05 — table was missing)
+`stock_adjustments`: `adj_no text UNIQUE, adj_date, warehouse_id, status doc_status, reason text, journal_entry_id` + `stock_adjustment_lines: adjustment_id, item_id, item_name (snapshot), qty NUMERIC(12,3) signed, rate NUMERIC(14,4) NULL /* NULL = use avg */`. `post_stock_adjustment(id)`: admin only; Dr `stock_loss` / Cr `inventory` for negative qty at avg rate, reverse for positive at the given rate (or avg). Series `ADJ`.
+
+### Enum extensions (change 05)
+`ALTER TYPE … ADD VALUE` for `delivery_challan`, `stock_transfer`, `quotation`, `day_close` goes in its **own migration file** before the one that uses the values (a value added inside a transaction cannot be used in that transaction). Add `stock_adjustment` is already present.
+
+### Transit for transfers (change 05)
+Model in-transit stock as a seeded system warehouse `name = 'In Transit'`, `warehouses.is_transit bool DEFAULT false` set true; hidden from pickers. `post_stock_transfer` moves OUT of source / IN to transit at the source avg rate; `receive_stock_transfer(id)` moves OUT of transit / IN to destination at the same rate. No journal entry.
+
+### Challan → invoice (change 05 + 03 hook)
+Add `sales_invoices.challan_id uuid NULL REFERENCES delivery_challans`. When set, `post_sales_invoice` posts COGS as Dr `cogs` / Cr `goods_in_transit` (no new stock movement) and marks the challan `invoice_id`. Lines must match the challan's items and quantities (`DN_VALIDATION:challan_mismatch` otherwise).
+
+### RCM freight (change 04)
+RCM freight is **not** a purchase-invoice line. The purchase form's freight block creates a linked `expense_vouchers` row (`party_id` = lorry owner, line account `freight_inward`, `rcm = true`, `purchase_invoice_id` reference column added to `expense_vouchers`). `post_expense_voucher` on an RCM line additionally posts Cr `rcm_payable` 5% and Dr `input_cgst`/`input_sgst` 2.5% each (intra-state GTA) — ITC on RCM is claimable in the month the tax is paid; the 3B view handles timing, the posting does not.
+
+### Payment allocations (change 04)
+Trigger on `payment_allocations`: Σ amount per payment ≤ `payments.amount`; each allocation ≤ that invoice's open amount (grand_total − prior allocations − credit notes against it); `invoice_type` ∈ (`'sales_invoice'`,`'purchase_invoice'`) and must match `payments.direction` (receipt → sales, payment → purchase). Unallocated remainder is simply AR/AP balance with no allocation row ("on account").
+
+### Payments: discount and cheques (change 04)
+Receipt with `discount > 0`: Dr `discount_allowed`; payment with discount: Cr `discount_received`. Cheque receipt: Dr `cheques_in_hand` (add system_key + account 1130 in change 04) instead of bank; `deposit_cheque(id)`: Dr bank / Cr cheques_in_hand, status `deposited`; `mark_cheque_cleared(id)`: status only; `bounce_cheque(id, p_reason)`: admin; reversal entry of the receipt (or of the deposit + receipt if deposited), allocations deleted, status `bounced`. Cheque payment: Cr bank at post, status `issued`; `presented` is informational.
+
+### Salaries, advances, wages (change 04)
+One voucher, one entry, employee ledger via control accounts only (the party rule forbids `party_id` on expense accounts):
+- Advance: Dr `employee_advance` (party) / Cr cash|bank. `user` role limit ₹5,000 per voucher (`DN_FORBIDDEN` above).
+- Salary for month M: Dr `salaries` gross; Cr `salary_payable` (party) gross; Dr `salary_payable` (party) gross; Cr `employee_advance` (party) recovered; Cr cash|bank net. Recovered = min(advance balance, gross) unless the voucher specifies less.
+- Daily wages for a named worker: same shape with gross = days × rate through `salary_payable`, expense account `loading_unloading`. Unnamed casual hamali: Dr `loading_unloading` / Cr cash, no party.
+`v_employee_ledger` = lines on `employee_advance` + `salary_payable` for the party.
+
+### Views (change 06)
+All views `WITH (security_invoker = true)` so base-table RLS applies. Admin-only views (`v_pnl`, `v_balance_sheet`, `v_trial_balance`) add `WHERE current_app_role() = 'admin'` so a `user` sees zero rows rather than an error. Views take no parameters: they expose `entry_date`/`month` columns and the app filters. `v_party_balances.balance` sign: positive = party owes us (AR) or we owe them (AP) per `type`; `v_party_aging` buckets from open sales invoices (grand_total − allocations − credit notes), on-account receipts shown as a separate `unallocated` column, not netted into buckets. `v_stock_summary` and `v_stock_ledger` exclude the transit warehouse unless asked.
+
+### Opening balances (change 17)
+`post_opening_balances(p_date)`: admin; one journal entry `source_type = 'opening'` with AR/AP lines per party (party rule), cash/bank, and the balancing line to an equity account `'opening_balance_equity'` (add system_key + account 3900); opening stock = stock_movements `'opening'` per item/warehouse at given rate + Dr `inventory` / Cr `opening_balance_equity`. Fiscal periods for the opening month must exist (change 02 rule).
+
+### Masters write policies (change 09)
+Admin: INSERT/UPDATE on all masters. `user`: INSERT/UPDATE on `parties` and `party_addresses` only (walk-in and new site customers at the counter), no DELETE anywhere; deactivation is `is_active = false`. `organization`, `accounts`, `items`, `warehouses`, `fiscal_periods`, `doc_sequences`: admin only. `app_users`: no client writes; invites/disable go through a `SECURITY DEFINER` function `admin_set_user(p_user_id, p_role, p_active)` that checks the caller is admin and enforces ≤ 10 active.
