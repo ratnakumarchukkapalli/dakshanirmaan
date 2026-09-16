@@ -4,7 +4,7 @@ Written for: the implementing model (Sonnet by default; Opus for the posting eng
 
 Hosted project: `daksha-nirmaan` (`dcmgbkugdyxsjvkirmft`, ap-south-1, Postgres 17, Supabase Free). Linked via CLI; `supabase start` runs the local stack for every change; `supabase db push` to hosted only after local pgTAP passes.
 
-Each change below is one folder `openspec/changes/<id>-<slug>/` containing `proposal.md` (scope, spec sections, acceptance scenarios, brief) and, once merged, `implementation-notes.md`. Archive to `openspec/changes/archive/` after the pitch + quiz pass (see `openspec/project.md`). **Do not start before Ratna says "start".**
+Each change below is one folder `openspec/changes/<id>-<slug>/` containing `proposal.md` (scope, spec sections, acceptance scenarios, brief) and, once merged, `implementation-notes.md`. Archive to `openspec/changes/archive/` after the pitch + quiz pass (see `openspec/project.md`). **Started 2026-09-16 (Ratna authorised).**
 
 ## Rules for every change
 
@@ -32,7 +32,7 @@ Each change below is one folder `openspec/changes/<id>-<slug>/` containing `prop
 | 13 | `parties-stock-staff-ui` — party ledger (site chips, ageing tiles, statement exports), stock summary/ledger + adjustment/transfer modals, staff ledger + voucher modals | Sonnet | daksh-ui | frontend: parties/stock/staff | ledger rows Enter-activatable; 390 px |
 | 14 | `dashboard` — tiles, chart (steel/cement tokens), attention list from `v_attention`, quick actions | Sonnet | daksh-ui | frontend: dashboard; dataviz palette already validated | both themes; tooltip; legend |
 | 15 | `reports-p1` — day close screen, day book, ageing (with interest column), stock, cash & bank book; Excel exports (exceljs) | Sonnet | daksh-ui + daksh-api | frontend: reports; api: route handlers | ageing totals = AR control balance |
-| 16 | `ops` — CI (typecheck, lint, pgTAP, Playwright smoke, bundle grep), weekly dump workflow, RUNBOOK.md, Sentry | Sonnet | daksh-api | security-deployment: Production topology, Dependencies & CI | "backup actually restores" (drill on staging) |
+| 16 | `ops` — CI (typecheck, lint, pgTAP, Playwright smoke, bundle grep), **daily** encrypted dump workflow to family Drive, RUNBOOK.md, Sentry | Sonnet | daksh-api | security-deployment: Production topology, Dependencies & CI | "backup actually restores" (drill into the local stack) |
 | 17 | `cutover` — opening balances + opening stock import (CSV), manual-book series `DNM/`, go-live checklist | Sonnet | daksh-schema | db-architecture: Seed data; security: Rollout steps | trial balance balances after import |
 
 ## Phase 2 — accountant-ready
