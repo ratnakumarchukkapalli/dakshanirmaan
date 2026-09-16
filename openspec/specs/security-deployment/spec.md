@@ -82,7 +82,7 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 
 | Layer | Choice | Why / what it costs us |
 |---|---|---|
-| Database/Auth/Storage | **Supabase Free** — project `daksha-staging` in the existing org next to `expenses-app`, region **ap-south-1 (Mumbai)**; it is also production at go-live (rename to `daksha-prod` then) | Free = 500 MB DB (the business grows ≈ 50–100 MB/yr), 1 GB storage, 50k MAU, **no vendor backups**, **pauses after 7 idle days**. Backups are ours: **daily** `pg_dump` via GitHub Actions → age-encrypted → family Google Drive (see below). Pausing is not a risk for a shop that bills daily; un-pause is one click. Upgrade to Pro ($25/mo per org, includes one Micro) only if the owner later wants vendor-managed backups or a pause ever hurts. PITR ($100/mo) never. |
+| Database/Auth/Storage | **Supabase Free** — single project **`daksha-prod`** in the existing org next to `expenses-app`, region **ap-south-1 (Mumbai)**; there is no hosted staging | Free = 500 MB DB (the business grows ≈ 50–100 MB/yr), 1 GB storage, 50k MAU, **no vendor backups**, **pauses after 7 idle days**. Backups are ours: **daily** `pg_dump` via GitHub Actions → age-encrypted → family Google Drive (see below). Pausing is not a risk for a shop that bills daily; un-pause is one click. Upgrade to Pro ($25/mo per org, includes one Micro) only if the owner later wants vendor-managed backups or a pause ever hurts. PITR ($100/mo) never. |
 | Staging | Local Supabase stack (Docker) for every change; the hosted project receives migrations only after local pgTAP passes | Two free projects per org are allowed; a second hosted project is added only if local rehearsal proves insufficient. |
 | App hosting | **Vercel Hobby during the build**; **at go-live either Vercel Pro ($20/mo, 1 seat) or a free host that permits commercial use** — owner decides then | Vercel's fair-use rule: Hobby is "non-commercial personal use only"; commercial = "used for the purpose of financial gain of anyone involved in any part of the production". An internal billing tool for a for-profit shop is a grey area their examples don't cover (no visitor payments, no ads, nobody paid to build it). The risk of staying on Hobby is an unannounced deployment pause, mitigated by the PWA read-only cache and the manual invoice book, but not eliminated. Region `bom1` either way. |
 | Domain | `dakshanirmaantraders.in` ≈ ₹800–1,000/yr; registrar lock + auto-renew + DNSSEC | Email DNS (SPF `-all`, DMARC `p=reject`) from day one. |
@@ -95,7 +95,7 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 **Personal-data boundary (non-negotiable):** the business never shares a Supabase *project* with `expenses-app` (personal finances). Same org is fine; same database is not.
 
 ### Environments and promotion
-- `local` (supabase CLI, docker; every change rehearses here with pgTAP) → `hosted` (`daksha-staging`, Supabase Free, Mumbai; becomes production at go-live). A separate hosted staging project is added only if a real need appears.
+- `local` (supabase CLI, docker; every change rehearses here with pgTAP) → `production` (`daksha-prod`, Supabase Free, Mumbai). A separate hosted staging project is added only if a real need appears.
 - Migrations: `supabase db push` to the hosted project is a manual, approved GitHub Actions job (or `supabase db push` from a developer machine before go-live) that first runs the dump workflow.
 - Vercel env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (per environment), `SUPABASE_SERVICE_ROLE_KEY` (server-only, production + preview separately), `SENTRY_DSN`. CI greps the `.next` output for the service key on every build.
 
@@ -106,7 +106,7 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 - API: PostgREST `db-schema = public` only; `max_rows = 1000`; the ledger tables have no grants to `anon`/`authenticated` beyond SELECT via policies.
 
 ### Rollout steps (first deploy)
-1. Register domain; set registrar lock, auto-renew, DNSSEC. 2. Create `daksha-staging` (Free) and `daksha-prod` (Pro, Mumbai). 3. Apply migrations + seed CoA to staging; run pgTAP. 4. Connect GitHub repo to Vercel; set env vars per environment; add domain; enable HSTS preload after first successful TLS. 5. Promote migrations to prod; provision the admin accounts (dad, babai, Ratna) and the counter user; enforce TOTP. 6. Import opening balances and opening stock (see `openspec/changes/` cutover plan). 7. First weekly dump runs; do a restore drill into staging before go-live.
+1. Register domain; set registrar lock, auto-renew, DNSSEC. 2. Create `daksha-prod` (Free, Mumbai). 3. Apply migrations + seed CoA locally; run pgTAP; then push to `daksha-prod`. 4. Connect GitHub repo to Vercel; set env vars per environment; add domain; enable HSTS preload after first successful TLS. 5. Promote migrations to prod; provision the admin accounts (dad, babai, Ratna) and the counter user; enforce TOTP. 6. Import opening balances and opening stock (see `openspec/changes/` cutover plan). 7. First weekly dump runs; do a restore drill into staging before go-live.
 
 #### Scenario: preview never touches production data
 - WHEN a pull request deploys a Vercel preview
