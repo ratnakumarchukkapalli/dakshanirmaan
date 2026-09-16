@@ -1,0 +1,22 @@
+# env / secrets
+.env
+.env.*
+!.env.example
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+# supabase local
+supabase/.branches/
+supabase/.temp/
+# test artefacts
+playwright-report/
+test-results/
+coverage/
+# implementation scratch
+implementation-notes.local.md
