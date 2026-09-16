@@ -218,7 +218,7 @@ Supabase Postgres
 
 ---
 
-## 6. Build phases
+## 6. Build phases (overview — the binding, ordered plan is `openspec/changes/README.md`)
 
 | Phase | Scope | Outcome |
 |---|---|---|

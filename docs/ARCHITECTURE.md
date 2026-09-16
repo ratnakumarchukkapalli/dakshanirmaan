@@ -10,7 +10,7 @@ Written for: the engineer (or model) implementing the app from the specs. `docs/
 | ~50–100 documents/day, ≤ 50k journal lines/year | Every report is a plain SQL view; no caches, no materialisation, no search engine. |
 | Money is real; data loss is unacceptable | Correctness > latency. Invariants live in the database, not the app. Backups are off-platform. |
 | Owners use phones at the godown | PWA, mobile-first surface, read-only offline glance. |
-| Budget ≈ $50/month, no per-user fees | Vercel Pro + Supabase Pro. Nothing else recurring. |
+| Budget ≈ $0–20/month, no per-user fees | Supabase Free (Mumbai) with our own daily encrypted dumps; Vercel Hobby while building, plan decided at go-live. Nothing else recurring. |
 
 The temptation with "best system design" is to add layers. For this scale the best design is the one with the fewest places a bug can hide: **one database that enforces the books, one stateless app that renders them.**
 
@@ -29,7 +29,7 @@ The temptation with "best system design" is to add layers. For this scale the be
                      └───────┬─────────────────────┬────────┘
                              │ HTTPS (anon key + user JWT)│ service key (server only: storage signing, invites)
                      ┌───────▼─────────────────────▼────────┐
-                     │  Supabase project daksha-prod (ap-south-1)
+                     │  Supabase project daksha-nirmaan (dcmgbkugdyxsjvkirmft, ap-south-1, Free)
                      │  ┌ Postgres ────────────────────────┐ │
                      │  │ documents (drafts, editable)     │ │
                      │  │ post_* plpgsql SECURITY DEFINER  │ │  ← the only writer of the ledger
@@ -40,13 +40,13 @@ The temptation with "best system design" is to add layers. For this scale the be
                      │  Auth (email OTP, TOTP for admin, signup off)
                      │  Storage bucket `docs` (private, signed URLs)
                      └───────────────────────────────────────┘
-                             │ weekly pg_dump (GitHub Actions cron)
+                             │ daily pg_dump (GitHub Actions cron, age-encrypted)
                      ┌───────▼───────────────────────────────┐
                      │  Family-owned encrypted backup folder  │  ← survives losing Supabase
                      └───────────────────────────────────────┘
 ```
 
-Staging is an identical, free-tier Supabase project bound to Vercel preview deployments. Sentry receives errors from both tiers.
+There is no hosted staging: every change is rehearsed on the local Supabase stack (Docker) with pgTAP before `supabase db push` to the one hosted project. Vercel preview deployments use a read-only database role. Sentry receives errors from production.
 
 ## 3. The three write paths (and there are only three)
 
@@ -100,7 +100,7 @@ Party balances are journal lines on the AR/AP/employee control accounts filtered
 |---|---|
 | Vercel down | PWA shell serves cached dashboard/balances read-only; billing continues from the manual book (`DNM/` series). Redeploy elsewhere from Git in hours. |
 | Supabase down | Same as above; nothing is lost because nothing is cached for write. |
-| Supabase account lost | Restore last weekly dump into any Postgres; quarterly drill proves it. |
+| Supabase account lost | Restore last daily dump into any Postgres; quarterly drill into the local stack proves it. |
 | Two users post simultaneously | `next_doc_no` row lock serialises numbering; no gaps, no duplicates. |
 | Stale draft edit | `updated_at` check → `conflict` envelope; user reloads. |
 | Wrong posting discovered | Cancel → reversal entry; original number retained (GST). |
@@ -112,4 +112,4 @@ Multi-tenant org switching · separate API server · message queue · Redis · f
 
 ## 9. Delivery mechanics
 
-Monorepo-free single Next.js repo on GitHub. CI: typecheck, lint, unit (format helpers, zod), pgTAP (posting invariants) against a throwaway Supabase local DB, Playwright smoke (login → draft → post → ledger), service-key bundle grep, `npm audit`. Migrations promote local → staging → production; production push is a manual approved job that takes a backup first. Build order and per-change briefs: `openspec/changes/README.md`.
+Monorepo-free single Next.js repo on GitHub. CI: typecheck, lint, unit (format helpers, zod), pgTAP (posting invariants) against a throwaway Supabase local DB, Playwright smoke (login → draft → post → ledger), service-key bundle grep, `npm audit`. Migrations promote local → production; the production push is a manual approved job that runs the dump first. Build order and per-change briefs: `openspec/changes/README.md`.
