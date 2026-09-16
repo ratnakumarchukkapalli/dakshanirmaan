@@ -23,7 +23,7 @@ CREATE TYPE app_role       AS ENUM ('admin','user');
 The schema SHALL contain the following tables. All tables get `id UUID PK DEFAULT gen_random_uuid()`, `created_at timestamptz DEFAULT now()`; document tables also get `created_by UUID REFERENCES auth.users`.
 
 ### organization (single row)
-`legal_name, trade_name, gstin CHAR(15), state_code CHAR(2), address jsonb, fy_start_month int DEFAULT 4, einvoice_enabled bool DEFAULT false`
+`singleton bool NOT NULL DEFAULT true UNIQUE CHECK (singleton)` enforces at most one row; `legal_name, trade_name, gstin CHAR(15), state_code CHAR(2), address jsonb, fy_start_month int DEFAULT 4, einvoice_enabled bool DEFAULT false`
 
 ### accounts
 `code text UNIQUE, name, type account_type, parent_id UUID REFERENCES accounts, is_group bool DEFAULT false, is_control bool DEFAULT false, system_key text UNIQUE NULL`
@@ -44,7 +44,7 @@ The schema SHALL contain the following tables. All tables get `id UUID PK DEFAUL
 `year_label text /* '2026-27' */, month date /* first of month */, is_locked bool DEFAULT false, UNIQUE(month)`
 
 ### doc_sequences
-`doc_type source_type, fy_label text, prefix text, next_no int DEFAULT 1, UNIQUE(doc_type, fy_label)`
+`series text /* 'DN','PB','CN','DB','RCPT','PAY','EXP'; later 'DC','GT','ADJ' */, doc_type source_type, fy_label text, prefix text, next_no int DEFAULT 1, UNIQUE(series, fy_label)`
 
 ### journal_entries
 `entry_no bigserial, entry_date date, narration text, source_type source_type, source_id UUID, status doc_status DEFAULT 'posted', reversed_by UUID NULL REFERENCES journal_entries, posted_by UUID, posted_at timestamptz`
@@ -56,13 +56,15 @@ The schema SHALL contain the following tables. All tables get `id UUID PK DEFAUL
 `item_id FK, warehouse_id FK, movement_date date, qty NUMERIC(12,3) /* signed: + in, − out, base UOM */, rate NUMERIC(14,4), value NUMERIC(14,2), source_type source_type, source_id UUID`
 
 ### Documents
+All document header tables carry `updated_at timestamptz` (maintained by trigger) for draft conflict detection, and both roles may DELETE drafts and their lines.
+
 **sales_invoices**: `invoice_no text UNIQUE, invoice_date date, party_id FK, billing_address jsonb, shipping_address jsonb, place_of_supply CHAR(2), status doc_status DEFAULT 'draft', taxable_total, cgst_total, sgst_total, igst_total, round_off NUMERIC(6,2), grand_total /* all NUMERIC(14,2) */, journal_entry_id UUID NULL, vehicle_no text, transporter_name text, transporter_gstin text, transport_mode text, distance_km int, ewb_no text, ewb_date date, ewb_valid_until timestamptz, irn text, irn_ack_no text, irn_ack_date timestamptz, signed_qr text`
 
 **sales_invoice_lines**: `invoice_id FK ON DELETE CASCADE, line_no, item_id FK, item_name text, hsn_code text, uom text, qty NUMERIC(12,3), alt_qty NUMERIC(12,3) NULL, rate NUMERIC(14,4), discount_pct NUMERIC(5,2) DEFAULT 0, taxable_value, gst_rate NUMERIC(5,2), cgst_amt, sgst_amt, igst_amt /* NUMERIC(14,2) */` — snapshot columns, never joined to `items` for display of posted docs.
 
 **purchase_invoices / purchase_invoice_lines**: mirror of sales plus `supplier_bill_no text, supplier_bill_date date, rcm bool DEFAULT false, itc_eligible bool DEFAULT true`.
 
-**credit_notes / debit_notes** (+ lines): same line shape, plus `against_invoice_id UUID NULL, reason text`.
+**credit_notes / debit_notes** (+ lines): same line shape, plus `against_invoice_id UUID NULL, reason text` — `credit_notes.against_invoice_id` references `sales_invoices`, `debit_notes.against_invoice_id` references `purchase_invoices`.
 
 **payments**: `voucher_no text UNIQUE, direction text CHECK (direction IN ('receipt','payment')), payment_date date, party_id FK, mode payment_mode, instrument_no text, instrument_date date, amount NUMERIC(14,2), discount NUMERIC(14,2) DEFAULT 0, account_id FK /* cash or bank ledger */, status doc_status, journal_entry_id UUID`
 
@@ -86,7 +88,7 @@ The schema SHALL contain the following tables. All tables get `id UUID PK DEFAUL
 All functions run in one transaction, take a document id + acting user, validate status = 'draft', and return the created `journal_entry_id`.
 
 ```
-next_doc_no(p_doc_type source_type, p_date date) RETURNS text
+next_doc_no(p_series text, p_date date) RETURNS text
   -- SELECT ... FOR UPDATE on doc_sequences; gapless per FY series
 post_sales_invoice(p_invoice_id uuid, p_actor uuid) RETURNS uuid
   -- validates party/lines; determines CGST+SGST vs IGST from place_of_supply vs org.state_code;
@@ -127,7 +129,7 @@ Views SHALL be plain SQL over base tables — no materialization in v1.
 
 ## Requirement: Seed data
 
-Seed migration SHALL create: default CoA (per DESIGN.md §2.2 with all `system_key` accounts), one warehouse ('Head Godown'), fiscal periods for FY 2026-27, doc_sequences (`DN/26-27/` for sales, `PB`, `CN`, `DB`, `RCPT`, `PAY`, `EXP`), organization placeholder row.
+Seed migration SHALL create: default CoA (per DESIGN.md §2.2 with all `system_key` accounts), one warehouse ('Head Godown'), fiscal periods for FY 2026-27, doc_sequences — seven series for FY 2026-27: `DN` (sales_invoice), `PB` (purchase_invoice), `CN` (credit_note), `DB` (debit_note), `RCPT` (payment, receipts), `PAY` (payment, outgoing), `EXP` (expense_voucher) — organization placeholder row.
 
 #### Scenario: posting a sales invoice keeps books balanced
 - WHEN `post_sales_invoice` runs on a draft intra-state invoice of taxable ₹65,000 at 18% GST
