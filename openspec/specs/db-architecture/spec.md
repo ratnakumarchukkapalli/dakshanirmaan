@@ -337,3 +337,12 @@ Admin: INSERT/UPDATE on all masters. `user`: INSERT/UPDATE on `parties` and `par
 #### Scenario: cancel is blocked by an allocated receipt
 - WHEN `cancel_document` runs on an invoice that a posted receipt is allocated to
 - THEN it raises `DN_HAS_ALLOCATIONS` and nothing changes
+
+## Requirement: Decisions from change 04 review (2026-09-18)
+
+- **Cheque banking is counter work.** `deposit_cheque` and `mark_cheque_cleared` are permitted for `user` as well as `admin` (they move money between our own accounts, or change status only). `bounce_cheque` stays admin (it reverses a receipt).
+- **Issued cheque that bounces:** no dedicated function in Phase 1. The admin cancels the payment via `cancel_document` (reversal) and records a new payment when re-issued. Revisit only if it recurs.
+- **Refunds** (money back to a customer, or from a supplier) are Phase 2: a `payments.direction` value `'refund'` with mirrored posting. Phase 1 handles them as credit/debit notes plus, if cash actually moves, a manual admin journal. Added to feature-roadmap.
+- **Salary period:** add `expense_vouchers.period_month date NULL` (first of month) in change 04's migration; the salary/wage voucher sets it; `v_employee_ledger` groups by it.
+- **Credit limit semantics fixed:** `parties.credit_limit` becomes **nullable**; `NULL = unlimited` (default for new parties), `0 = no credit`. The walk-in party is seeded with 0. `post_sales_invoice` checks `credit_limit IS NOT NULL AND balance + grand_total > credit_limit`. Migration in change 05: alter column, set existing `0` rows to `NULL` except `is_walk_in`.
+- **Cash sale is one transaction:** `post_cash_sale(p_invoice_id uuid, p_account_id uuid) RETURNS uuid` (change 05) posts the invoice and a full-amount receipt allocated to it atomically; the credit-limit check is skipped only inside this path because AR nets to zero before commit. Implement by moving the body of `post_sales_invoice` into an internal `_post_sales_invoice(p_invoice_id, p_skip_credit bool)` with **no grant to any role**; the public `post_sales_invoice` calls it with `false`. Supersedes the two-transaction `postAndReceiveCash` note in api-architecture; the action becomes a single `rpc('post_cash_sale')`.

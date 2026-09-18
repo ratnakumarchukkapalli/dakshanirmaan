@@ -18,6 +18,7 @@ The permanent feature memory of the project. Three lists: (A) parity with the be
 | Chart of accounts + manual journals | ✔ | Spec'd — Phase 1 (manual journal admin-only) |
 | Bank statement reconciliation (CSV import, match receipts) | ✔ | **Spec'd — Phase 2** (bank_statements; prototype v2 screen) |
 | Cheque lifecycle: PDC tracking, bounce reversal | partial | **Spec'd — Phase 1** (cheque_status on payments, bounce_cheque) |
+| Refunds (reverse-direction payment) | ✔ | **Phase 2** — `payments.direction = 'refund'`; Phase 1 uses notes + admin journal |
 | Recurring invoices | ✔ | Skip — not how this trade bills |
 | Quotations/estimates | ✔ | **Spec'd — Phase 2** (quotations table, convert action) |
 | Payment reminders (email/WhatsApp) | ✔ (email) | **Spec'd — Phase 2 lite**: wa.me deep link + signed PDF URL (no Business API) |
