@@ -1,0 +1,140 @@
+{
+  "brand": {
+    "name": "DAKSHA NIRMAAN TRADERS",
+    "tagline": "దక్ష నిర్మాణ్ ట్రేడర్స్ · Cement · Steel · Construction Materials"
+  },
+  "nav": {
+    "main": "Main",
+    "dashboard": "Dashboard",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "payments": "Payments",
+    "parties": "Parties",
+    "stock": "Stock",
+    "staff": "Staff",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "tabs": {
+    "label": "Quick navigation",
+    "home": "Home",
+    "sales": "Sales",
+    "parties": "Parties",
+    "stock": "Stock",
+    "money": "Money"
+  },
+  "topbar": {
+    "fy": "FY {label}",
+    "gstin": "GSTIN",
+    "language": "Switch language to Telugu",
+    "languageTe": "Switch language to English",
+    "theme": "Switch between light and dark theme",
+    "account": "Account menu",
+    "moreScreens": "More screens",
+    "signOut": "Sign out"
+  },
+  "role": {
+    "admin": "Admin",
+    "user": "User"
+  },
+  "screens": {
+    "dashboard": "Dashboard",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "payments": "Payments",
+    "parties": "Parties",
+    "stock": "Stock",
+    "staff": "Staff & salaries",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "placeholder": {
+    "title": "Not built yet",
+    "body": "This screen is on the way. Until then, keep using the manual invoice book."
+  },
+  "login": {
+    "title": "Sign in",
+    "emailHelp": "Enter your work email. We will send you a 6-digit code.",
+    "email": "Email",
+    "sendCode": "Send code",
+    "codeSent": "We sent a 6-digit code to {email}. It works for 10 minutes.",
+    "code": "Code",
+    "signIn": "Sign in",
+    "useOtherEmail": "Use a different email"
+  },
+  "a11y": {
+    "skip": "Skip to main content"
+  },
+  "mfa": {
+    "titleEnroll": "Set up your authenticator app",
+    "titleVerify": "Enter your authenticator code",
+    "enrollHelp": "Owners sign in with a second step. Install an authenticator app (Google Authenticator, Microsoft Authenticator or similar), scan the code, then type the 6 digits it shows.",
+    "verifyHelp": "Open your authenticator app and type the 6-digit code for Daksha Nirmaan.",
+    "startSetup": "Show the QR code",
+    "qrAlt": "QR code to scan with your authenticator app",
+    "cannotScan": "Cannot scan? Type this key into the app instead:",
+    "code": "6-digit code",
+    "confirmSetup": "Confirm and continue",
+    "verify": "Continue",
+    "signOut": "Sign out"
+  },
+  "users": {
+    "title": "Users & roles",
+    "addTitle": "Add a person",
+    "addHelp": "No email is sent. After you add someone, ask them to open the app and sign in with this email address; they will get a code.",
+    "listTitle": "People",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "status": "Status",
+    "added": "Added",
+    "active": "Active",
+    "inactive": "Disabled",
+    "add": "Add person",
+    "disable": "Disable",
+    "enable": "Enable",
+    "you": "You",
+    "enabled": "{name} can sign in again.",
+    "disabled": "{name} can no longer sign in.",
+    "addedNotice": "{email} was added. Ask them to open the app and sign in with this email."
+  },
+  "errors": {
+    "forbidden": "You do not have permission to do this.",
+    "internal": "Something went wrong and nothing was saved. Please try again.",
+    "rate_limited": "Too many tries. Please wait a few minutes and try again.",
+    "code_wrong": "That code did not work. Request a new one and try again.",
+    "mfa_already": "An authenticator app is already set up for this account.",
+    "partial_disable": "The person is disabled in the app, but their sign-in account could not be blocked. Press Disable again.",
+    "partial_enable": "The person is enabled in the app, but their sign-in account could not be unblocked. Press Enable again.",
+    "period_locked": "That month is locked. Ask an owner to unlock it.",
+    "negative_stock": "There is not enough stock for this.",
+    "credit_limit": "This would go over the party's credit limit.",
+    "not_draft": "This is already posted.",
+    "not_posted": "This is not posted, or it is already cancelled.",
+    "has_allocations": "Payments are already allocated to this.",
+    "unbalanced": "The entry does not balance.",
+    "no_period": "There is no accounting month set up for this date.",
+    "validation": {
+      "generic": "Some details are not valid. Please check and try again.",
+      "email": "Enter a valid email address.",
+      "name": "Enter a name (up to 80 characters).",
+      "no_auth_account": "That sign-in account does not exist.",
+      "self_change": "You cannot change or disable your own account. Ask another owner.",
+      "last_admin": "There must always be at least one active owner.",
+      "max_active_users": "There can be at most 10 active people. Disable someone first.",
+      "already_member": "That person is already added.",
+      "no_such_user": "That person was not found.",
+      "users_are_deactivated_not_deleted": "People are disabled, not deleted.",
+      "locale": "Unknown language.",
+      "missing_field": "Some details are missing."
+    },
+    "field": {
+      "email_invalid": "Enter a valid email address.",
+      "code_invalid": "Enter the 6-digit code.",
+      "name_required": "Enter a name.",
+      "name_long": "Name is too long (80 characters at most).",
+      "role_invalid": "Choose a role.",
+      "id_invalid": "That person was not found."
+    }
+  }
+}

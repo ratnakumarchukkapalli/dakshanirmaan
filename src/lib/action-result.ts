@@ -1,0 +1,34 @@
+// The one shape every server action returns (api spec: "Result envelope and errors").
+// Actions never throw to the UI; raw database text never reaches it.
+
+export type ErrorCode =
+  | 'validation' | 'forbidden' | 'period_locked' | 'negative_stock' | 'credit_limit' | 'not_draft'
+  | 'not_posted' | 'has_allocations' | 'unbalanced' | 'conflict' | 'partial' | 'no_period'
+  | 'rate_limited' | 'internal';
+
+export type Failure = { ok: false; error: string; code: ErrorCode };
+export type ActionResult<T = null> = { ok: true; data: T } | Failure;
+
+export const ok = <T = null>(data: T = null as T): ActionResult<T> => ({ ok: true, data });
+export const fail = (code: ErrorCode, error: string): Failure => ({ ok: false, error, code });
+
+const DB_CODES: Record<string, ErrorCode> = {
+  DN_FORBIDDEN: 'forbidden',
+  DN_PERIOD_LOCKED: 'period_locked',
+  DN_NEGATIVE_STOCK: 'negative_stock',
+  DN_CREDIT_LIMIT: 'credit_limit',
+  DN_NOT_DRAFT: 'not_draft',
+  DN_NOT_POSTED: 'not_posted',
+  DN_HAS_ALLOCATIONS: 'has_allocations',
+  DN_UNBALANCED: 'unbalanced',
+  DN_NO_PERIOD: 'no_period',
+};
+
+/** Reads a Postgres `DN_*` RAISE (optionally `DN_VALIDATION:<detail>`) out of an error message. */
+export function parseDbError(message: string | undefined): { code: ErrorCode; detail?: string } {
+  const match = /DN_[A-Z_]+(?::[a-z_]+)?/.exec(message ?? '');
+  if (!match) return { code: 'internal' };
+  const [name, detail] = match[0].split(':');
+  if (name === 'DN_VALIDATION') return { code: 'validation', detail };
+  return { code: DB_CODES[name!] ?? 'internal' };
+}
