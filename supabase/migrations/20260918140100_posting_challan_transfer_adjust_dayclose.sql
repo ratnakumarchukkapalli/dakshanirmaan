@@ -325,6 +325,13 @@ revoke insert, update, delete, truncate on journal_lines    from authenticated, 
 revoke insert, update, delete, truncate on stock_movements  from authenticated, service_role;
 revoke insert, update, delete, truncate on audit_log        from authenticated, service_role;
 
+-- doc_sequences belongs to the same class: it is the counter that makes document numbers
+-- gapless per FY series, and a client that can UPDATE next_no can mint a duplicate invoice
+-- number — a GST-visible defect — or skip a number and break the gapless guarantee. Only
+-- next_doc_no() writes it, and that is SECURITY DEFINER, so numbering is unaffected. SELECT
+-- stays (change 09's masters screen shows the current numbers).
+revoke insert, update, delete, truncate on doc_sequences    from authenticated, service_role;
+
 -- ============================================================
 -- 4. post_delivery_challan
 --    Stock OUT of the challan's warehouse at weighted-average cost; the value parks in

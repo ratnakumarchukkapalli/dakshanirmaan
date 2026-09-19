@@ -17,7 +17,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(177);
+select plan(187);
 
 -- ============================================================
 -- Fixtures
@@ -2309,6 +2309,128 @@ select matches(
   'DN_VALIDATION:allocation_exceeds_invoice',
   'M7: the second draft fails at posting time — two drafts cannot over-settle one invoice'
 );
+
+-- ============================================================
+-- N1: one payment cannot over-settle one invoice by splitting itself across rows.
+-- The reproduction the review found: a 2,360 receipt writing two 1,180 allocations against a
+-- single 1,180 invoice. Both rows used to insert (the cap counted only *posted* payments'
+-- allocations, so a draft's own siblings were invisible) and post_payment used to compare each
+-- row to the open amount on its own, so the invoice ended up 2,360 settled against 1,180 owed —
+-- the party's ledger silently understated by 1,180.
+-- Same discipline as the other allocation tests: real authenticated session, real JWT claims.
+-- ============================================================
+
+create temp table _n1_invoices as
+with x as (
+  insert into sales_invoices (invoice_date, party_id, place_of_supply, status, warehouse_id)
+  select '2026-07-18', customer_id, (select state_code from organization limit 1), 'draft',
+         (select warehouse_id from _warehouse)
+  from _parties returning id
+),
+y as (
+  insert into sales_invoices (invoice_date, party_id, place_of_supply, status, warehouse_id)
+  select '2026-07-18', customer_id, (select state_code from organization limit 1), 'draft',
+         (select warehouse_id from _warehouse)
+  from _parties returning id
+),
+w as (
+  insert into sales_invoices (invoice_date, party_id, place_of_supply, status, warehouse_id)
+  select '2026-07-18', customer_id, (select state_code from organization limit 1), 'draft',
+         (select warehouse_id from _warehouse)
+  from _parties returning id
+)
+select (select id from x) as inv_x, (select id from y) as inv_y, (select id from w) as inv_w;
+grant select on _n1_invoices to authenticated;
+
+insert into sales_invoice_lines
+  (invoice_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, taxable_value, gst_rate)
+select inv_x, 1, sitem, 'Sale Item', '0000', 'pcs', 10, 100, 0, 18 from _n1_invoices, _items;
+insert into sales_invoice_lines
+  (invoice_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, taxable_value, gst_rate)
+select inv_y, 1, sitem, 'Sale Item', '0000', 'pcs', 10, 100, 0, 18 from _n1_invoices, _items;
+insert into sales_invoice_lines
+  (invoice_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, taxable_value, gst_rate)
+select inv_w, 1, sitem, 'Sale Item', '0000', 'pcs', 10, 100, 0, 18 from _n1_invoices, _items;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+select lives_ok(format('select post_sales_invoice(%L)', (select inv_x from _n1_invoices)),
+  'N1 fixture: invoice X of Rs 1,180 posts');
+select lives_ok(format('select post_sales_invoice(%L)', (select inv_y from _n1_invoices)),
+  'N1 fixture: invoice Y of Rs 1,180 posts');
+select lives_ok(format('select post_sales_invoice(%L)', (select inv_w from _n1_invoices)),
+  'N1 fixture: invoice W of Rs 1,180 posts');
+reset role;
+set local request.jwt.claims to '';
+
+create temp table _n1_receipt as
+with pay as (
+  insert into payments (direction, payment_date, party_id, mode, amount, account_id, status)
+  select 'receipt', '2026-07-18', customer_id, 'cash', 2360, (select cash from _accounts), 'draft'
+  from _parties returning id
+)
+select id as payment_id from pay;
+grant select on _n1_receipt to authenticated;
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+select lives_ok(
+  $$ insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
+     select payment_id, 'sales_invoice', (select inv_x from _n1_invoices), 1180
+     from _n1_receipt $$,
+  'N1: the receipt may settle invoice X in full');
+
+select set_config('pgtap_test.raised_msg', '', false);
+do $$ begin
+  insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
+  select payment_id, 'sales_invoice', (select inv_x from _n1_invoices), 1180 from _n1_receipt;
+exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
+select matches(
+  current_setting('pgtap_test.raised_msg', true),
+  'DN_VALIDATION:allocation_exceeds_invoice',
+  'N1: a second allocation from the SAME receipt to the SAME invoice is refused at insert');
+
+-- Splitting the same pair into amounts that each fit under the cap is refused too, by the
+-- unique constraint: one payment settles one invoice through exactly one row.
+select set_config('pgtap_test.raised_msg', '', false);
+do $$ begin
+  insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
+  select payment_id, 'sales_invoice', (select inv_w from _n1_invoices), 100 from _n1_receipt;
+  insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
+  select payment_id, 'sales_invoice', (select inv_w from _n1_invoices), 100 from _n1_receipt;
+exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
+select matches(
+  current_setting('pgtap_test.raised_msg', true),
+  'payment_allocations_payment_invoice_key',
+  'N1: two rows for the same (payment, invoice) pair are refused by the unique constraint');
+
+-- The positive half: one payment settling two DIFFERENT invoices is ordinary business.
+select lives_ok(
+  $$ insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
+     select payment_id, 'sales_invoice', (select inv_y from _n1_invoices), 1180
+     from _n1_receipt $$,
+  'N1: the same receipt may settle a different invoice as well');
+reset role;
+set local request.jwt.claims to '';
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+select lives_ok(format('select post_payment(%L)', (select payment_id from _n1_receipt)),
+  'N1: a receipt allocated across two different invoices posts');
+reset role;
+set local request.jwt.claims to '';
+
+select is(
+  (select count(*)::int from payment_allocations
+   where payment_id = (select payment_id from _n1_receipt)),
+  2,
+  'N1: exactly two allocation rows survived — one per invoice');
+
+select is(
+  (select coalesce(sum(amount), 0) from payment_allocations
+   where invoice_type = 'sales_invoice' and invoice_id = (select inv_x from _n1_invoices)),
+  1180::numeric(14,2),
+  'N1: invoice X is settled 1,180 against 1,180 owed, not 2,360');
 
 -- M8 / M9: reverse charge.
 create temp table _m8_purchase as

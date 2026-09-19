@@ -14,7 +14,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(194);
+select plan(196);
 
 -- ============================================================
 -- Fixtures
@@ -2533,6 +2533,34 @@ select matches(
   current_setting('pgtap_test.raised_msg', true),
   'permission denied',
   'service_role cannot rewrite the audit log'
+);
+
+-- doc_sequences is the numbering counter: a client that can move next_no can mint a duplicate
+-- invoice number or open a gap in a GST-reported series. next_doc_no() is SECURITY DEFINER, so
+-- taking the grant away costs numbering nothing.
+select set_config('pgtap_test.raised_msg', '', false);
+set local role authenticated;
+do $$ begin
+  update doc_sequences set next_no = next_no + 100;
+exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
+reset role;
+select matches(
+  current_setting('pgtap_test.raised_msg', true),
+  'permission denied',
+  'an authenticated session cannot move a document-number counter'
+);
+
+select set_config('pgtap_test.raised_msg', '', false);
+set local role service_role;
+do $$ begin
+  insert into doc_sequences (series, doc_type, fy_label, prefix, next_no)
+  values ('FAKE', 'sales_invoice', '2026-27', 'FAKE/', 1);
+exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
+reset role;
+select matches(
+  current_setting('pgtap_test.raised_msg', true),
+  'permission denied',
+  'not even service_role can add a document-number series by hand'
 );
 
 select set_config('pgtap_test.raised_msg', '', false);

@@ -94,6 +94,17 @@ revoke all on function public.is_money_account(uuid)
 -- 2. payment_allocations: cap trigger + the write policies the app needs
 -- ============================================================
 
+-- One payment settles a given invoice once, for one amount (N1). Two rows for the same pair are
+-- never a business fact — they are a double-submit or a retry — and they were the cheapest way
+-- to over-settle an invoice, because each row was validated against the invoice on its own.
+-- Every internal writer (post_cash_sale, change 12's AllocationGrid) already writes one row per
+-- pair and adjusts it by UPDATE, so nothing legitimate loses a capability here; the constraint
+-- just makes the arithmetic in the cap trigger and post_payment impossible to sidestep by
+-- splitting an amount across rows.
+alter table payment_allocations
+  add constraint payment_allocations_payment_invoice_key
+  unique (payment_id, invoice_type, invoice_id);
+
 -- SECURITY DEFINER (review finding B1): the trigger fires as the role doing the INSERT, and
 -- every table it reads to enforce the caps — payments, sales_invoices, purchase_invoices,
 -- credit_notes — is RLS-protected. Under an ordinary authenticated session a row the policy
@@ -182,17 +193,23 @@ begin
     raise exception 'DN_VALIDATION:allocation_party_mismatch';
   end if;
 
-  -- Cap 2: each allocation <= that invoice's open amount
-  -- (grand_total - prior allocations - credit/debit notes against it).
-  -- Only allocations belonging to a *posted* payment consume the open amount (M7, owner
-  -- decision): a draft receipt is a plan, not money, and two operators drafting receipts
-  -- against the same invoice must both be able to save. post_payment re-validates every
-  -- allocation under lock at posting time, which is where the race is actually resolved.
+  -- Cap 2: the allocation plus everything already pointed at that invoice <= the invoice's open
+  -- amount (grand_total - prior allocations - credit/debit notes against it).
+  -- Two classes of row consume the open amount here:
+  --   * allocations belonging to a *posted* payment — real money already applied;
+  --   * this same payment's own sibling rows, posted or not (N1). Counting only posted rows let
+  --     one draft receipt write two rows against one invoice and over-settle it: neither row saw
+  --     the other, so 1,000 + 1,000 both passed against a 1,000 invoice.
+  -- Other operators' *draft* allocations still reserve nothing (M7, owner decision): a draft
+  -- receipt is a plan, not money, and two operators drafting against the same invoice must both
+  -- be able to save. post_payment re-validates the per-invoice sum under lock at posting time,
+  -- which is where that race is actually resolved.
   select coalesce(sum(pa.amount), 0) into v_prior_invoice
   from payment_allocations pa
   join payments p on p.id = pa.payment_id
   where pa.invoice_type = new.invoice_type and pa.invoice_id = new.invoice_id
-    and pa.id <> new.id and p.status = 'posted';
+    and pa.id <> new.id
+    and (p.status = 'posted' or pa.payment_id = new.payment_id);
 
   v_open := v_invoice_total - v_prior_invoice - v_notes_total;
 
@@ -667,8 +684,18 @@ begin
     raise exception 'DN_VALIDATION:allocation_exceeds_payment';
   end if;
 
+  -- Grouped by invoice, not row by row (N1): what an invoice can absorb is a property of the
+  -- invoice, so the thing to compare against its open amount is the SUM of this payment's
+  -- allocations to it, never each row on its own. The unique constraint on
+  -- (payment_id, invoice_type, invoice_id) means this is one row per group today; grouping keeps
+  -- the check correct if that ever relaxes. Ordering by (invoice_type, invoice_id) also makes the
+  -- invoice locks below deterministic across concurrent payments, which ordering by allocation id
+  -- (a random uuid) was not.
   for v_alloc in
-    select * from payment_allocations where payment_id = p_payment_id order by id
+    select invoice_type, invoice_id, sum(amount) as amount
+    from payment_allocations where payment_id = p_payment_id
+    group by invoice_type, invoice_id
+    order by invoice_type, invoice_id
   loop
     if v_alloc.invoice_type = 'sales_invoice' then
       select status, grand_total, party_id
@@ -700,6 +727,8 @@ begin
     where pa.invoice_type = v_alloc.invoice_type and pa.invoice_id = v_alloc.invoice_id
       and pa.payment_id <> p_payment_id and p.status = 'posted';
 
+    -- v_alloc.amount is this payment's whole claim on the invoice; v_alloc_prior is every other
+    -- posted payment's. Their sum may not exceed the open amount.
     if v_alloc.amount > v_alloc_total_inv - v_alloc_prior - v_alloc_notes then
       raise exception 'DN_VALIDATION:allocation_exceeds_invoice';
     end if;
@@ -1484,11 +1513,9 @@ begin
       end if;
 
       -- Defence in depth for the same class of corruption: never leave the ledger holding a
-      -- negative value, or a negative average on a positive quantity.
-      if coalesce(v_onhand_value, 0) - v_mv.value < 0
-         or (coalesce(v_onhand_qty, 0) - v_mv.qty > 0
-             and coalesce(v_onhand_value, 0) - v_mv.value < 0)
-      then
+      -- negative value. (The second arm of this test used to repeat the first one verbatim under
+      -- an extra quantity condition, so it could never fire on its own.)
+      if coalesce(v_onhand_value, 0) - v_mv.value < 0 then
         raise exception 'DN_NEGATIVE_STOCK';
       end if;
     end loop;
