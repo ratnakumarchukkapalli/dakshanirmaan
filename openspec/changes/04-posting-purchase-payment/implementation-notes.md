@@ -154,7 +154,7 @@ change 07.
     honours `organization.allow_negative_stock` for an admin, the Cancellation-edge-cases rule is
     unconditional: "the fix is a debit note for the quantity still on hand, never a forced
     reversal." Implemented as a hard raise after the item locks.
-14. **`discount` is not allocatable.** The cap is `Σ allocations ≤ payments.amount`, exactly as
+14. **`discount` is not allocatable.** *(SUPERSEDED by change 06 / migration 20260919130000_allocation_discount.sql: the cap is now `Σ allocations ≤ amount + coalesce(discount, 0)`. Text below kept as history.)* The cap is `Σ allocations ≤ payments.amount`, exactly as
     specced, even though a receipt with a discount relieves `amount + discount` of AR. The
     remainder sits as an on-account balance, which is what the spec calls for.
 15. **`mark_cheque_cleared` returns `void`** (no journal entry exists to return), unlike
