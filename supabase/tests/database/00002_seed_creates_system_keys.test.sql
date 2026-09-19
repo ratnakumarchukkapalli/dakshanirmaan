@@ -8,6 +8,12 @@
 -- migration, so this frozen count moves from 25 to 32. This is a deliberate, spec-directed
 -- change to change 01's own acceptance criteria (not an accidental break — see change 03's
 -- implementation-notes.md), made by the same authority that owns this spec section.
+--
+-- Moves again, 32 -> 33, with change 04's migration: 'cheques_in_hand' (account 1130) is named
+-- in the spec's payments-columns paragraph and explicitly assigned to change 04 by the
+-- "Payments: discount and cheques" clarification ("add system_key + account 1130 in change 04").
+-- Change 01's seed comment already records that this one key was deliberately deferred to here,
+-- so this edit is the planned completion of that deferral, not a break.
 begin;
 
 create extension if not exists pgtap with schema extensions;
@@ -16,8 +22,8 @@ select plan(2);
 
 select is(
   (select count(*)::int from accounts where system_key is not null),
-  32,
-  'exactly 32 system_key accounts are seeded (25 original + 7 added by change 03)'
+  33,
+  'exactly 33 system_key accounts are seeded (25 original + 7 from change 03 + 1 from change 04)'
 );
 
 select set_eq(
@@ -33,7 +39,9 @@ select set_eq(
     'goods_in_transit',
     -- Change 03 migration retrofit (7)
     'sales_cement', 'sales_steel', 'sales_other', 'freight_recovered',
-    'discount_received', 'salaries', 'godown_rent'
+    'discount_received', 'salaries', 'godown_rent',
+    -- Change 04 migration (1): the cheque lifecycle's own ledger
+    'cheques_in_hand'
   ],
   'every spec-named system_key exists as exactly one accounts row'
 );

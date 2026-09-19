@@ -1,5 +1,7 @@
 -- Must pass (change 01, foundation-schema): review-fix checks.
--- 1. doc_sequences is keyed by series (not source_type) and all 7 series are seeded for FY 2026-27.
+-- 1. doc_sequences is keyed by series (not source_type) and every series is seeded for FY 2026-27
+--    (7 from change 01's seed + DC/TR/ADJ added by change 05, which owns challans, transfers and
+--    stock adjustments — see 05's implementation-notes.md).
 -- 2. organization is a true singleton (a second row is rejected).
 -- 3. Document header tables' updated_at is maintained by trigger on UPDATE (draft concurrency).
 -- 4. Both roles may DELETE their own draft documents (RLS delete_draft policy).
@@ -9,17 +11,17 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(5);
 
--- 1. doc_sequences: exactly 7 rows for FY 2026-27, one per series.
+-- 1. doc_sequences: exactly 10 rows for FY 2026-27, one per series.
 select is(
   (select count(*)::int from doc_sequences where fy_label = '2026-27'),
-  7,
-  'doc_sequences has exactly 7 rows for FY 2026-27'
+  10,
+  'doc_sequences has exactly 10 rows for FY 2026-27'
 );
 
 select set_eq(
   $$ select series from doc_sequences where fy_label = '2026-27' $$,
-  ARRAY['DN', 'PB', 'CN', 'DB', 'RCPT', 'PAY', 'EXP'],
-  'doc_sequences series for FY 2026-27 are exactly the seven seeded series'
+  ARRAY['DN', 'PB', 'CN', 'DB', 'RCPT', 'PAY', 'EXP', 'DC', 'TR', 'ADJ'],
+  'doc_sequences series for FY 2026-27 are exactly the ten seeded series'
 );
 
 -- 2. organization singleton: a second row must be rejected.

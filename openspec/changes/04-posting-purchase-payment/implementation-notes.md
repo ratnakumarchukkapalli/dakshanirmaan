@@ -42,14 +42,17 @@ document → party → items ascending by id → `doc_sequences`, a missing fisc
 same as a locked one, `DN_*` error codes, exactly one `audit_log` row, `REVOKE … FROM public, anon,
 service_role` + `GRANT EXECUTE … TO authenticated`.
 
-pgTAP: `supabase/tests/database/00006_posting_purchase_payment.test.sql`, **141 assertions**, every
+pgTAP: `supabase/tests/database/00006_posting_purchase_payment.test.sql`, **177 assertions**
+(141 as first written, + 5 for the owner decisions, + 31 for the review fixes below), every
 `post_*`/`cancel_*`/cheque call under `set local role authenticated` with real JWT claims. Includes
 the acceptance scenario "cheque bounce re-opens the invoices" end to end, and a global sweep
 asserting no journal entry anywhere in the database is unbalanced.
 
 `supabase db reset` clean, `supabase test db`: **6 files, 236 tests, all green** (95 from changes
-01–03 + 141 new). **Not pushed to hosted `daksha-nirmaan`** — `supabase db push` intentionally not
-run. `npm run build` does not apply: the Next.js app does not exist until change 07.
+01–03 + 141 new) when this change was written; **467 tests across 7 files** once change 05, the
+owner decisions and the review fixes below landed. **Not pushed to hosted `daksha-nirmaan`** — `supabase db push`
+intentionally not run. `npm run build` does not apply: the Next.js app does not exist until
+change 07.
 
 ## Live verification (beyond pgTAP)
 
@@ -169,20 +172,102 @@ run. `npm run build` does not apply: the Next.js app does not exist until change
   The allocation now takes the invoice's own `grand_total`. The assertion it feeds is unchanged;
   no other line of that file moved.
 
+## Owner decisions applied after the change-04 review (commit `e2dc52e`, spec §"Decisions from change 04 review")
+
+Both items were folded into this change's own migration
+(`20260918120000_posting_purchase_payment.sql`) rather than a follow-up file: it is uncommitted
+and has never been applied to hosted, so editing it in place keeps the change readable as one
+unit. They answer two of the open questions below, which are struck through accordingly.
+
+1. **Cheque banking is counter work.** `deposit_cheque` and `mark_cheque_cleared` now accept any
+   active member, not only `admin` — depositing moves money between two of our own accounts and
+   clearing changes a status. `bounce_cheque` stays admin-only (it reverses a receipt). This
+   reverses decision #9 above, on the owners' instruction. In `00006`, the `_chq2`
+   deposit + clear pair now runs under the plain `user` session (so those two assertions prove the
+   new permission), and the existing "a user-role session cannot bounce a cheque" assertion is
+   unchanged and still green.
+2. **Salary period.** `expense_vouchers.period_month date NULL` added, with a CHECK that it is the
+   first of a month. `post_expense_voucher` **sets** it on the salary/wage paths: an explicit
+   value on the draft is kept (June salary paid on 31 July stays `2026-06-01`), and a NULL one
+   defaults to the voucher's own month rather than being left NULL, which would silently drop the
+   row out of `v_employee_ledger`'s grouping (change 06). A `period_month` on any other voucher
+   type raises `DN_VALIDATION:period_month_not_allowed` — it can only be a UI bug, and refusing
+   ambiguous input is this change's standing habit. Five new assertions in `00006` (141 → 146).
+
+Conservative call inside item 2: the *defaulting* is not literally in the spec text ("the
+salary/wage voucher sets it"). Leaving it NULL when the draft omits it was the alternative;
+defaulting to the voucher month is the only defensible value and makes the column reliable for
+change 06 to group by.
+
+## Fixes from the fresh-context review of this change (verdict: REJECT)
+
+All applied to this change's own migration, which is uncommitted and has never reached hosted.
+
+**B1 — `check_payment_allocation()` is now `SECURITY DEFINER`.** The trigger fires as the role
+doing the INSERT and reads RLS-protected tables to enforce its caps. Reproduced live before and
+after: with the trigger left `SECURITY INVOKER`, an allocation written by a *real* authenticated
+session against a genuinely posted invoice fails with
+`DN_VALIDATION:allocation_invoice_not_posted` — because the trigger's
+`SELECT … FROM sales_invoices … FOR UPDATE` is checked against the UPDATE policy, whose `USING`
+is `status = 'draft'`, so a posted invoice is invisible to it. Every allocation test previously
+ran as `postgres`, which bypasses RLS, which is why nobody saw that allocation was broken for
+every real session. Worth noting precisely: the live failure mode is *closed* (refuses a valid
+allocation), not the open cap-bypass the review hypothesised — but the fix is the same and it
+also removes the policy dependency the review objected to. Every allocation INSERT in `00006`
+now runs under `set local role authenticated` with real JWT claims, so this cannot regress
+quietly.
+
+**B2 — cancelling a purchase whose stock has moved.** Quantity alone was not enough. The review's
+worked example is now a failing-first test: opening 10 @ 100, purchase 10 @ 200 (avg 150), sell 5.
+On hand is 15, so the old check passed, and the reversal would have left 5 units carrying Rs 250
+instead of Rs 500. `cancel_document` now also refuses when any non-reversal movement from another
+document exists on or after the purchase's movement date for those (item, warehouse) pairs, and
+when the reversal would leave negative value. Dates are the ordering used because `created_at` is
+frozen inside a transaction. An escalated case (value driven negative while quantity lands on
+zero) is tested too. Related: `_post_sales_invoice` now raises `DN_VALIDATION:no_cost_basis`
+instead of posting a zero-COGS sale when `qty > 0` and `avg_rate <= 0` — change 03's tests are
+unaffected because its override fixture stocks at Rs 100.
+
+**M3** allocation party match (`DN_VALIDATION:allocation_party_mismatch`), in the trigger and
+re-checked in `post_payment`. **M4** money accounts: `accounts.is_money` + `is_money_account()`
+now gate `post_payment`, `post_expense_voucher.pay_account_id`, `deposit_cheque` and
+`post_cash_sale`; a cheque receipt may not name the cash account. **M5** cancelling an advance the
+salary already recovered raises `DN_VALIDATION:advance_already_recovered`; no mirror guard is
+needed for the salary side, because its reversal *debits* `employee_advance` and can only raise
+that balance — the two together force the only safe order (salary first, then advance), which the
+tests walk through. **M6** a cancelled payment can never be allocated, in the trigger as well as
+the policy. **M7** (owner decision) only a *posted* payment's allocations consume open amount or
+raise `DN_HAS_ALLOCATIONS`; `post_payment` re-validates every allocation under lock, so two drafts
+racing for one invoice are resolved at posting time — tested with two drafts, both allowed to
+allocate, the second refused at post. **M8** `rcm = true` on a purchase invoice raises
+`DN_VALIDATION:rcm_purchase_unsupported`. **M9** inter-state (or party-less) RCM freight raises
+`DN_VALIDATION:rcm_interstate`, since the posting hard-codes the intra-state GTA split.
+
+**m10** advance/salary/wages require a party of type `employee`; **m11** the party must be active;
+**m12** a `salary` voucher with no party raises `DN_VALIDATION:missing_party` — deliberately *not*
+extended to `wages`, because the spec models unnamed casual hamali as exactly that, a wage voucher
+with no party (the existing hamali test still posts). **m13** allocation INSERT/UPDATE/DELETE now
+writes an `audit_log` row with `auth.uid()` as actor, through a `SECURITY DEFINER` AFTER trigger
+(`audit_log` takes no client INSERT). **m14** dropped the redundant partial
+`journal_entries(source_id)` index — the baseline `(source_type, source_id)` already serves those
+lookups. **m15/m16** spec wording corrected: the round-off Dr/Cr direction stated in the Tax
+clarification is the *sales* side and reverses on a purchase, and `place_of_supply` on a purchase
+is not authoritative — the supplier's state is.
+
 ## Open questions for the owners (not guessed at — these need a decision)
 
-- **Who may bank a cheque?** `deposit_cheque` and `mark_cheque_cleared` are admin-only because the
-  role matrix does not list them for `user`. In practice the counter staff is likely the person who
-  walks cheques to the bank. If so, both should move to the `user`-permitted set (bouncing should
-  stay admin — it reverses money).
-- **A cheque *we* issued that bounces.** Not implemented (decision #8). Needs the owners to say
-  whether that happens often enough to need a function, or whether an admin reversal + re-issue is
-  fine.
-- **Customer refunds / supplier refunds** (decision #11) have no posting path in Phase 1. Worth
-  confirming with the owners that refunds are always handled as credit/debit notes rather than as
-  a reverse-direction payment.
-- **Salary period.** `expense_vouchers` has no "salary for month M" column; the month lives only in
-  the line narration. If `v_employee_ledger` (change 06) or a payslip needs to group by month, a
-  `period_month date` column should be added then rather than parsed out of text.
-- Change 03's still-open question stands unchanged: the walk-in customer's `credit_limit = 0`
-  reads as "unlimited" everywhere, which is backwards for the one cash-only party.
+- ~~**Who may bank a cheque?**~~ **Answered** by the change-04 review: both roles may deposit and
+  clear, admin only may bounce. Applied above.
+- ~~**A cheque *we* issued that bounces.**~~ **Answered**: no dedicated function in Phase 1. The
+  admin cancels the payment via `cancel_document` (a reversal) and records a new payment on
+  re-issue. Revisit only if it recurs. Decision #8 stands as implemented.
+- ~~**Customer refunds / supplier refunds**~~ **Answered**: Phase 2, as a `payments.direction`
+  value `'refund'` with mirrored posting. Phase 1 handles them as credit/debit notes plus, if cash
+  actually moves, a manual admin journal. Decision #11 stands as implemented; the roadmap carries
+  the Phase-2 item.
+- ~~**Salary period.**~~ **Answered**: `period_month` added, above.
+- ~~Change 03's walk-in `credit_limit = 0` question~~ **Answered**: `credit_limit` becomes
+  nullable, `NULL` = unlimited and `0` = no credit. The migration and the check live in change 05
+  — see that change's notes.
+
+No open questions remain from this change.

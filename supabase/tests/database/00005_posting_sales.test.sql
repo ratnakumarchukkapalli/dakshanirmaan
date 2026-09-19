@@ -14,7 +14,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(66);
+select plan(67);
 
 -- ============================================================
 -- Fixtures (as postgres: opening stock and draft creation bypass RLS on purpose, same as any
@@ -665,10 +665,31 @@ with pay as (
   returning id
 )
 select id as payment_id from pay;
+grant select on _alloc_payment to authenticated;
 
+-- Amount is the invoice's whole grand total (Rs 101), not an arbitrary Rs 1,000: change 04's
+-- payment_allocations trigger caps every allocation at the invoice's open amount, so the
+-- original over-allocation would now be rejected at INSERT and this fixture would never reach
+-- the cancel_document call it exists to test. Forced by a later change's schema; the assertion
+-- it feeds (DN_HAS_ALLOCATIONS) is unchanged.
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
-select payment_id, 'sales_invoice', (select invoice_id from _round_up_invoice), 1000
+select payment_id, 'sales_invoice', (select invoice_id from _round_up_invoice),
+       (select grand_total from sales_invoices where id = (select invoice_id from _round_up_invoice))
 from _alloc_payment;
+
+-- ...and the receipt is now posted, not left as a draft: change 04's review (finding M7, owner
+-- decision) scoped DN_HAS_ALLOCATIONS to allocations of *posted* payments, so that a draft
+-- receipt somebody is still typing cannot freeze the invoice it points at. The assertion this
+-- fixture feeds is unchanged; only the fixture had to become a real receipt.
+set local role authenticated;
+set local request.jwt.claims to
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+select lives_ok(
+  format('select post_payment(%L)', (select payment_id from _alloc_payment)),
+  'the allocated receipt posts (its allocation now blocks the invoice cancellation)'
+);
+reset role;
+set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
