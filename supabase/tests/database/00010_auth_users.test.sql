@@ -7,10 +7,19 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(25);
+select plan(32);
 
--- Cast: A and B admins, U a counter user, T a new person with an Auth account but no app row.
+-- Hermetic: a real owner row may already exist (created by the bootstrap script on this database).
+-- Park every pre-existing person as inactive so the admin / 10-person counts below start from
+-- zero. The guard is switched off only for this housekeeping, inside this rolled-back transaction.
+alter table app_users disable trigger app_users_guard;
+update app_users set is_active = false;
+alter table app_users enable trigger app_users_guard;
+
+-- Cast: A and B admins, U a counter user, T a new person with an Auth account but no app row,
+-- F a former admin who has been disabled.
 insert into auth.users (id, email) values
+  ('aaaaaaaa-0000-0000-0000-00000000000f', 'f@example.test'),
   ('aaaaaaaa-0000-0000-0000-00000000000a', 'a@example.test'),
   ('aaaaaaaa-0000-0000-0000-00000000000b', 'b@example.test'),
   ('aaaaaaaa-0000-0000-0000-00000000000c', 'u@example.test'),
@@ -19,7 +28,8 @@ insert into auth.users (id, email) values
 insert into app_users (user_id, role, name, is_active, email) values
   ('aaaaaaaa-0000-0000-0000-00000000000a', 'admin', 'Admin A', true, 'a@example.test'),
   ('aaaaaaaa-0000-0000-0000-00000000000b', 'admin', 'Admin B', true, 'b@example.test'),
-  ('aaaaaaaa-0000-0000-0000-00000000000c', 'user',  'Counter U', true, 'u@example.test');
+  ('aaaaaaaa-0000-0000-0000-00000000000c', 'user',  'Counter U', true, 'u@example.test'),
+  ('aaaaaaaa-0000-0000-0000-00000000000f', 'admin', 'Former Admin F', false, 'f@example.test');
 
 -- ---------- who may call admin_set_user ----------
 set local role authenticated;
@@ -95,6 +105,12 @@ select is(
   array['user_create', 'user_disable', 'user_enable']::text[],
   'disable and enable are audited under their own names') ;
 
+-- Another person's address, differing only by case, is refused with a clear code (not a raw
+-- unique-index violation). 'stranger' has an Auth account but no app row.
+select throws_ok(
+  $$select admin_set_user('aaaaaaaa-0000-0000-0000-00000000000e', 'T@EXAMPLE.TEST', 'Stranger', 'user', true)$$,
+  'P0001', 'DN_VALIDATION:email_taken', 'an email already used by someone else (any case) is refused');
+
 -- ---------- validation and self-protection ----------
 select throws_ok(
   $$select admin_set_user('aaaaaaaa-0000-0000-0000-00000000000d', 'not-an-email', 'T', 'user', true)$$,
@@ -114,6 +130,14 @@ select throws_ok(
   $$update app_users set name = 'Hacked' where user_id = 'aaaaaaaa-0000-0000-0000-00000000000c'$$,
   '42501', null, 'an app session cannot update app_users directly');
 
+select throws_ok(
+  $$insert into app_users (user_id, role, name, is_active, email)
+    values ('aaaaaaaa-0000-0000-0000-00000000000e', 'admin', 'Self-made admin', true, 'stranger@example.test')$$,
+  '42501', null, 'an app session cannot insert into app_users directly');
+select throws_ok(
+  $$truncate app_users$$,
+  '42501', null, 'an app session cannot truncate app_users');
+
 -- ---------- set_my_locale ----------
 set local request.jwt.claims to '{"sub":"aaaaaaaa-0000-0000-0000-00000000000c","role":"authenticated","aal":"aal1"}';
 select lives_ok($$select set_my_locale('te')$$, 'a member can set their own language');
@@ -124,6 +148,24 @@ select is(
      from app_users where user_id in ('aaaaaaaa-0000-0000-0000-00000000000a', 'aaaaaaaa-0000-0000-0000-00000000000c')),
   'aaaaaaaa-0000-0000-0000-00000000000a=en,aaaaaaaa-0000-0000-0000-00000000000c=te',
   'only the caller''s own row changed');
+
+-- A disabled member: their old admin row grants nothing. Even at aal2 they cannot manage people,
+-- and set_my_locale silently matches no row for them.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"aaaaaaaa-0000-0000-0000-00000000000f","role":"authenticated","aal":"aal2"}';
+select throws_ok(
+  $$select admin_set_user('aaaaaaaa-0000-0000-0000-00000000000d', 't@example.test', 'T', 'user', true)$$,
+  'P0001', 'DN_FORBIDDEN', 'a disabled admin is refused even at aal2');
+select lives_ok($$select set_my_locale('te')$$, 'a disabled member calling set_my_locale does not error...');
+reset role;
+select is(
+  (select locale from app_users where user_id = 'aaaaaaaa-0000-0000-0000-00000000000f'),
+  'en', '...but their row is not written');
+
+-- anon cannot execute set_my_locale.
+set local role anon;
+select throws_ok($$select set_my_locale('te')$$, '42501', null, 'anon has no execute privilege on set_my_locale');
+reset role;
 
 -- ---------- guard trigger (as the database owner: it must hold for every code path) ----------
 select throws_ok(
