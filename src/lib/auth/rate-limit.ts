@@ -7,20 +7,49 @@ export interface Limiter {
   allows(key: string, now?: number): boolean;
   /** Records a hit. */
   hit(key: string, now?: number): void;
+  /** How many keys are held right now (for tests and monitoring). */
+  size(): number;
 }
 
-export function createLimiter({ limit, windowMs }: { limit: number; windowMs: number }): Limiter {
+/** Housekeeping: sweep expired keys every this many writes, and never hold more than this many keys. */
+const SWEEP_EVERY = 500;
+const MAX_KEYS = 10_000;
+
+export function createLimiter({ limit, windowMs, maxKeys = MAX_KEYS, sweepEvery = SWEEP_EVERY }: {
+  limit: number;
+  windowMs: number;
+  maxKeys?: number;
+  sweepEvery?: number;
+}): Limiter {
+  // Map order is write order (a write deletes then re-sets), so the first key is the stalest.
   const hits = new Map<string, number[]>();
+  let writes = 0;
   const recent = (key: string, now: number) => {
     const kept = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
     if (kept.length) hits.set(key, kept);
     else hits.delete(key);
     return kept;
   };
+  // Without this, a spray of distinct keys (e.g. random emails) would grow the map without bound.
+  const housekeeping = (now: number) => {
+    if (++writes < sweepEvery && hits.size <= maxKeys) return;
+    writes = 0;
+    for (const [key, times] of hits) {
+      if (times.every((t) => now - t >= windowMs)) hits.delete(key);
+    }
+    for (const key of hits.keys()) {
+      if (hits.size <= maxKeys) break;
+      hits.delete(key);
+    }
+  };
   return {
     allows: (key, now = Date.now()) => recent(key, now).length < limit,
+    size: () => hits.size,
     hit(key, now = Date.now()) {
-      hits.set(key, [...recent(key, now), now]);
+      const kept = recent(key, now);
+      hits.delete(key);
+      hits.set(key, [...kept, now]);
+      housekeeping(now);
     },
   };
 }

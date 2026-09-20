@@ -12,6 +12,10 @@ describe('parseDbError', () => {
     expect(parseDbError('DN_VALIDATION:max_active_users')).toEqual({ code: 'validation', detail: 'max_active_users' });
     expect(parseDbError('DN_VALIDATION:last_admin')).toEqual({ code: 'validation', detail: 'last_admin' });
   });
+  it('carries the details the database added for party and user rules', () => {
+    for (const d of ['party_type_has_balance', 'address_party_locked', 'email_taken', 'admin_only_field'])
+      expect(parseDbError(`DN_VALIDATION:${d}`)).toEqual({ code: 'validation', detail: d });
+  });
   it('finds the code inside a longer message', () => {
     expect(parseDbError('error: DN_VALIDATION:email (context)').detail).toBe('email');
   });
@@ -19,6 +23,24 @@ describe('parseDbError', () => {
     expect(parseDbError('duplicate key value violates unique constraint "x"')).toEqual({ code: 'internal' });
     expect(parseDbError(undefined)).toEqual({ code: 'internal' });
     expect(parseDbError('DN_SOMETHING_NEW')).toEqual({ code: 'internal' });
+  });
+});
+
+describe('parseDbError: constraint failures (SQLSTATE)', () => {
+  it('duplicate GSTIN gets its own detail, other duplicates a generic one', () => {
+    expect(parseDbError('duplicate key value violates unique constraint "parties_gstin_key"', '23505')).toEqual({ code: 'validation', detail: 'gstin_taken' });
+    expect(parseDbError('duplicate key value violates unique constraint "x"', '23505')).toEqual({ code: 'validation', detail: 'duplicate' });
+  });
+  it('check and foreign-key failures are validation; permission failures are forbidden', () => {
+    expect(parseDbError('violates check constraint "items_hsn_check"', '23514')).toEqual({ code: 'validation' });
+    expect(parseDbError('violates foreign key constraint', '23503')).toEqual({ code: 'validation' });
+    expect(parseDbError('new row violates row-level security policy', '42501')).toEqual({ code: 'forbidden' });
+  });
+  it('a number too big for its column is a validation problem, not an internal one', () => {
+    expect(parseDbError('numeric field overflow', '22003')).toEqual({ code: 'validation', detail: 'number_too_large' });
+  });
+  it('an unknown SQLSTATE stays internal', () => {
+    expect(parseDbError('boom', '58000')).toEqual({ code: 'internal' });
   });
 });
 

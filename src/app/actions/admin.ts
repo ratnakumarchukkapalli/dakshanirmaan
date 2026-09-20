@@ -2,22 +2,15 @@
 
 import { getTranslations } from 'next-intl/server';
 import { revalidatePath } from 'next/cache';
-import { dbFailure } from '@/lib/action-errors';
-import { fail, ok, type ActionResult, type Failure } from '@/lib/action-result';
-import { getCurrentMember } from '@/lib/auth/current';
+import { dbFailure, zodFailure } from '@/lib/action-errors';
+import { fail, ok, type ActionResult } from '@/lib/action-result';
+import { requireAdmin } from '@/lib/auth/require';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { inviteUserSchema, userIdSchema } from '@/schemas/users';
 
 // A ban this long is "for good"; enabling lifts it. Keeps a disabled person from getting new sessions.
 const BAN_FOREVER = '876000h';
-
-/** Admin who has passed the authenticator step, or a refusal. The database checks again. */
-async function requireAdmin(): Promise<Failure | null> {
-  const t = await getTranslations('errors');
-  const member = await getCurrentMember();
-  return member?.role === 'admin' && member.aal === 'aal2' ? null : fail('forbidden', t('forbidden'));
-}
 
 /**
  * Add a person. Creates their sign-in account (no email is sent), then records their role in
@@ -28,7 +21,7 @@ export async function inviteUser(input: unknown): Promise<ActionResult<{ userId:
   const denied = await requireAdmin();
   if (denied) return denied;
   const parsed = inviteUserSchema.safeParse(input);
-  if (!parsed.success) return fail('validation', t(`field.${parsed.error.issues[0]?.message}`));
+  if (!parsed.success) return zodFailure(parsed.error);
   const { email, name, role } = parsed.data;
 
   const service = createAdminClient();
@@ -38,6 +31,7 @@ export async function inviteUser(input: unknown): Promise<ActionResult<{ userId:
     userId = created.data.user.id;
   } else if (created.error?.code === 'email_exists') {
     // A half-finished earlier attempt left the account without a business role: reuse it.
+    // One page of 200 is plenty: the business has at most 10 people (the database caps active users).
     const { data } = await service.auth.admin.listUsers({ page: 1, perPage: 200 });
     userId = data.users.find((u) => u.email?.toLowerCase() === email)?.id;
   }

@@ -25,6 +25,30 @@ describe('createLimiter', () => {
   });
 });
 
+describe('createLimiter: bounded memory', () => {
+  it('sweeps expired keys periodically', () => {
+    const l = createLimiter({ limit: 1, windowMs: MIN, sweepEvery: 10 });
+    for (let i = 0; i < 9; i++) l.hit(`old-${i}`, 0);
+    expect(l.size()).toBe(9);
+    l.hit('new', 5 * MIN); // the 10th write triggers a sweep; every old key has expired
+    expect(l.size()).toBe(1);
+  });
+  it('never holds more than maxKeys, evicting the stalest first', () => {
+    const l = createLimiter({ limit: 1, windowMs: 60 * MIN, maxKeys: 100, sweepEvery: 1_000_000 });
+    for (let i = 0; i < 1_000; i++) l.hit(`k-${i}`, i);
+    expect(l.size()).toBeLessThanOrEqual(101);
+    expect(l.allows('k-999', 1_000)).toBe(false); // newest key still remembered
+    expect(l.allows('k-0', 1_000)).toBe(true); // stalest key was evicted
+  });
+  it('keeps live keys through a sweep', () => {
+    const l = createLimiter({ limit: 1, windowMs: MIN, sweepEvery: 3 });
+    l.hit('live', 0);
+    l.hit('x', 1);
+    l.hit('y', 2);
+    expect(l.allows('live', 3)).toBe(false);
+  });
+});
+
 describe('sign-in code limits', () => {
   it('5 requests per email per 15 minutes', () => {
     const t = 1_000_000_000;

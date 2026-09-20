@@ -1,0 +1,22 @@
+import { getTranslations } from 'next-intl/server';
+import { NavLink } from '@/components/shell/NavLink';
+
+const TABS = [
+  { key: 'organisation', href: '/settings/organisation' },
+  { key: 'users', href: '/settings/users' },
+  { key: 'items', href: '/settings/items' },
+  { key: 'coa', href: '/settings/chart-of-accounts' },
+] as const;
+
+export async function SettingsTabs() {
+  const t = await getTranslations('settings.tabs');
+  return (
+    <nav className="settings-nav" aria-label={t('label')}>
+      {TABS.map((tab) => (
+        <NavLink key={tab.key} href={tab.href}>
+          {t(tab.key)}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}

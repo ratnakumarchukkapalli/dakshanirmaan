@@ -24,10 +24,20 @@ const DB_CODES: Record<string, ErrorCode> = {
   DN_NO_PERIOD: 'no_period',
 };
 
-/** Reads a Postgres `DN_*` RAISE (optionally `DN_VALIDATION:<detail>`) out of an error message. */
-export function parseDbError(message: string | undefined): { code: ErrorCode; detail?: string } {
+/**
+ * Reads a Postgres `DN_*` RAISE (optionally `DN_VALIDATION:<detail>`) out of an error message.
+ * Constraint failures carry a SQLSTATE instead: unique (23505), check (23514), foreign key
+ * (23503), numeric out of range (22003) and "not allowed" (42501) map to friendly validation / forbidden results.
+ */
+export function parseDbError(message: string | undefined, sqlState?: string): { code: ErrorCode; detail?: string } {
   const match = /DN_[A-Z_]+(?::[a-z_]+)?/.exec(message ?? '');
-  if (!match) return { code: 'internal' };
+  if (!match) {
+    if (sqlState === '23505') return { code: 'validation', detail: /parties_gstin_key/.test(message ?? '') ? 'gstin_taken' : 'duplicate' };
+    if (sqlState === '22003') return { code: 'validation', detail: 'number_too_large' };
+    if (sqlState === '23514' || sqlState === '23503') return { code: 'validation' };
+    if (sqlState === '42501') return { code: 'forbidden' };
+    return { code: 'internal' };
+  }
   const [name, detail] = match[0].split(':');
   if (name === 'DN_VALIDATION') return { code: 'validation', detail };
   return { code: DB_CODES[name!] ?? 'internal' };

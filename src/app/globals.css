@@ -229,7 +229,7 @@ main { flex: 1; padding: 16px 4px 110px 16px; min-width: 0; max-width: 1180px; }
 .chip.bad { background: var(--bad-bg); color: var(--bad); }
 .chip.muted { background: var(--surface2); color: var(--muted); }
 .chip.accent { background: var(--accent-soft); color: var(--accent); }
-.cardtitle { font-size: 12.5px; font-weight: 750; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+.cardtitle { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 750; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
 
 /* ---------- login card (placeholder until change 08) ---------- */
 .login-wrap { position: relative; z-index: 1; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
@@ -237,7 +237,7 @@ main { flex: 1; padding: 16px 4px 110px 16px; min-width: 0; max-width: 1180px; }
 
 /* ---------- forms, buttons, tables (from the prototype) ---------- */
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; min-width: 0; }
-.field label { font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.field label, .field .lbl { font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .field input, .field select {
   background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--r-inner);
   padding: 9px 11px; width: 100%; color: var(--ink); font: inherit;
@@ -245,6 +245,8 @@ main { flex: 1; padding: 16px 4px 110px 16px; min-width: 0; max-width: 1180px; }
 .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
 .field input[aria-invalid='true'] { border-color: var(--bad); }
 .field .hint { font-size: 12px; color: var(--muted); }
+.field .static { margin: 0; padding: 9px 0; color: var(--ink); overflow-wrap: anywhere; }
+.field input:disabled { opacity: 0.55; cursor: not-allowed; }
 .fieldrow { display: flex; gap: 10px; flex-wrap: wrap; }
 .fieldrow .field { flex: 1; min-width: 150px; }
 .fielderror { color: var(--bad); font-size: 12.5px; font-weight: 600; margin: 0; }
@@ -282,3 +284,57 @@ td.nowrap { white-space: nowrap; }
 .qr { display: grid; place-items: center; padding: 12px; background: #fff; border-radius: var(--r-inner); width: fit-content; margin: 0 auto 12px; }
 .qr img { width: 180px; height: 180px; display: block; }
 .secret { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; word-break: break-all; user-select: all; }
+
+/* ---------- modal (native <dialog>: focus is trapped and Escape closes it natively) ---------- */
+dialog.modal {
+  padding: 0; border-radius: var(--r-outer); width: min(580px, calc(100vw - 24px)); max-height: calc(100vh - 32px);
+  overflow: auto; color: var(--ink); margin: auto; box-shadow: var(--shadow-float);
+}
+dialog.modal::backdrop { background: rgba(10, 14, 20, 0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.modal-body { padding: 18px 20px 20px; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.modal-head h2 { font-size: 18px; font-weight: 750; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 6px; }
+.field.check { flex-direction: row; align-items: center; gap: 8px; }
+.field.check label { text-transform: none; letter-spacing: 0; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.field.check input { width: auto; }
+.section-title { font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 8px; }
+
+/* ---------- toolbar, segmented control, search ---------- */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.seg { display: inline-flex; padding: 3px; border-radius: 12px; gap: 2px; }
+.seg a { padding: 6px 12px; border-radius: 9px; font-weight: 650; font-size: 13px; color: var(--muted); text-decoration: none; }
+.seg a[aria-current='true'] { background: var(--surface-solid); color: var(--ink); box-shadow: var(--shadow); }
+.search { display: flex; gap: 6px; flex: 1; min-width: 200px; }
+.search input[type='search'] {
+  flex: 1; min-width: 0; background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--r-inner);
+  padding: 8px 11px; color: var(--ink); font: inherit;
+}
+
+/* ---------- settings tabs ---------- */
+.settings-nav { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+.settings-nav a {
+  padding: 7px 13px; border-radius: 12px; color: var(--muted); font-weight: 650; font-size: 13.5px; text-decoration: none;
+  border: 1px solid transparent;
+}
+.settings-nav a:hover { background: var(--surface2); color: var(--ink); }
+.settings-nav a[aria-current='page'] { background: var(--accent-soft); color: var(--accent); border-color: var(--border); }
+
+/* ---------- lists and details ---------- */
+th.r, td.r { text-align: right; white-space: nowrap; }
+td .sub, .sub { font-size: 12px; color: var(--muted); }
+.pname { font-weight: 650; }
+.pname a { color: var(--ink); text-decoration: none; }
+.pname a:hover { text-decoration: underline; }
+.mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.92em; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; }
+.kv dt { font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); align-self: center; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 10px 2px 0; }
+.headbtns { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.coa-indent-1 { padding-left: 24px; }
+.coa-indent-2 { padding-left: 44px; }
+@media (max-width: 800px) {
+  .kv { grid-template-columns: 1fr; gap: 2px 0; }
+  .kv dd { margin-bottom: 8px; }
+}
