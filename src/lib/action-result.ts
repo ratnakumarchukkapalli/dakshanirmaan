@@ -34,6 +34,8 @@ export function parseDbError(message: string | undefined, sqlState?: string): { 
   if (!match) {
     if (sqlState === '23505') return { code: 'validation', detail: /parties_gstin_key/.test(message ?? '') ? 'gstin_taken' : 'duplicate' };
     if (sqlState === '22003') return { code: 'validation', detail: 'number_too_large' };
+    // A zero-value invoice fails the journal's "amount > 0" check when it posts: say so plainly.
+    if (sqlState === '23514' && /journal_lines_check/.test(message ?? '')) return { code: 'validation', detail: 'zero_total' };
     if (sqlState === '23514' || sqlState === '23503') return { code: 'validation' };
     if (sqlState === '42501') return { code: 'forbidden' };
     return { code: 'internal' };

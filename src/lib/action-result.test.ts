@@ -36,6 +36,10 @@ describe('parseDbError: constraint failures (SQLSTATE)', () => {
     expect(parseDbError('violates foreign key constraint', '23503')).toEqual({ code: 'validation' });
     expect(parseDbError('new row violates row-level security policy', '42501')).toEqual({ code: 'forbidden' });
   });
+  it('a zero-value invoice (journal amount check) gets its own detail', () => {
+    expect(parseDbError('new row for relation "journal_lines" violates check constraint "journal_lines_check"', '23514'))
+      .toEqual({ code: 'validation', detail: 'zero_total' });
+  });
   it('a number too big for its column is a validation problem, not an internal one', () => {
     expect(parseDbError('numeric field overflow', '22003')).toEqual({ code: 'validation', detail: 'number_too_large' });
   });

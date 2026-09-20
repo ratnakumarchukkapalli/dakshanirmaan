@@ -17,8 +17,8 @@ import type { CurrentMember } from '@/lib/auth/current';
 export interface Call {
   table?: string;
   rpc?: string;
-  op: 'select' | 'insert' | 'update' | 'rpc';
-  payload?: Record<string, unknown>;
+  op: 'select' | 'insert' | 'update' | 'delete' | 'rpc';
+  payload?: Record<string, unknown> | Record<string, unknown>[];
   filters: [string, unknown][];
 }
 export interface Answer {
@@ -52,11 +52,11 @@ function builder(call: Call) {
   let single = false;
   const b: Record<string, unknown> = {};
   const chain = (name: string) => (...args: unknown[]) => {
-    if (name === 'eq' || name === 'neq' || name === 'in') call.filters.push([String(args[0]), args[1]]);
+    if (name === 'eq' || name === 'neq' || name === 'in' || name === 'is') call.filters.push([String(args[0]), args[1]]);
     if (name === 'single' || name === 'maybeSingle') single = true;
     return b;
   };
-  for (const name of ['select', 'eq', 'neq', 'in', 'order', 'single', 'maybeSingle', 'limit']) b[name] = chain(name);
+  for (const name of ['select', 'eq', 'neq', 'in', 'is', 'or', 'ilike', 'order', 'single', 'maybeSingle', 'limit']) b[name] = chain(name);
   b.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
     const a = state.respond(call);
     let data = a.data ?? null;
@@ -68,7 +68,8 @@ function builder(call: Call) {
 
 const start = (table: string) => ({
   select: () => { const c: Call = { table, op: 'select', filters: [] }; state.calls.push(c); return builder(c); },
-  insert: (payload: Record<string, unknown>) => { const c: Call = { table, op: 'insert', payload, filters: [] }; state.calls.push(c); return builder(c); },
+  insert: (payload: Record<string, unknown> | Record<string, unknown>[]) => { const c: Call = { table, op: 'insert', payload, filters: [] }; state.calls.push(c); return builder(c); },
+  delete: () => { const c: Call = { table, op: 'delete', filters: [] }; state.calls.push(c); return builder(c); },
   update: (payload: Record<string, unknown>) => { const c: Call = { table, op: 'update', payload, filters: [] }; state.calls.push(c); return builder(c); },
 });
 
