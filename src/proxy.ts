@@ -18,7 +18,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set('Content-Security-Policy', csp);
 
   const session = await readSession(request, requestHeaders);
-  const decision = decideAccess({ pathname: request.nextUrl.pathname, member: session.member });
+  const decision = decideAccess({ pathname: request.nextUrl.pathname, search: request.nextUrl.search, member: session.member });
 
   let response: NextResponse;
   if (decision.action === 'redirect') {

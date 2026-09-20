@@ -55,3 +55,58 @@ export function inrRate(value: number | string | null | undefined): string {
   const n = Number(value ?? 0);
   return `${n < 0 ? '-' : ''}₹${inrUnitRate.format(Math.abs(n))}`;
 }
+
+const ONES = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+  'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen',
+];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+/** 0-999 in words ('' for 0). */
+function belowThousand(n: number): string {
+  const parts: string[] = [];
+  if (n >= 100) {
+    parts.push(`${ONES[Math.floor(n / 100)]} Hundred`);
+    n %= 100;
+  }
+  if (n >= 20) parts.push(TENS[Math.floor(n / 10)]! + (n % 10 ? ` ${ONES[n % 10]}` : ''));
+  else if (n > 0) parts.push(ONES[n]!);
+  return parts.join(' ');
+}
+
+/** A whole number (digits only, as a string) in the Indian system: Crore, Lakh, Thousand. */
+function indianWords(digits: string): string {
+  const s = digits.replace(/^0+(?=\d)/, '');
+  if (s === '0') return 'Zero';
+  const last3 = Number(s.slice(-3));
+  let rest = s.slice(0, -3);
+  const groups: string[] = [];
+  if (last3) groups.push(belowThousand(last3));
+  // Then pairs of digits: thousand, lakh, crore; anything above a crore repeats "Crore".
+  const names = ['Thousand', 'Lakh'];
+  let i = 0;
+  while (rest.length && i < names.length) {
+    const n = Number(rest.slice(-2));
+    rest = rest.slice(0, -2);
+    if (n) groups.unshift(`${belowThousand(n)} ${names[i]}`);
+    i++;
+  }
+  if (rest.length) groups.unshift(`${indianWords(rest)} Crore`);
+  return groups.join(' ');
+}
+
+/**
+ * "12500.40" → "Rupees Twelve Thousand Five Hundred and Forty Paise Only". Works on the decimal
+ * string the database stored, so no float ever touches a bill. Anything that is not a plain
+ * non-negative amount with at most two decimals returns ''.
+ */
+export function amountInWords(value: string): string {
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
+  if (!m) return '';
+  const rupees = m[1]!;
+  const paise = Number((m[2] ?? '').padEnd(2, '0'));
+  const rupeeWords = /^0+$/.test(rupees) ? '' : `Rupees ${indianWords(rupees)}`;
+  const paiseWords = paise ? `${belowThousand(paise)} Paise` : '';
+  if (!rupeeWords && !paiseWords) return 'Rupees Zero Only';
+  return `${[rupeeWords, paiseWords].filter(Boolean).join(' and ')} Only`;
+}

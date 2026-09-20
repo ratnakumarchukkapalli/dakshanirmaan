@@ -65,3 +65,23 @@ describe('the development login bypass is gone', () => {
     delete process.env.DN_AUTH_GATE;
   });
 });
+
+describe('signed invoice links', () => {
+  const id = 'd0000000-0000-0000-0000-000000000001';
+  const pdf = `/api/invoices/${id}/pdf`;
+  const via = (pathname: string, search: string) => decideAccess({ pathname, search, member: null });
+
+  it('lets exactly one shape past the gate, and only with a signature', () => {
+    expect(via(pdf, '?exp=1&sig=abc')).toEqual(allow);
+    expect(via(pdf, '')).toEqual(redirect('/login'));
+    expect(via(pdf, '?exp=1')).toEqual(redirect('/login'));
+  });
+  it('does not open any other API path or a look-alike', () => {
+    expect(via(`/api/invoices/${id}`, '?sig=x')).toEqual(redirect('/login'));
+    expect(via(`/api/invoices/${id}/pdf/extra`, '?sig=x')).toEqual(redirect('/login'));
+    expect(via(`/api/invoices/not-an-id/pdf`, '?sig=x')).toEqual(redirect('/login'));
+    expect(via(`/api/invoices/${id}/xlsx`, '?sig=x')).toEqual(redirect('/login'));
+    expect(via('/api/reports/gstr1', '?sig=x')).toEqual(redirect('/login'));
+    expect(via('/sales', '?sig=x')).toEqual(redirect('/login'));
+  });
+});

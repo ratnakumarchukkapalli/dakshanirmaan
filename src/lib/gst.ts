@@ -43,3 +43,6 @@ export const stateOfGstin = (gstin: string): string | null => {
   const code = gstin.slice(0, 2);
   return isStateCode(code) ? code : null;
 };
+
+/** Goods worth more than this (rupees) moved by road usually need an e-way bill. A hint threshold only; the portal is the authority. */
+export const EWAY_BILL_THRESHOLD = '50000';

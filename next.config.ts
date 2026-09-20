@@ -14,6 +14,8 @@ const staticSecurityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The invoice PDF reads its fonts from disk at request time; tell the file tracer to ship them.
+  outputFileTracingIncludes: { '/api/invoices/[id]/pdf': ['./src/assets/fonts/**'] },
   async headers() {
     return [{ source: '/:path*', headers: staticSecurityHeaders }];
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, fyLabel, inr, inr2, inrRate, todayIn } from './format';
+import { amountInWords, formatDate, fyLabel, inr, inr2, inrRate, todayIn } from './format';
 
 describe('fyLabel', () => {
   it('runs April to March', () => {
@@ -57,5 +57,44 @@ describe('inrRate', () => {
     expect(inrRate('123456.7')).toBe('₹1,23,456.70');
     expect(inrRate(null)).toBe('₹0.00');
     expect(inrRate(-1.5)).toBe('-₹1.50');
+  });
+});
+
+describe('amountInWords', () => {
+  const cases: [string, string][] = [
+    ['0', 'Rupees Zero Only'],
+    ['0.00', 'Rupees Zero Only'],
+    ['1', 'Rupees One Only'],
+    ['19', 'Rupees Nineteen Only'],
+    ['20', 'Rupees Twenty Only'],
+    ['21.00', 'Rupees Twenty One Only'],
+    ['100', 'Rupees One Hundred Only'],
+    ['101', 'Rupees One Hundred One Only'],
+    ['999', 'Rupees Nine Hundred Ninety Nine Only'],
+    ['1000', 'Rupees One Thousand Only'],
+    ['12500.40', 'Rupees Twelve Thousand Five Hundred and Forty Paise Only'],
+    ['0.05', 'Five Paise Only'],
+    ['0.5', 'Fifty Paise Only'],
+    ['99999', 'Rupees Ninety Nine Thousand Nine Hundred Ninety Nine Only'],
+    ['100000', 'Rupees One Lakh Only'],
+    ['123456', 'Rupees One Lakh Twenty Three Thousand Four Hundred Fifty Six Only'],
+    ['1000000', 'Rupees Ten Lakh Only'],
+    ['10000000', 'Rupees One Crore Only'],
+    ['10100000', 'Rupees One Crore One Lakh Only'],
+    ['10000001', 'Rupees One Crore One Only'],
+    ['1234567890', 'Rupees One Hundred Twenty Three Crore Forty Five Lakh Sixty Seven Thousand Eight Hundred Ninety Only'],
+    ['1280000000.00', 'Rupees One Hundred Twenty Eight Crore Only'],
+    ['100000000000', 'Rupees Ten Thousand Crore Only'],
+    ['5000.10', 'Rupees Five Thousand and Ten Paise Only'],
+  ];
+  it.each(cases)('%s', (input, words) => {
+    expect(amountInWords(input)).toBe(words);
+  });
+  it('returns empty text for anything that is not a plain amount', () => {
+    expect(amountInWords('')).toBe('');
+    expect(amountInWords('-5')).toBe('');
+    expect(amountInWords('1e3')).toBe('');
+    expect(amountInWords('1.234')).toBe('');
+    expect(amountInWords('₹5')).toBe('');
   });
 });

@@ -14,11 +14,18 @@ export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 }
 
+// The one public API shape: an invoice PDF opened from a signed WhatsApp link. The route handler
+// checks the signature itself; this only lets the request past the sign-in gate, and only when
+// a signature is present.
+const INVOICE_PDF_PATH = /^\/api\/invoices\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/pdf$/i;
+export const isSignedInvoiceLink = (pathname: string, search: string): boolean =>
+  INVOICE_PDF_PATH.test(pathname) && new URLSearchParams(search).has('sig');
+
 const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/');
 const isSettingsPath = (p: string) => p === '/settings' || p.startsWith('/settings/');
 
-export function decideAccess({ pathname, member }: { pathname: string; member: Member }): AccessDecision {
-  if (isPublicPath(pathname)) return { action: 'allow' };
+export function decideAccess({ pathname, search = '', member }: { pathname: string; search?: string; member: Member }): AccessDecision {
+  if (isPublicPath(pathname) || isSignedInvoiceLink(pathname, search)) return { action: 'allow' };
 
   if (!member) return pathname === '/login' ? { action: 'allow' } : { action: 'redirect', to: '/login' };
 
