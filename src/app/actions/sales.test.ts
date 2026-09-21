@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { asAdmin, asCounter, dbError, reset, state, type Answer, type Call } from '@/test/harness';
-import { cancelInvoice, deleteDraftInvoice, postCashSale, postInvoice, saveDraftInvoice } from './sales';
+import { cancelInvoice, deleteDraftInvoice, postCashSale, postInvoice, recordInvoiceEwb, saveDraftInvoice } from './sales';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next-intl/server', async () => (await import('@/test/harness')).intlMock);
@@ -286,5 +286,75 @@ describe('deleteDraftInvoice', () => {
     reset(asCounter());
     healthy((c) => (c.op === 'delete' ? { data: [] } : undefined));
     expect(await deleteDraftInvoice({ id: INV })).toMatchObject({ ok: false, code: 'not_draft' });
+  });
+});
+
+describe('transport details on a draft', () => {
+  it('saves mode, distance and transporter GSTIN (capitalised), and blanks become null', async () => {
+    reset(asCounter());
+    healthy();
+    await saveDraftInvoice({ ...form, transportMode: 'road', distanceKm: '28', transporterGstin: '37abcfs1234k1z5' });
+    expect(find('sales_invoices', 'insert')!.payload).toMatchObject({ transport_mode: 'road', distance_km: 28, transporter_gstin: '37ABCFS1234K1Z5' });
+    reset(asCounter());
+    healthy();
+    await saveDraftInvoice({ ...form, transportMode: '', distanceKm: '', transporterGstin: '' });
+    expect(find('sales_invoices', 'insert')!.payload).toMatchObject({ transport_mode: null, distance_km: null, transporter_gstin: null });
+  });
+  it('refuses a bad mode, distance, GSTIN or vehicle number before the database', async () => {
+    for (const [patch, key] of [
+      [{ transportMode: 'boat' }, 'transport_mode_invalid'],
+      [{ distanceKm: '5001' }, 'distance_invalid'],
+      [{ distanceKm: '12.5' }, 'distance_invalid'],
+      [{ transporterGstin: 'NOTAGSTIN' }, 'gstin_invalid'],
+      [{ vehicleNo: 'A!' }, 'vehicle_invalid'],
+    ] as const) {
+      reset(asCounter());
+      healthy();
+      expect(await saveDraftInvoice({ ...form, ...patch })).toMatchObject({ ok: false, code: 'validation', error: `field.${key}` });
+      expect(state.calls).toHaveLength(0);
+    }
+  });
+});
+
+describe('recordInvoiceEwb', () => {
+  const ewb = { id: INV, vehicleNo: 'ap 16 tc 4455', transporterName: 'Own vehicle', transportMode: 'road', distanceKm: '28', transporterGstin: '', ewbNo: '123456789012', ewbDate: '2026-09-20', ewbValidUntil: '2026-09-22' };
+
+  it('any active member records it through the database function, and only that function', async () => {
+    reset(asCounter());
+    expect(await recordInvoiceEwb(ewb)).toEqual({ ok: true, data: { id: INV } });
+    expect(state.calls).toHaveLength(1);
+    expect(rpc('record_invoice_ewb')?.payload).toEqual({
+      p_invoice_id: INV, p_transport_mode: 'road', p_distance_km: 28, p_transporter_name: 'Own vehicle', p_transporter_gstin: null,
+      p_vehicle_no: 'AP 16 TC 4455', p_ewb_no: '123456789012', p_ewb_date: '2026-09-20', p_ewb_valid_until: '2026-09-22T23:59:59+05:30',
+    });
+    expect(state.revalidated).toEqual(expect.arrayContaining([`/sales/${INV}/view`]));
+  });
+  it('an e-way bill number, date and valid-until go together, in order', async () => {
+    reset(asAdmin());
+    expect(await recordInvoiceEwb({ ...ewb, ewbValidUntil: '' })).toMatchObject({ ok: false, code: 'validation', error: 'field.ewb_incomplete' });
+    expect(await recordInvoiceEwb({ ...ewb, ewbValidUntil: '2026-09-19' })).toMatchObject({ ok: false, code: 'validation', error: 'field.ewb_dates' });
+    expect(await recordInvoiceEwb({ ...ewb, ewbNo: '12345' })).toMatchObject({ ok: false, code: 'validation', error: 'field.ewb_no_invalid' });
+    expect(state.calls).toHaveLength(0);
+    // Clearing everything is allowed (the bill was cancelled on the portal).
+    expect(await recordInvoiceEwb({ id: INV })).toMatchObject({ ok: true });
+  });
+  it('an owner at step one of sign-in is refused before the database', async () => {
+    reset(asAdmin('aal1'));
+    expect(await recordInvoiceEwb(ewb)).toMatchObject({ ok: false, code: 'forbidden' });
+    reset(null);
+    expect(await recordInvoiceEwb(ewb)).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(state.calls).toHaveLength(0);
+  });
+  it('database refusals are mapped to friendly results', async () => {
+    for (const [db, code, error] of [
+      ['DN_NOT_POSTED', 'not_posted', 'not_posted'],
+      ['DN_FORBIDDEN', 'forbidden', 'forbidden'],
+      ['DN_VALIDATION:ewb_no', 'validation', 'validation.ewb_no'],
+      ['DN_VALIDATION:ewb_dates', 'validation', 'validation.ewb_dates'],
+    ] as const) {
+      reset(asCounter());
+      state.respond = () => dbError(db);
+      expect(await recordInvoiceEwb(ewb)).toEqual({ ok: false, code, error });
+    }
   });
 });

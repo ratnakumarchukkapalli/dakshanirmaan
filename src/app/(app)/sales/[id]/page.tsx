@@ -15,7 +15,7 @@ export default async function DraftInvoicePage({ params }: { params: Promise<{ i
   const supabase = await createClient();
 
   const [{ data: head }, { data: lines }, member] = await Promise.all([
-    supabase.from('sales_invoices').select('id, status, updated_at, invoice_date, party_id, place_of_supply, shipping_address, vehicle_no, transporter_name').eq('id', id).maybeSingle(),
+    supabase.from('sales_invoices').select('id, status, updated_at, invoice_date, party_id, place_of_supply, shipping_address, vehicle_no, transporter_name, transport_mode, distance_km, transporter_gstin').eq('id', id).maybeSingle(),
     supabase.from('sales_invoice_lines').select('item_id, qty, alt_qty, rate, discount_pct, line_no').eq('invoice_id', id).order('line_no'),
     getCurrentMember(),
   ]);
@@ -39,6 +39,9 @@ export default async function DraftInvoicePage({ params }: { params: Promise<{ i
       siteId: site?.id ?? '',
       vehicleNo: head.vehicle_no ?? '',
       transporterName: head.transporter_name ?? '',
+      transportMode: head.transport_mode ?? '',
+      distanceKm: head.distance_km === null ? '' : String(head.distance_km),
+      transporterGstin: head.transporter_gstin ?? '',
       lines: (lines ?? []).map((l) => ({
         itemId: l.item_id,
         qty: trimZeros(decimalText(l.qty, 3)),

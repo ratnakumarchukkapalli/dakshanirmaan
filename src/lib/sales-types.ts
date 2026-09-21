@@ -57,6 +57,8 @@ export interface InvoiceFormContext {
   orgState: string;
   /** Today's business date (ISO) in the organisation's time zone. */
   today: string;
+  /** Whether the organisation has a UPI ID (the printed invoice then carries a payment QR). */
+  hasUpi: boolean;
 }
 
 export interface InvoiceFormValues {
@@ -66,6 +68,9 @@ export interface InvoiceFormValues {
   siteId: string;
   vehicleNo: string;
   transporterName: string;
+  transportMode: string;
+  distanceKm: string;
+  transporterGstin: string;
   lines: { itemId: string; qty: string; altQty: string; rate: string; discountPct: string }[];
 }
 

@@ -8,7 +8,7 @@ import { requireAdmin, requireMember } from '@/lib/auth/require';
 import { todayIn } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 import {
-  cancelInvoiceSchema, invoiceIdSchema, postCashSaleSchema, postInvoiceSchema, saveDraftSchema,
+  cancelInvoiceSchema, invoiceIdSchema, postCashSaleSchema, postInvoiceSchema, recordEwbSchema, saveDraftSchema,
 } from '@/schemas/sales';
 
 // Sales invoices. Drafts are written by any active member through the user-scoped client (RLS
@@ -105,6 +105,9 @@ export async function saveDraftInvoice(input: unknown): Promise<ActionResult<{ i
     shipping_address: snapshot(shipping),
     vehicle_no: v.vehicleNo ?? null,
     transporter_name: v.transporterName ?? null,
+    transport_mode: v.transportMode ?? null,
+    distance_km: v.distanceKm === undefined ? null : Number(v.distanceKm),
+    transporter_gstin: v.transporterGstin ?? null,
   };
   const lineRows = (invoiceId: string) =>
     v.lines.map((l, i) => {
@@ -246,6 +249,39 @@ export async function cancelInvoice(input: unknown): Promise<ActionResult<{ id: 
 
   revalidateAfterPosting(id);
   return ok({ id });
+}
+
+// India has no daylight saving, so "valid until <date>" is the end of that day at +05:30.
+const endOfDay = (isoDate: string) => `${isoDate}T23:59:59+05:30`;
+
+/**
+ * Records transport and e-way-bill details on a POSTED invoice (the number comes from the
+ * government portal; nothing here talks to it). Any active member; the database function changes
+ * only those columns and writes an audit row.
+ */
+export async function recordInvoiceEwb(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const gate = await requireMember();
+  if (gate.denied) return gate.denied;
+  const parsed = recordEwbSchema.safeParse(input);
+  if (!parsed.success) return zodFailure(parsed.error);
+  const v = parsed.data;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('record_invoice_ewb', {
+    p_invoice_id: v.id,
+    p_transport_mode: v.transportMode ?? null,
+    p_distance_km: v.distanceKm === undefined ? null : Number(v.distanceKm),
+    p_transporter_name: v.transporterName ?? null,
+    p_transporter_gstin: v.transporterGstin ?? null,
+    p_vehicle_no: v.vehicleNo ?? null,
+    p_ewb_no: v.ewbNo ?? null,
+    p_ewb_date: v.ewbDate ?? null,
+    p_ewb_valid_until: v.ewbValidUntil ? endOfDay(v.ewbValidUntil) : null,
+  });
+  if (error) return dbFailure(error);
+
+  revalidateInvoice(v.id);
+  return ok({ id: v.id });
 }
 
 function revalidateAfterPosting(id: string) {

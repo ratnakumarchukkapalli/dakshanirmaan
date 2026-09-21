@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMobile, isPhone, normalisePhone } from './phone';
+import { isMobile, isPhone, normalisePhone, whatsappNumber } from './phone';
 
 describe('normalisePhone', () => {
   it('strips spaces, dashes, brackets, +91 and a leading 0', () => {
@@ -24,5 +24,20 @@ describe('isMobile / isPhone', () => {
     expect(isPhone('8662456789')).toBe(true);
     expect(isPhone('12345')).toBe(false);
     expect(isPhone('98x6543210')).toBe(false);
+  });
+});
+
+describe('whatsappNumber', () => {
+  it('accepts a plain or +91 mobile', () => {
+    expect(whatsappNumber('98765 43210')).toBe('9876543210');
+    expect(whatsappNumber('+91 98765-43210')).toBe('9876543210');
+    expect(whatsappNumber('919876543210')).toBe('9876543210');
+  });
+  it('refuses anything a landline could be, and anything malformed', () => {
+    expect(whatsappNumber('0863 2345678')).toBeNull();
+    expect(whatsappNumber('098765 43210')).toBeNull();
+    expect(whatsappNumber('58765 43210')).toBeNull();
+    expect(whatsappNumber('')).toBeNull();
+    expect(whatsappNumber(null)).toBeNull();
   });
 });

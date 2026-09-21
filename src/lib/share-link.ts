@@ -34,3 +34,13 @@ export function verifyInvoiceLink(
   if (want.length !== got.length || !timingSafeEqual(want, got)) return 'invalid';
   return Math.floor(nowMs / 1000) > exp ? 'expired' : 'ok';
 }
+
+/**
+ * Whether WhatsApp sharing can work on this server: a long enough secret, and a public origin
+ * (production must set `APP_ORIGIN`; development falls back to the request's host). The posted
+ * view hides the WhatsApp button when this is false instead of showing a button that only errors.
+ */
+export function shareConfigured(env: Record<string, string | undefined> = process.env): boolean {
+  if ((env.INVOICE_LINK_SECRET ?? '').length < MIN_SECRET_LENGTH) return false;
+  return !!env.APP_ORIGIN?.trim() || env.NODE_ENV !== 'production';
+}

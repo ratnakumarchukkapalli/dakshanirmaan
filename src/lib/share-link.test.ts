@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINK_TTL_SECONDS, signInvoiceLink, verifyInvoiceLink } from './share-link';
+import { LINK_TTL_SECONDS, shareConfigured, signInvoiceLink, verifyInvoiceLink } from './share-link';
 
 const secret = 'a-test-secret-that-is-at-least-32-characters-long';
 const id = 'd0000000-0000-0000-0000-000000000001';
@@ -44,5 +44,16 @@ describe('signed invoice links', () => {
   });
   it('refuses to sign with a short secret', () => {
     expect(() => signInvoiceLink(id, 'short', t0)).toThrow();
+  });
+});
+
+describe('shareConfigured', () => {
+  it('needs a long secret; production also needs APP_ORIGIN', () => {
+    expect(shareConfigured({ INVOICE_LINK_SECRET: secret, NODE_ENV: 'development' })).toBe(true);
+    expect(shareConfigured({ INVOICE_LINK_SECRET: secret, NODE_ENV: 'production' })).toBe(false);
+    expect(shareConfigured({ INVOICE_LINK_SECRET: secret, NODE_ENV: 'production', APP_ORIGIN: 'https://example.test' })).toBe(true);
+    expect(shareConfigured({ INVOICE_LINK_SECRET: secret, NODE_ENV: 'production', APP_ORIGIN: '  ' })).toBe(false);
+    expect(shareConfigured({ INVOICE_LINK_SECRET: 'too-short', NODE_ENV: 'development' })).toBe(false);
+    expect(shareConfigured({ NODE_ENV: 'development' })).toBe(false);
   });
 });

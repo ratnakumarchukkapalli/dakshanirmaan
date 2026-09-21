@@ -2,15 +2,19 @@ import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CancelInvoice } from '@/components/sales/CancelInvoice';
+import { EwbPanel } from '@/components/sales/EwbPanel';
+import { InvoiceActions } from '@/components/sales/InvoiceActions';
 import { TotalsRows } from '@/components/sales/TotalsPanel';
 import { Card } from '@/components/ui/Card';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
 import { KeyValue } from '@/components/ui/KeyValue';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
-import { addDecimal, decimalText } from '@/lib/decimal';
-import { formatDate, inr2, inrRate } from '@/lib/format';
-import { stateName } from '@/lib/gst';
+import { addDecimal, compareDecimal, decimalText } from '@/lib/decimal';
+import { validUntilDate, type EwbValues } from '@/lib/ewb';
+import { formatDate, inr, inr2, inrRate } from '@/lib/format';
+import { EWAY_BILL_THRESHOLD, stateName } from '@/lib/gst';
+import { shareConfigured } from '@/lib/share-link';
 import { trimZeros } from '@/lib/units';
 import { createClient } from '@/lib/supabase/server';
 
@@ -58,6 +62,13 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
   const intra = inv.place_of_supply === org?.state_code;
   const number = inv.invoice_no as string;
 
+  const ewb: EwbValues = {
+    vehicleNo: inv.vehicle_no ?? '', transporterName: inv.transporter_name ?? '', transportMode: inv.transport_mode ?? '',
+    distanceKm: inv.distance_km === null ? '' : String(inv.distance_km), transporterGstin: inv.transporter_gstin ?? '',
+    ewbNo: inv.ewb_no ?? '', ewbDate: inv.ewb_date ?? '', ewbValidUntil: validUntilDate(inv.ewb_valid_until),
+  };
+  const needsEwb = !inv.ewb_no && compareDecimal(decimalText(inv.grand_total, 2), EWAY_BILL_THRESHOLD, 2) === 1;
+
   const canCancel = isVerifiedAdmin(member) && inv.status === 'posted' && payments.length === 0;
   const chip: { tone: ChipTone; label: string } = cancelled ? { tone: 'bad', label: t('statusCancelled') } : { tone: 'good', label: t('statusPosted') };
   const modeLabel = (m: string) => (({ cash: t('modeCash'), upi: t('modeUpi'), bank: t('modeBank'), neft: t('modeNeft'), cheque: t('modeCheque') }) as Record<string, string>)[m] ?? m;
@@ -68,7 +79,10 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
         <Link href="/sales" className="btn ghost sm">{t('back')}</Link>
         <h1 className="mono">{number}</h1>
         <Chip tone={chip.tone}>{chip.label}</Chip>
-        {canCancel && <span className="headbtns"><CancelInvoice id={id} number={number} /></span>}
+        <span className="headbtns no-print">
+          <InvoiceActions id={id} cancelled={cancelled} canShare={shareConfigured()} />
+          {canCancel && <CancelInvoice id={id} number={number} />}
+        </span>
       </div>
 
       {done === 'posted' && <p role="status" className="alert good">{t('donePosted', { number })}</p>}
@@ -87,8 +101,6 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
               { label: t('placeOfSupply'), value: `${stateName(inv.place_of_supply)} (${inv.place_of_supply}) · ${intra ? t('intraNote') : t('interNote')}` },
               ...(addressText(inv.billing_address) ? [{ label: t('billTo'), value: addressText(inv.billing_address) }] : []),
               ...(addressText(inv.shipping_address) ? [{ label: t('shipTo'), value: addressText(inv.shipping_address) }] : []),
-              ...(inv.vehicle_no ? [{ label: t('vehicleNo'), value: <span className="mono">{inv.vehicle_no}</span> }] : []),
-              ...(inv.transporter_name ? [{ label: t('transporter'), value: inv.transporter_name }] : []),
             ]}
           />
         </Card>
@@ -112,6 +124,10 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
           )}
         </Card>
       </div>
+
+      <EwbPanel
+        key={JSON.stringify(ewb)} id={id} values={ewb} editable={!cancelled} needsEwb={needsEwb} thresholdLabel={inr(EWAY_BILL_THRESHOLD)}
+      />
 
       <Card>
         <div className="cardtitle"><span>{t('items')}</span></div>

@@ -1,5 +1,5 @@
-import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
-import type { ReactNode } from 'react';
+import { Document, Image, Page, StyleSheet, Text, View, type DocumentProps } from '@react-pdf/renderer';
+import { createElement, type ReactElement, type ReactNode } from 'react';
 import { amountInWords, formatDate, inr2, inrRate } from '@/lib/format';
 import { stateName } from '@/lib/gst';
 import { trimZeros } from '@/lib/units';
@@ -152,6 +152,8 @@ export function InvoiceDocument({ data, qr }: { data: InvoicePdfData; qr: string
               <Text style={[s.bold, { marginTop: 8 }]}>PAID</Text>
             ) : qr ? (
               <View style={[s.row, { marginTop: 8, gap: 8, alignItems: 'center' }]}>
+                {/* react-pdf Image, not an HTML <img>: it has no alt attribute. */}
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image src={qr} style={{ width: 78, height: 78 }} />
                 <View>
                   <Text style={s.bold}>Pay by UPI</Text>
@@ -195,3 +197,7 @@ export function InvoiceDocument({ data, qr }: { data: InvoicePdfData; qr: string
     </Document>
   );
 }
+
+/** What renderToBuffer takes: InvoiceDocument returns a <Document>, which the types cannot see through a component. */
+export const invoiceDocument = (data: InvoicePdfData, qr: string | null) =>
+  createElement(InvoiceDocument, { data, qr }) as unknown as ReactElement<DocumentProps>;

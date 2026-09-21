@@ -17,11 +17,11 @@ import { Picker, type PickerOption } from '@/components/ui/Picker';
 import type { ErrorCode } from '@/lib/action-result';
 import { addDecimal, compareDecimal } from '@/lib/decimal';
 import { inr, inr2, inrRate } from '@/lib/format';
-import { GST_STATES, stateName } from '@/lib/gst';
+import { EWAY_BILL_THRESHOLD, GST_STATES, stateName } from '@/lib/gst';
 import { previewTotals } from '@/lib/invoice-math';
 import type { FormAccount, FormParty, InvoiceFormContext, InvoiceFormInitial, InvoiceFormValues } from '@/lib/sales-types';
 import { altToBase, baseToAlt, rateText, trimZeros } from '@/lib/units';
-import { saveDraftSchema } from '@/schemas/sales';
+import { saveDraftSchema, TRANSPORT_MODES } from '@/schemas/sales';
 import { LineRow } from './LineRow';
 import { TotalsRows } from './TotalsPanel';
 
@@ -59,7 +59,7 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
     // The shared schema is the one source of truth; its input type is looser than the form's, hence the cast.
     resolver: zodResolver(saveDraftSchema) as unknown as Resolver<InvoiceFormValues>,
     defaultValues: initial?.values ?? {
-      partyId: '', invoiceDate: ctx.today, placeOfSupply: ctx.orgState, siteId: '', vehicleNo: '', transporterName: '', lines: [emptyLine()],
+      partyId: '', invoiceDate: ctx.today, placeOfSupply: ctx.orgState, siteId: '', vehicleNo: '', transporterName: '', transportMode: '', distanceKm: '', transporterGstin: '', lines: [emptyLine()],
     },
   });
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
@@ -135,6 +135,9 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
     const item = itemsById.get(getValues(`lines.${index}.itemId`));
     if (item?.altUom && item.factor) setValue(`lines.${index}.qty`, trimZeros(altToBase(item.factor, value) ?? ''), { shouldValidate: value !== '' });
   }
+
+  // A hint only (the portal is the authority): goods above the threshold usually need an e-way bill.
+  const needsEwb = compareDecimal(totals.grandTotal, EWAY_BILL_THRESHOLD, 2) === 1;
 
   const zeroTotal = totals.grandTotal === '0.00' || totals.lines.every((l) => l === null);
 
@@ -285,6 +288,21 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
                   <input id="inv-trn" autoComplete="off" {...register('transporterName')} />
                 </Field>
               </div>
+              <div className="fieldrow">
+                <Field id="inv-mode" label={t('transportMode')} error={err(errors.transportMode?.message)}>
+                  <select id="inv-mode" {...register('transportMode')}>
+                    <option value="">—</option>
+                    {TRANSPORT_MODES.map((m) => <option key={m} value={m}>{t(`mode_${m}`)}</option>)}
+                  </select>
+                </Field>
+                <Field id="inv-dist" label={t('distanceKm')} error={err(errors.distanceKm?.message)}>
+                  <input id="inv-dist" className="num" inputMode="numeric" autoComplete="off" {...register('distanceKm')} />
+                </Field>
+                <Field id="inv-tgst" label={t('transporterGstin')} error={err(errors.transporterGstin?.message)}>
+                  <input id="inv-tgst" className="mono" autoComplete="off" style={{ textTransform: 'uppercase' }} {...register('transporterGstin')} />
+                </Field>
+              </div>
+              <p className="hint">{t('ewbAfterPosting')}</p>
             </details>
           </Card>
 
@@ -339,7 +357,9 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
               totals={totals} intra={intra}
               labels={{ taxable: t('taxableValue'), cgst: 'CGST', sgst: 'SGST', igst: 'IGST', roundOff: t('roundOff'), total: t('total') }}
             />
+            {needsEwb && <p className="postnote warntext" role="note">{t('ewbHint', { amount: inr(EWAY_BILL_THRESHOLD) })}</p>}
             <p className="postnote">{t('previewNote')}</p>
+            <p className="postnote">{ctx.hasUpi ? t('upiNoteOn') : isAdmin ? t('upiNoteOffOwner') : t('upiNoteOff')}</p>
           </GlassPanel>
 
           <GlassPanel className="actionbar">

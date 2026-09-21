@@ -20,7 +20,7 @@ export async function loadInvoiceFormContext(
   keep: { partyId?: string; itemIds?: string[] } = {},
 ): Promise<InvoiceFormContext> {
   const [orgRes, partiesRes, addrRes, balRes, itemsRes, whRes, accRes] = await Promise.all([
-    supabase.from('organization').select('state_code, timezone').maybeSingle(),
+    supabase.from('organization').select('state_code, timezone, upi_vpa').maybeSingle(),
     supabase.from('parties').select('id, name, gstin, state_code, is_walk_in, is_active, default_site_id, credit_limit, type').in('type', ['customer', 'both']).order('name'),
     supabase.from('party_addresses').select('id, party_id, label, state_code, is_default, address'),
     supabase.from('v_party_balances').select('party_id, ar_balance'),
@@ -66,5 +66,5 @@ export async function loadInvoiceFormContext(
 
   const accounts: FormAccount[] = (accRes.data ?? []).map((a) => ({ id: a.id, name: a.name, systemKey: a.system_key }));
   const timeZone = orgRes.data?.timezone ?? 'Asia/Kolkata';
-  return { parties, items, accounts, orgState: orgRes.data?.state_code ?? '37', today: todayIn(timeZone) };
+  return { parties, items, accounts, orgState: orgRes.data?.state_code ?? '37', today: todayIn(timeZone), hasUpi: !!orgRes.data?.upi_vpa };
 }

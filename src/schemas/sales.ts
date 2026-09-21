@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GSTIN_PATTERN } from '@/lib/gst';
 import { blankToUndefined, boundedDecimal, decimal, optionalText, stateField } from './common';
 
 // Sales invoice input, shared by the billing form and the server actions. Money and quantities
@@ -14,6 +15,27 @@ const isoDate = z
   }, 'date_invalid');
 
 const positive = (v: string) => /[1-9]/.test(v);
+
+export const TRANSPORT_MODES = ['road', 'rail', 'air', 'ship'] as const;
+
+// Transport details, on the draft and (after posting) through record_invoice_ewb. The database
+// checks the same shapes again. Vehicle numbers are kept in capitals (AP 16 TC 4455).
+const transportFields = {
+  vehicleNo: z.preprocess(
+    blankToUndefined,
+    z.string().trim().transform((v) => v.toUpperCase()).pipe(z.string().regex(/^[A-Z0-9 -]{4,20}$/, 'vehicle_invalid')).optional(),
+  ),
+  transporterName: optionalText(120),
+  transportMode: z.preprocess(blankToUndefined, z.enum(TRANSPORT_MODES, 'transport_mode_invalid').optional()),
+  distanceKm: z.preprocess(
+    blankToUndefined,
+    z.string().trim().regex(/^\d{1,4}$/, 'distance_invalid').refine((v) => Number(v) <= 5000, 'distance_invalid').optional(),
+  ),
+  transporterGstin: z.preprocess(
+    blankToUndefined,
+    z.string().trim().transform((v) => v.toUpperCase()).pipe(z.string().regex(GSTIN_PATTERN, 'gstin_invalid')).optional(),
+  ),
+};
 
 export const invoiceLineSchema = z.object({
   itemId: z.uuid('item_required'),
@@ -43,13 +65,26 @@ export const saveDraftSchema = z
     placeOfSupply: stateField,
     /** A delivery site (one of the party's addresses); blank = ship to the billing address. */
     siteId: z.preprocess(blankToUndefined, z.uuid('id_invalid').optional()),
-    // Vehicle numbers are kept in capitals (AP 16 TC 4455) however they were typed.
-    vehicleNo: z.preprocess(blankToUndefined, z.string().trim().max(20, 'text_long').transform((v) => v.toUpperCase()).optional()),
-    transporterName: optionalText(80),
+    ...transportFields,
     lines: z.array(invoiceLineSchema).min(1, 'lines_required').max(MAX_INVOICE_LINES, 'lines_many'),
   })
   .superRefine((v, ctx) => {
     if (v.id && !v.expectedUpdatedAt) ctx.addIssue({ code: 'custom', path: ['expectedUpdatedAt'], message: 'stale_version_missing' });
+  });
+
+// E-way bill facts recorded on a posted invoice. The number and its two dates go together.
+export const recordEwbSchema = z
+  .object({
+    id: z.uuid('id_invalid'),
+    ...transportFields,
+    ewbNo: z.preprocess(blankToUndefined, z.string().trim().regex(/^\d{12}$/, 'ewb_no_invalid').optional()),
+    ewbDate: z.preprocess(blankToUndefined, isoDate.optional()),
+    ewbValidUntil: z.preprocess(blankToUndefined, isoDate.optional()),
+  })
+  .superRefine((v, ctx) => {
+    const given = [v.ewbNo, v.ewbDate, v.ewbValidUntil].filter((x) => x !== undefined).length;
+    if (given !== 0 && given !== 3) ctx.addIssue({ code: 'custom', path: ['ewbNo'], message: 'ewb_incomplete' });
+    else if (v.ewbDate && v.ewbValidUntil && v.ewbValidUntil < v.ewbDate) ctx.addIssue({ code: 'custom', path: ['ewbValidUntil'], message: 'ewb_dates' });
   });
 
 export const invoiceIdSchema = z.object({ id: z.uuid('id_invalid') });
@@ -64,6 +99,7 @@ export const cancelInvoiceSchema = z.object({
   reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
 });
 
+export type RecordEwbInput = z.input<typeof recordEwbSchema>;
 export type SaveDraftInput = z.input<typeof saveDraftSchema>;
 export type SaveDraftOutput = z.output<typeof saveDraftSchema>;
 export type InvoiceLineInput = z.input<typeof invoiceLineSchema>;

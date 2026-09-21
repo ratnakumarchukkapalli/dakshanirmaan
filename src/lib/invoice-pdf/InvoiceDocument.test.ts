@@ -3,11 +3,10 @@ import path from 'node:path';
 import { renderToBuffer } from '@react-pdf/renderer';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
-import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { InvoicePdfData } from './data';
 import { registerFonts } from './fonts';
-import { InvoiceDocument } from './InvoiceDocument';
+import { invoiceDocument } from './InvoiceDocument';
 import { qrDataUrl, upiUri } from './upi';
 
 vi.mock('server-only', () => ({}));
@@ -49,7 +48,7 @@ const paid: InvoicePdfData = { ...oneLine, number: 'DN/26-27/0004', open: '0.00'
 async function render(data: InvoicePdfData, withQr = true) {
   registerFonts();
   const qr = withQr && !data.cancelled && data.open !== '0.00' ? await qrDataUrl(upiUri({ vpa: org.upiVpa!, name: org.legalName, amount: data.open, note: data.number })) : null;
-  return renderToBuffer(createElement(InvoiceDocument, { data, qr }));
+  return renderToBuffer(invoiceDocument(data, qr));
 }
 const pageCount = (buf: Buffer) => (buf.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length;
 

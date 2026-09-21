@@ -1,12 +1,11 @@
 import { renderToBuffer } from '@react-pdf/renderer';
 import { NextResponse, type NextRequest } from 'next/server';
-import { createElement } from 'react';
 import { getCurrentMember } from '@/lib/auth/current';
 import { pickClientIp } from '@/lib/auth/client-ip';
 import { createLimiter } from '@/lib/auth/rate-limit';
 import { registerFonts } from '@/lib/invoice-pdf/fonts';
 import { loadInvoicePdfData } from '@/lib/invoice-pdf/data';
-import { InvoiceDocument } from '@/lib/invoice-pdf/InvoiceDocument';
+import { invoiceDocument } from '@/lib/invoice-pdf/InvoiceDocument';
 import { qrDataUrl, upiUri } from '@/lib/invoice-pdf/upi';
 import { verifyInvoiceLink } from '@/lib/share-link';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -58,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     : null;
 
   registerFonts();
-  const pdf = await renderToBuffer(createElement(InvoiceDocument, { data, qr }));
+  const pdf = await renderToBuffer(invoiceDocument(data, qr));
   const filename = `DN-${data.number.replace(/[^A-Za-z0-9._-]+/g, '-')}.pdf`;
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
