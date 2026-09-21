@@ -81,7 +81,7 @@ select throws_ok(
   $$update parties set type = 'supplier' where id = 'a0000000-0000-0000-0000-000000000002'$$,
   'P0001', 'DN_VALIDATION:admin_only_field', 'a counter user cannot change a party''s type');
 select throws_ok(
-  $$update parties set gstin = '37AAPFU0939F1ZV' where id = 'a0000000-0000-0000-0000-000000000002'$$,
+  $$update parties set gstin = '37AAPFU0939F1ZU' where id = 'a0000000-0000-0000-0000-000000000002'$$,
   'P0001', 'DN_VALIDATION:admin_only_field', 'a counter user cannot change a party''s GSTIN');
 select throws_ok(
   $$update parties set state_code = '36' where id = 'a0000000-0000-0000-0000-000000000002'$$,
@@ -91,7 +91,7 @@ select lives_ok(
   'a counter user can still rename a party');
 select lives_ok(
   $$insert into parties (id, name, type, state_code, gstin)
-    values ('a0000000-0000-0000-0000-0000000000f2', 'GST Walk-up', 'supplier', '37', '37BBBBB1234B1Z5')$$,
+    values ('a0000000-0000-0000-0000-0000000000f2', 'GST Walk-up', 'supplier', '37', '37BBBBB1234B1ZE')$$,
   'a counter user can still add a party with a GSTIN and state');
 select lives_ok(
   $$insert into parties (id, name, type, state_code, is_active)
@@ -177,16 +177,16 @@ select lives_ok(
   $$update parties set credit_limit = 250000, credit_days = 30, interest_rate_pm = 1.5 where id = 'a0000000-0000-0000-0000-000000000002'$$,
   'an owner sets credit terms');
 select lives_ok(
-  $$update parties set gstin = '37AAPFU0939F1ZV' where id = 'a0000000-0000-0000-0000-000000000002'$$,
+  $$update parties set gstin = '37AAPFU0939F1ZU' where id = 'a0000000-0000-0000-0000-000000000002'$$,
   'a GSTIN whose first two digits match the state is accepted');
 select throws_ok(
-  $$update parties set gstin = '36AAPFU0939F1ZV' where id = 'a0000000-0000-0000-0000-000000000003'$$,
+  $$update parties set gstin = '36AAPFU0939F1ZW' where id = 'a0000000-0000-0000-0000-000000000003'$$,
   '23514', null, 'a GSTIN from a different state than the party is refused');
 select throws_ok(
   $$update parties set gstin = '37aapfu0939f1zv' where id = 'a0000000-0000-0000-0000-000000000003'$$,
   '23514', null, 'a malformed GSTIN is refused');
 select throws_ok(
-  $$update parties set gstin = '37AAPFU0939F1ZV' where id = 'a0000000-0000-0000-0000-000000000003'$$,
+  $$update parties set gstin = '37AAPFU0939F1ZU' where id = 'a0000000-0000-0000-0000-000000000003'$$,
   '23505', null, 'the same GSTIN cannot belong to two parties');
 select throws_ok(
   $$insert into parties (name, type, state_code) values ('Bad State', 'customer', '00')$$,
@@ -269,7 +269,7 @@ select throws_ok(
   $$update organization set upi_vpa = 'not a vpa'$$,
   '23514', null, 'a malformed UPI ID is refused');
 select throws_ok(
-  $$update organization set gstin = '36AAPFU0939F1ZV'$$,
+  $$update organization set gstin = '36AAPFU0939F1ZW'$$,
   '23514', null, 'the organisation GSTIN must match its state');
 select throws_ok(
   $$delete from organization$$, '42501', null, 'the organisation row cannot be deleted');

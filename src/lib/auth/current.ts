@@ -1,5 +1,6 @@
 import 'server-only';
 import { cache } from 'react';
+import { isSessionExpired } from '@/lib/auth/session-age';
 import { createClient } from '@/lib/supabase/server';
 
 export interface CurrentMember {
@@ -18,6 +19,9 @@ export const getCurrentMember = cache(async (): Promise<CurrentMember | null> =>
   const { data: claimsData } = await supabase.auth.getClaims();
   const claims = claimsData?.claims;
   if (!claims?.sub) return null;
+  // The 8-hour session limit is also enforced by the proxy; checking it here too means no caller
+  // depends on the proxy having run. An age that cannot be established counts as expired.
+  if (isSessionExpired(claims.amr, Date.now())) return null;
   const { data: row } = await supabase
     .from('app_users')
     .select('role, name, is_active')

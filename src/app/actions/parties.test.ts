@@ -93,6 +93,21 @@ describe('updateParty', () => {
     const payload = sent()!;
     expect(Object.keys(payload).sort()).toEqual(['name', 'phone', 'whatsapp_phone']);
   });
+  it('owner unticking "No credit limit" with a blank limit is told to enter one, and nothing is saved', async () => {
+    reset(asAdmin());
+    expect(await updateParty({ ...edit, creditUnlimited: false })).toEqual({ ok: false, code: 'validation', error: 'field.credit_limit_required' });
+    expect(state.calls).toHaveLength(0);
+    // 0 is a real answer (no credit at all) and saves.
+    reset(asAdmin());
+    expect((await updateParty({ ...edit, creditUnlimited: false, creditLimit: '0' })).ok).toBe(true);
+    expect(sent()).toHaveProperty('credit_limit', '0');
+  });
+  it('counter user can still correct a party whose stored GSTIN or state fails today\'s checks', async () => {
+    reset(asCounter());
+    const r = await updateParty({ id: ID, name: 'Ramesh Builders', phone: '', whatsappPhone: '', type: 'customer', gstin: '37AAAAA0000A1Z0', stateCode: '28' });
+    expect(r.ok).toBe(true);
+    expect(Object.keys(sent()!).sort()).toEqual(['name', 'phone', 'whatsapp_phone']);
+  });
   it('owner at aal1 is refused before the database is touched', async () => {
     reset(asAdmin('aal1'));
     expect(await updateParty(edit)).toMatchObject({ ok: false, code: 'forbidden' });

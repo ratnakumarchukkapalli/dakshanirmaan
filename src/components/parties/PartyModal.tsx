@@ -4,12 +4,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { createParty, updateParty } from '@/app/actions/parties';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { GST_STATES, isStateCode, stateName } from '@/lib/gst';
-import { createPartySchema, type CreatePartyInput, type CreatePartyOutput } from '@/schemas/parties';
+import { createPartySchema, partyBasicsSchema, type CreatePartyInput, type CreatePartyOutput } from '@/schemas/parties';
 
 export interface PartyValues {
   id: string;
@@ -60,9 +60,11 @@ function PartyForm({ isAdmin, defaultStateCode, party, onDone }: Props & { onDon
   const identityLocked = !!party && !isAdmin;
 
   const {
-    register, handleSubmit, control, setValue, formState: { errors },
+    register, handleSubmit, control, setValue, setError, formState: { errors },
   } = useForm<CreatePartyInput, unknown, CreatePartyOutput>({
-    resolver: zodResolver(createPartySchema),
+    // A counter user editing a party cannot see or change identity or credit fields, so those are
+    // not validated: a legacy GSTIN or state that today's rules reject must not block the save.
+    resolver: (identityLocked ? zodResolver(partyBasicsSchema) : zodResolver(createPartySchema)) as Resolver<CreatePartyInput, unknown, CreatePartyOutput>,
     defaultValues: {
       name: party?.name ?? '', type: party?.type ?? 'customer', gstin: party?.gstin ?? '',
       stateCode: party?.stateCode ?? defaultStateCode, phone: party?.phone ?? '', whatsappPhone: party?.whatsappPhone ?? '',
@@ -82,7 +84,20 @@ function PartyForm({ isAdmin, defaultStateCode, party, onDone }: Props & { onDon
     return m ? te(`field.${m}`) : undefined;
   };
 
-  const submit = handleSubmit((values) =>
+  // Fields that have a box on screen. A problem with any other field would otherwise block
+  // Save with nothing to point at, so it is shown as a notice above the form.
+  const shown = new Set<string>(['name', 'phone', 'whatsappPhone']);
+  if (!identityLocked) ['type', 'gstin', 'stateCode'].forEach((f) => shown.add(f));
+  if (isAdmin) ['creditLimit', 'creditDays', 'interestRatePm'].forEach((f) => shown.add(f));
+  const hiddenProblem = Object.entries(errors).find(([name, e]) => !shown.has(name) && e?.message)?.[1]?.message;
+
+  const submit = handleSubmit((values) => {
+    // On an existing party, unticking "No credit limit" needs a limit (0 = no credit); otherwise
+    // nothing would be sent and the party would quietly stay unlimited.
+    if (party && isAdmin && !values.creditUnlimited && values.creditLimit === undefined) {
+      setError('creditLimit', { message: 'credit_limit_required' });
+      return;
+    }
     start(async () => {
       setServerError(null);
       // Counter users never send credit terms (the server drops them and the database refuses them).
@@ -104,14 +119,14 @@ function PartyForm({ isAdmin, defaultStateCode, party, onDone }: Props & { onDon
         onDone();
         router.push(`/parties/${res.data.id}`);
       }
-    }),
-  );
+    });
+  });
 
   return (
     <form onSubmit={submit} noValidate>
-      {serverError && (
+      {(serverError || hiddenProblem) && (
         <p role="alert" className="alert bad">
-          {serverError}
+          {serverError ?? te(`field.${hiddenProblem}`)}
         </p>
       )}
       <div className="fieldrow">

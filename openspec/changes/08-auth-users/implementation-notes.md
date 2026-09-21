@@ -61,3 +61,21 @@ All new Telugu strings in `login.*`, `mfa.*`, `users.*`, `errors.*`, `topbar.sig
 - 16: `RUNBOOK.md` gets: create first admin, recover a lost authenticator (an admin with `service_role` deletes the factor: `auth.admin.mfa.deleteFactor`), key rotation.
 - Lost authenticator: not built. Until the runbook exists, recovery = another admin removes the factor via the dashboard, or `create-admin --force` after removing the row.
 - The shared `Toast` primitive is still unbuilt; forms show inline notices.
+
+## Second Sonnet review (2026-09-21) — app half
+
+**Go-live checklist addition**
+- Confirm on the hosted project that GoTrue requires **aal2 to enrol a second TOTP factor** once a verified one exists (an aal1 session must not be able to add its own authenticator). The app refuses this in `startTotpEnrollment`, but the hosted service is the real gate.
+
+**KNOWN, accepted for now (owner may overrule)**
+- `requestCode`'s 429 and response time can reveal whether an email is registered: GoTrue has a per-user 60 s resend cooldown, and known users send real SMTP synchronously (slower reply). Impact is low for a private app of at most 10 people. Mitigation if wanted: a uniform per-email cooldown applied by us before calling GoTrue, plus a fixed minimum response time.
+
+**Fixed in this round**
+- Account lock-out: sign-in code requests and code checks are now limited per (email + caller address) at the old limits (5 requests, 10 checks per 15 min), plus a looser per-email ceiling (20 requests, 40 checks per 15 min). One address can only use up its own budget, so a stranger who knows the owner's email can no longer lock the owner out. The per-address hourly cap on requests (20) is unchanged. `verifyCode` now passes the caller address.
+- `getCurrentMember` applies the 8 h session limit itself (`isSessionExpired`, fail closed), so it no longer depends on the proxy having run.
+- Party edit: an owner unticking "No credit limit" with a blank limit now gets "Enter a limit, or 0 for no credit" instead of a silent "Saved" that left the party unlimited (`errors.field.credit_limit_required`; the hint text on the edit form was changed to match).
+- Counter user editing a party is validated against name and phones only (`partyBasicsSchema` / `updatePartyBasicsSchema`, client and server), so a legacy party whose GSTIN or state fails today's stricter checks can still be corrected. Any validation problem on a field that has no box on screen is now shown as a notice above the form.
+- Party lists and detail show balances and credit limit with paise (`inr2`); ₹100.40 no longer shows ₹100 and -₹0.40 no longer shows "-₹0".
+- `Modal` closes on the backdrop only when the press also began there (a drag-select that ends over the backdrop no longer discards the form).
+- Invite form uses the shared `Field` (aria-describedby / aria-invalid wired).
+- Tests added: `src/app/actions/auth.test.ts` (uniform reply for unknown / disabled / active emails, rate-limit mapping, `verifyCode` uniform failure and sign-out for a disabled or unknown member, admin-only TOTP enrolment and verification), `src/lib/auth/current.test.ts`, updated `rate-limit.test.ts`, two new `parties.test.ts` cases.

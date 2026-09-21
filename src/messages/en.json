@@ -177,6 +177,7 @@
       "phone_invalid": "Enter a phone number with digits only.",
       "whatsapp_invalid": "Enter a 10-digit mobile number.",
       "money_invalid": "Enter an amount with at most 2 decimals.",
+      "credit_limit_required": "Enter a limit, or 0 for no credit.",
       "number_invalid": "Enter a valid number.",
       "days_invalid": "Enter whole days.",
       "type_invalid": "Choose a type.",
@@ -300,7 +301,7 @@
     "creditTermsNone": "No credit terms set",
     "noLimit": "No limit",
     "identityOwnerOnly": "Only an owner can change the type, GSTIN or state of an existing party.",
-    "creditLimitBlankKeeps": "Leave blank to keep the current limit.",
+    "creditLimitBlankKeeps": "Enter 0 for no credit.",
     "creditLimitBlankZero": "Leave blank for no credit (₹0).",
     "creditUnlimited": "No credit limit (unlimited)"
   },

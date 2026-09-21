@@ -89,8 +89,11 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { min-height: 100%; overflow-x: hidden; }
+html { min-height: 100%; }
+/* overflow-x: clip (not hidden): no sideways scroll, but body does not become a scroll container,
+   so position: sticky on the topbar and rail keeps working on long pages. */
 body {
+  min-height: 100%; overflow-x: clip;
   background: var(--bg); color: var(--ink); margin: 0;
   font-family: 'Avenir Next', -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Telugu', sans-serif;
   font-size: 14.5px; line-height: 1.45; -webkit-font-smoothing: antialiased;
@@ -148,12 +151,12 @@ a { color: var(--accent); }
 }
 .pill.role { color: var(--ink); font-weight: 650; }
 .iconbtn {
-  width: 34px; height: 34px; border-radius: 11px; border: 1px solid var(--border); background: var(--surface2);
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 13px; border: 1px solid var(--border); background: var(--surface2);
   display: grid; place-items: center; color: var(--ink);
 }
 .iconbtn:hover { background: var(--accent-soft); }
 .avatar {
-  width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+  width: 44px; height: 44px; min-width: 44px; min-height: 44px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
   font-weight: 800; font-size: 13px; display: grid; place-items: center; border: 0;
 }
 .menu {
@@ -166,16 +169,17 @@ a { color: var(--accent); }
 .menu .who { padding: 8px 10px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 .menu .who b { display: block; font-weight: 750; }
 .menu .who span { font-size: 12px; color: var(--muted); }
-.menu a { display: block; padding: 9px 10px; border-radius: 10px; color: var(--ink); text-decoration: none; font-weight: 600; }
+.menu a { display: flex; align-items: center; min-height: 44px; padding: 9px 10px; border-radius: 10px; color: var(--ink); text-decoration: none; font-weight: 600; }
 .menu a:hover, .menu a[aria-current='page'] { background: var(--accent-soft); }
 .menu .only-mobile { display: none; }
 @media (max-width: 800px) {
   .topbar { grid-template-columns: auto 1fr auto; gap: 8px; padding: 8px 10px; }
   .tb-left, .tb-right .pill.role, .brandsub { display: none; }
+  .tb-right { gap: 6px; }
   .tb-center { justify-content: center; }
   .brandname { font-size: 12.5px; letter-spacing: 0.08em; overflow: hidden; text-overflow: ellipsis; }
   .tb-center > div { min-width: 0; }
-  .menu .only-mobile { display: block; }
+  .menu .only-mobile { display: flex; }
 }
 
 /* ---------- shell + nav ---------- */
@@ -268,7 +272,7 @@ main { flex: 1; padding: 16px 4px 110px 16px; min-width: 0; max-width: 1180px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 650; text-decoration: underline; }
 .menu .menubtn {
-  display: block; width: 100%; text-align: left; background: none; border: 0; padding: 9px 10px; border-radius: 10px;
+  display: flex; align-items: center; width: 100%; min-height: 44px; text-align: left; background: none; border: 0; padding: 9px 10px; border-radius: 10px;
   color: var(--ink); font-weight: 600;
 }
 .menu .menubtn:hover { background: var(--accent-soft); }
@@ -464,4 +468,9 @@ tfoot td { font-weight: 700; border-top: 2px solid var(--ink); border-bottom: 0;
   main { max-width: none; padding: 0; }
   .card, .glass { box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; background: #fff; }
   .tablewrap { overflow: visible; }
+}
+
+/* Reduced motion: no transitions or animations anywhere (rail links, screen entrance, toasts). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }

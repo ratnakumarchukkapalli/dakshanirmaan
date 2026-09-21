@@ -180,7 +180,7 @@ Posting: **one** stock movement — OUT of the challan's warehouse at weighted-a
 
 ### bank_statements + bank_statement_lines
 `bank_statements: account_id, period_from, period_to, imported_by, imported_at, source_file text`
-`bank_statement_lines: statement_id, txn_date, narration text, debit NUMERIC(14,2), credit NUMERIC(14,2), balance NUMERIC(14,2) NULL, matched_payment_id UUID NULL, matched_entry_id UUID NULL, match_status text CHECK (match_status IN ('unmatched','auto','manual','ignored'))`. Matching is by amount+date window (±3 days) then narration token overlap; unmatched lines create receipts/expenses via existing actions. View `v_bank_recon` (book vs bank balance, unmatched count).
+`bank_statement_lines: statement_id, txn_date, narration text, debit NUMERIC(14,2), credit NUMERIC(14,2), balance NUMERIC(14,2) NULL, matched_payment_id UUID NULL, matched_entry_id UUID NULL, match_status text CHECK (match_status IN ('unmatched','auto','manual','ignored'))`. Matching is by amount+date window (±3 days) then narration token overlap; unmatched lines create receipts/expenses via existing actions. View `v_bank_recon` (book vs bank balance, unmatched count). **Owner-only to read and write** (bank balances are not counter-staff data): both tables and `v_bank_recon`, as with `v_employee_ledger` (salary data), return nothing to a `user` role (decided in the second review of change 06).
 
 ### attachments
 `entity text, entity_id UUID, storage_path text, mime text, bytes int, uploaded_by, uploaded_at` — Supabase Storage bucket `docs` (private, RLS via signed URLs, 5 MB cap). Used first for purchase-bill photos.

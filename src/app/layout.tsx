@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: 'Daksha Nirmaan Traders',
   description: 'Accounts and stock for Daksha Nirmaan Traders',
   manifest: '/api/manifest.webmanifest',
-  icons: { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
+  icons: { icon: '/icons/icon-192.png', apple: '/icons/maskable-512.png' },
   appleWebApp: { capable: true, title: 'Daksha Nirmaan', statusBarStyle: 'default' },
 };
 

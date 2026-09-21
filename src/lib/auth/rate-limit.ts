@@ -55,23 +55,36 @@ export function createLimiter({ limit, windowMs, maxKeys = MAX_KEYS, sweepEvery 
 }
 
 const MIN = 60_000;
-const emailCodes = createLimiter({ limit: 5, windowMs: 15 * MIN });
+// Two counters per action. The tight one is per (email + caller address): one address can use up
+// only its own budget, so a stranger who knows the owner's email cannot lock the owner out from
+// somewhere else. The loose per-email ceiling still stops a spread-out attack on one account.
+const pairKey = (email: string, ip: string) => `${email}|${ip}`;
+const pairCodes = createLimiter({ limit: 5, windowMs: 15 * MIN });
+const emailCodes = createLimiter({ limit: 20, windowMs: 15 * MIN });
 const ipCodes = createLimiter({ limit: 20, windowMs: 60 * MIN });
-const codeChecks = createLimiter({ limit: 10, windowMs: 15 * MIN });
+const pairChecks = createLimiter({ limit: 10, windowMs: 15 * MIN });
+const emailChecks = createLimiter({ limit: 40, windowMs: 15 * MIN });
 const totpChecks = createLimiter({ limit: 10, windowMs: 15 * MIN });
 
-/** Sign-in code requests: 5 per email per 15 min and 20 per IP per hour. Records on success. */
+/**
+ * Sign-in code requests: 5 per email per address per 15 min, 20 per email (any address) per
+ * 15 min, and 20 per address per hour. Records on success only.
+ */
 export function allowCodeRequest(email: string, ip: string, now = Date.now()): boolean {
-  if (!emailCodes.allows(email, now) || !ipCodes.allows(ip, now)) return false;
+  const pair = pairKey(email, ip);
+  if (!pairCodes.allows(pair, now) || !emailCodes.allows(email, now) || !ipCodes.allows(ip, now)) return false;
+  pairCodes.hit(pair, now);
   emailCodes.hit(email, now);
   ipCodes.hit(ip, now);
   return true;
 }
 
-/** Attempts to type a sign-in code: 10 per email per 15 min. */
-export function allowCodeCheck(email: string, now = Date.now()): boolean {
-  if (!codeChecks.allows(email, now)) return false;
-  codeChecks.hit(email, now);
+/** Attempts to type a sign-in code: 10 per email per address per 15 min, 40 per email in all. */
+export function allowCodeCheck(email: string, ip: string, now = Date.now()): boolean {
+  const pair = pairKey(email, ip);
+  if (!pairChecks.allows(pair, now) || !emailChecks.allows(email, now)) return false;
+  pairChecks.hit(pair, now);
+  emailChecks.hit(email, now);
   return true;
 }
 

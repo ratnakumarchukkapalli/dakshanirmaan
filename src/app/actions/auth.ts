@@ -43,7 +43,7 @@ export async function verifyCode(input: unknown): Promise<ActionResult<{ next: '
   if (!parsed.success) return fail('validation', t('code_wrong'));
   const { email, code } = parsed.data;
 
-  if (!allowCodeCheck(email)) return fail('rate_limited', t('rate_limited'));
+  if (!allowCodeCheck(email, await clientIp())) return fail('rate_limited', t('rate_limited'));
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });

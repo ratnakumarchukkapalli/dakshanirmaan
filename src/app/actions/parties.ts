@@ -7,7 +7,7 @@ import { fail, ok, type ActionResult } from '@/lib/action-result';
 import { requireAdmin, requireMember } from '@/lib/auth/require';
 import { createClient } from '@/lib/supabase/server';
 import {
-  createPartySchema, defaultSiteSchema, partyAddressSchema, partyIdSchema, updatePartySchema,
+  createPartySchema, defaultSiteSchema, partyAddressSchema, partyIdSchema, updatePartyBasicsSchema, updatePartySchema,
 } from '@/schemas/parties';
 
 // Any active member may add or edit a party (the counter adds customers on the spot). Credit
@@ -63,22 +63,31 @@ export async function updateParty(input: unknown): Promise<ActionResult> {
   const gate = await requireMember();
   if (gate.denied) return gate.denied;
   const member = gate.member;
-  const parsed = updatePartySchema.safeParse(input);
-  if (!parsed.success) return zodFailure(parsed.error);
-  const { id, ...v } = parsed.data;
-
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('parties')
-    .update({
-      name: v.name,
-      // Type, GSTIN and state are owner-only once a party exists (the database refuses them too).
-      ...(member.role === 'admin' ? { type: v.type, gstin: v.gstin ?? null, state_code: v.stateCode } : {}),
+
+  let columns: Record<string, string | null>;
+  let id: string;
+  if (member.role === 'admin') {
+    const parsed = updatePartySchema.safeParse(input);
+    if (!parsed.success) return zodFailure(parsed.error);
+    const { id: partyId, ...v } = parsed.data;
+    id = partyId;
+    columns = {
+      name: v.name, type: v.type, gstin: v.gstin ?? null, state_code: v.stateCode,
       phone: v.phone ?? null, whatsapp_phone: v.whatsappPhone ?? null,
       ...termsColumns(member.role, v, false),
-    })
-    .eq('id', id)
-    .select('id');
+    };
+  } else {
+    // Type, GSTIN, state and credit terms are owner-only once a party exists (the database
+    // refuses them too), so a counter user's input is not even checked against them.
+    const parsed = updatePartyBasicsSchema.safeParse(input);
+    if (!parsed.success) return zodFailure(parsed.error);
+    const { id: partyId, ...v } = parsed.data;
+    id = partyId;
+    columns = { name: v.name, phone: v.phone ?? null, whatsapp_phone: v.whatsappPhone ?? null };
+  }
+
+  const { data, error } = await supabase.from('parties').update(columns).eq('id', id).select('id');
   if (error) return dbFailure(error);
   if (!data?.length) return fail('validation', t('validation.no_such_party'));
 

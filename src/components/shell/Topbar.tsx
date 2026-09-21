@@ -18,7 +18,8 @@ export async function Topbar({ ctx }: { ctx: ShellContext }) {
   ]);
   const isTelugu = locale === 'te';
   const roleLabel = tRole(ctx.role);
-  const initial = (ctx.name.trim()[0] ?? '?').toUpperCase();
+  // First user-perceived character by code point, so an emoji or non-BMP letter is not split.
+  const initial = (Array.from(ctx.name.trim())[0] ?? '?').toUpperCase();
 
   return (
     <GlassPanel as="header" strong className="topbar">
@@ -40,8 +41,11 @@ export async function Topbar({ ctx }: { ctx: ShellContext }) {
       <div className="tb-right">
         <span className="pill role">{roleLabel}</span>
         <form action={toggleLocale}>
-          <button type="submit" className="iconbtn" lang={isTelugu ? 'en' : 'te'} aria-label={isTelugu ? tTop('languageTe') : tTop('language')} title={isTelugu ? tTop('languageTe') : tTop('language')}>
-            {isTelugu ? 'A' : 'అ'}
+          <button type="submit" className="iconbtn" aria-label={isTelugu ? tTop('languageTe') : tTop('language')} title={isTelugu ? tTop('languageTe') : tTop('language')}>
+            {/* Only the glyph is in the other language; the label above stays in the page language. */}
+            <span lang={isTelugu ? 'en' : 'te'} aria-hidden="true">
+              {isTelugu ? 'A' : 'అ'}
+            </span>
           </button>
         </form>
         <ThemeToggle label={tTop('theme')} />

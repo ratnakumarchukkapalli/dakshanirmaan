@@ -117,7 +117,7 @@ export function InvoiceDocument({ data, qr }: { data: InvoicePdfData; qr: string
               {t.distanceKm !== null ? <Text>Distance: {t.distanceKm} km</Text> : null}
               {t.transporterName ? <Text>Transporter: {t.transporterName}</Text> : null}
               {t.transporterGstin ? <Text>Transporter GSTIN: {t.transporterGstin}</Text> : null}
-              {t.ewbNo ? <Text>E-way bill: {t.ewbNo}{t.ewbDate ? ` dt ${formatDate(t.ewbDate)}` : ''}{t.ewbValidUntil ? `, valid until ${formatDate(t.ewbValidUntil.slice(0, 10))}` : ''}</Text> : null}
+              {t.ewbNo ? <Text>E-way bill: {t.ewbNo}{t.ewbDate ? ` dt ${formatDate(t.ewbDate)}` : ''}{t.ewbValidUntil ? `, valid until ${formatDate(t.ewbValidUntil)}` : ''}</Text> : null}
             </View>
           </View>
         )}

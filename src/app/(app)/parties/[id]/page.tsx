@@ -10,7 +10,7 @@ import { KeyValue } from '@/components/ui/KeyValue';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
 import { stateName } from '@/lib/gst';
-import { inr } from '@/lib/format';
+import { inr2 } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 
 // Master details and delivery sites. The ledger, ageing tiles and statements arrive with change 13.
@@ -70,9 +70,9 @@ export default async function PartyPage({ params }: { params: Promise<{ id: stri
             { label: t('state'), value: `${stateName(p.state_code)} (${p.state_code})` },
             { label: t('phone'), value: p.phone ?? dash },
             { label: t('whatsapp'), value: p.whatsapp_phone ?? dash },
-            { label: t('toCollect'), value: Number(bal?.ar_balance ?? 0) ? inr(bal?.ar_balance) : dash },
-            { label: t('toPay'), value: Number(bal?.ap_balance ?? 0) ? inr(bal?.ap_balance) : dash },
-            { label: t('creditLimitField'), value: p.credit_limit == null ? t('noLimit') : Number(p.credit_limit) === 0 ? t('noCredit') : inr(p.credit_limit) },
+            { label: t('toCollect'), value: Number(bal?.ar_balance ?? 0) ? inr2(bal?.ar_balance) : dash },
+            { label: t('toPay'), value: Number(bal?.ap_balance ?? 0) ? inr2(bal?.ap_balance) : dash },
+            { label: t('creditLimitField'), value: p.credit_limit == null ? t('noLimit') : Number(p.credit_limit) === 0 ? t('noCredit') : inr2(p.credit_limit) },
             { label: t('creditDays'), value: String(p.credit_days) },
             { label: t('interestRate'), value: `${p.interest_rate_pm}%` },
           ]}

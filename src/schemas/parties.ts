@@ -43,8 +43,33 @@ const checkGstinState = (v: { gstin?: string; stateCode: string }, ctx: z.Refine
   if (!gstinMatchesState(v.gstin, v.stateCode)) ctx.addIssue({ code: 'custom', path: ['gstin'], message: 'gstin_state' });
 };
 
+/**
+ * On an existing party an owner who unticks "No credit limit" must give a limit (0 = no credit):
+ * otherwise nothing would be sent and the party would silently stay unlimited. A counter user
+ * sends no credit fields at all (`creditUnlimited` undefined), so this never touches them.
+ */
+const checkLimitGiven = (v: { creditUnlimited?: boolean; creditLimit?: string }, ctx: z.RefinementCtx) => {
+  if (v.creditUnlimited === false && v.creditLimit === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['creditLimit'], message: 'credit_limit_required' });
+  }
+};
+
 export const createPartySchema = z.object(partyShape).superRefine(checkGstinState);
-export const updatePartySchema = z.object({ id: z.uuid('id_invalid'), ...partyShape }).superRefine(checkGstinState);
+export const updatePartySchema = z
+  .object({ id: z.uuid('id_invalid'), ...partyShape })
+  .superRefine((v, ctx) => {
+    checkGstinState(v, ctx);
+    checkLimitGiven(v, ctx);
+  });
+
+/**
+ * What a counter user may change on an existing party. Type, GSTIN, state and credit terms are
+ * owner-only, so they are not validated here: a legacy party whose stored GSTIN or state would
+ * fail today's stricter checks can still have its name and phones corrected.
+ */
+const basicsShape = { name: partyShape.name, phone: partyShape.phone, whatsappPhone: partyShape.whatsappPhone };
+export const partyBasicsSchema = z.object(basicsShape);
+export const updatePartyBasicsSchema = z.object({ id: z.uuid('id_invalid'), ...basicsShape });
 
 export const partyAddressSchema = z.object({
   partyId: z.uuid('id_invalid'),

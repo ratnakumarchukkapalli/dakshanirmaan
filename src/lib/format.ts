@@ -1,12 +1,16 @@
 // Display helpers. Dates travel as ISO strings (YYYY-MM-DD); nothing here parses them
 // through Date, so the viewer's time zone can never shift a business date.
 
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})/;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function parts(iso: string): { y: number; m: number; d: number } {
   const match = ISO_DATE.exec(iso);
   if (!match) throw new Error(`Not an ISO date: ${iso}`);
-  return { y: Number(match[1]), m: Number(match[2]), d: Number(match[3]) };
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const d = Number(match[3]);
+  if (m < 1 || m > 12 || d < 1 || d > 31) throw new Error(`Not an ISO date: ${iso}`);
+  return { y, m, d };
 }
 
 /** Today's business date (YYYY-MM-DD) in the organisation's time zone — never the server's. */

@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { disableUser, enableUser, inviteUser } from '@/app/actions/admin';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
+import { Field } from '@/components/ui/Field';
 import { inviteUserSchema, type InviteUserInput } from '@/schemas/users';
 
 export interface UserRow {
@@ -70,23 +71,18 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
         </p>
         <form onSubmit={invite} noValidate>
           <div className="fieldrow">
-            <div className="field">
-              <label htmlFor="u-name">{t('name')}</label>
-              <input id="u-name" autoComplete="off" aria-invalid={!!errors.name} {...register('name')} />
-              {errors.name && <p className="fielderror">{te(`field.${errors.name.message}`)}</p>}
-            </div>
-            <div className="field">
-              <label htmlFor="u-email">{t('email')}</label>
-              <input id="u-email" type="email" inputMode="email" autoComplete="off" aria-invalid={!!errors.email} {...register('email')} />
-              {errors.email && <p className="fielderror">{te(`field.${errors.email.message}`)}</p>}
-            </div>
-            <div className="field">
-              <label htmlFor="u-role">{t('role')}</label>
+            <Field id="u-name" label={t('name')} error={errors.name ? te(`field.${errors.name.message}`) : undefined}>
+              <input id="u-name" autoComplete="off" {...register('name')} />
+            </Field>
+            <Field id="u-email" label={t('email')} error={errors.email ? te(`field.${errors.email.message}`) : undefined}>
+              <input id="u-email" type="email" inputMode="email" autoComplete="off" {...register('email')} />
+            </Field>
+            <Field id="u-role" label={t('role')}>
               <select id="u-role" {...register('role')}>
                 <option value="user">{tRole('user')}</option>
                 <option value="admin">{tRole('admin')}</option>
               </select>
-            </div>
+            </Field>
           </div>
           <button type="submit" className="btn primary" disabled={pending}>
             {t('add')}

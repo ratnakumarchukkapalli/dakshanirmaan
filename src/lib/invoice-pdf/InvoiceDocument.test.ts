@@ -37,7 +37,7 @@ const oneLine: InvoicePdfData = {
 };
 const twelve: InvoicePdfData = {
   ...oneLine, number: 'DN/26-27/0002', placeOfSupply: '36', intra: false,
-  transport: { ...none, vehicleNo: 'AP 39 TV 1234', transporterName: 'Sri Sai Transport', mode: 'road', distanceKm: 120, ewbNo: '123456789012', ewbDate: '2026-09-20', ewbValidUntil: '2026-09-22T18:29:00+00:00' },
+  transport: { ...none, vehicleNo: 'AP 39 TV 1234', transporterName: 'Sri Sai Transport', mode: 'road', distanceKm: 120, ewbNo: '123456789012', ewbDate: '2026-09-20', ewbValidUntil: '2026-09-22' },
   lines: Array.from({ length: 45 }, (_, i) => line(i + 1, i % 3 === 0 ? { name: 'TMT Bar Fe500D 12mm', hsn: '7214', uom: 'kg', qty: '1250.000', altQty: '100.000', rate: '64.5000', discountPct: '2.00', taxable: '79012.50', gstRate: '18.00', tax: '14222.25', amount: '93234.75' } : {})),
   totals: { taxable: '900000.00', cgst: '0.00', sgst: '0.00', igst: '162000.00', roundOff: '-0.40', grand: '1061999.60' },
   open: '61999.60',

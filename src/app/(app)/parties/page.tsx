@@ -7,7 +7,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Segmented } from '@/components/ui/Segmented';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
-import { inr } from '@/lib/format';
+import { inr2 } from '@/lib/format';
 import { cleanSearchText, orContainsFilter } from '@/lib/search';
 import { createClient } from '@/lib/supabase/server';
 
@@ -87,9 +87,9 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
                         <div className="pname"><Link href={`/parties/${p.id}`}>{p.name}</Link></div>
                         <div className="sub">{[typeLabel[p.type as keyof typeof typeLabel], p.gstin].filter(Boolean).join(' · ')}</div>
                       </td>
-                      <td className="r num">{ar ? inr(ar) : '—'}</td>
-                      <td className="r num">{ap ? inr(ap) : '—'}</td>
-                      <td className="r num">{p.credit_limit == null ? t('noLimit') : Number(p.credit_limit) === 0 ? t('noCredit') : inr(p.credit_limit)}</td>
+                      <td className="r num">{ar ? inr2(ar) : '—'}</td>
+                      <td className="r num">{ap ? inr2(ap) : '—'}</td>
+                      <td className="r num">{p.credit_limit == null ? t('noLimit') : Number(p.credit_limit) === 0 ? t('noCredit') : inr2(p.credit_limit)}</td>
                       <td><Chip tone={p.is_active ? 'good' : 'muted'}>{p.is_active ? t('active') : t('inactive')}</Chip></td>
                     </tr>
                   );

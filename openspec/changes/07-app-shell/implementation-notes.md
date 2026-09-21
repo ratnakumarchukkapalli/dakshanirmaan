@@ -48,3 +48,9 @@ Telugu strings that are **not** from the prototype were written by the model: `t
 - The seeded `organization.gstin` is null, so the GSTIN pill is hidden until change 09 (org settings) or 17 (cutover) fills it.
 - `next dev` added a "This is NOT the Next.js you know" block to the project `CLAUDE.md` (its own agent-rules feature). Kept as-is; decide whether to commit it.
 - Shared UI grows per screen: Segmented (09/13), StatTile (14), Toast (first form, 10), DataTable/LedgerTable (13).
+
+
+## Second Sonnet review (2026-09-21) — fixed
+- `body` was its own scroll container (`overflow-x` on both `html` and `body`), so the sticky topbar and side rail scrolled away on long pages. Now `overflow-x: clip`.
+- Touch targets ≥ 44 px (icon buttons, avatar, menu rows). Token test now compares VALUES of the two dark blocks, not just names. Language button: `lang` only on the glyph span. Avatar initial uses `Array.from`. `formatDate` validates month/day; date-only. Global reduced-motion rule. iOS icon uses the opaque maskable icon. `nav.ts` tests.
+- Not done (low): dark-mode manifest colours and `id`, service-worker icon cache versioning, per-screen `<title>`, radius tokens in a few CSS rules, avatar-menu focus management, offline page `lang`/retry link.

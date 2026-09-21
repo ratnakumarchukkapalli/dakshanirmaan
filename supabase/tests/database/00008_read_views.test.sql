@@ -931,10 +931,10 @@ select is((select count(*)::int from _acc where principal = 'admin' and n = 0), 
 select is((select count(*)::int from _acc where principal = 'user' and err is not null), 0,
   'a user-role session gets no error from any view');
 select is((select array_agg(view_name order by view_name) from _acc where principal = 'user' and n = 0),
-  array['v_balance_sheet', 'v_pnl', 'v_trial_balance'],
-  'a user-role session gets zero rows from exactly the three admin-only views');
-select is((select count(*)::int from _acc where principal = 'user' and n > 0), 14,
-  'and can read the other fourteen');
+  array['v_balance_sheet', 'v_bank_recon', 'v_employee_ledger', 'v_pnl', 'v_trial_balance'],
+  'a user-role session gets zero rows from exactly the five admin-only views (books, salary, bank)');
+select is((select count(*)::int from _acc where principal = 'user' and n > 0), 12,
+  'and can read the other twelve');
 select is((select count(*)::int from _acc where principal = 'stranger' and (err is not null or n <> 0)), 0,
   'an authenticated non-member reads zero rows from every view, no error (RLS applies through security_invoker)');
 select is((select count(*)::int from _acc where principal = 'anon' and err ~ 'permission denied'), 17,

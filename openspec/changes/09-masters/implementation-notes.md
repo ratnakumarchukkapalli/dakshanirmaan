@@ -76,3 +76,31 @@ All new Telugu in `parties.*`, `items.*`, `org.*`, `coa.*`, `settings.*`, `addre
 - 13: party ledger goes above the details card on `/parties/[id]`; employee parties get created from the staff screen.
 - 17: party / opening-balance import must go through the same checks.
 - 19: change 19's test numbering moved to `00012` (this change took `00011`).
+
+
+## Second Sonnet review (2026-09-21) — database + app, and what was done
+
+Four fresh Sonnet reviewers (08+09 database, 08+09 app, 06 views, 07 shell). Owner asked for Sonnet only. Everything below is fixed and verified unless listed under "Left open".
+
+**Fixed — database** (`20260921100000_masters_review_round2.sql`, `20260921110000_read_views_admin_gates.sql`; tests `00014`, `00011` fixtures, `00008` counts)
+- Walk-in party: credit limit / days / interest rate / state now locked for everyone (an owner could set `credit_limit = NULL`, which posting reads as unlimited credit).
+- `parties_guard`: a counter user's update is a WHITELIST (name, phone, whatsapp_phone, default_site_id); every other column, including columns added later, is owner-only.
+- `organization_guard`: state / FY start lock once ANY journal entry exists or ANY number was issued (was: a posted sales/purchase invoice only). `fy_start_month` CHECK 1–12.
+- GSTIN check digit enforced by the database (`gstin_checksum_ok`, same mod-36 rule as `src/lib/gst.ts`) on parties and the organisation. Default 7 ("app only") is superseded. PAN shape and the `Z` in position 14 are deliberately NOT enforced: government / TDS registrations do not follow them.
+- HSN is 4, 6 or 8 digits (5 and 7 do not exist). Second unit cannot be blank or the same as the first ignoring case.
+- Change 06: `v_employee_ledger`, `v_bank_recon`, `bank_statements`, `bank_statement_lines` are owner-only to read. Spec updated.
+- New tests (00014, 56): each item above, plus the previously missing arms — last-admin demotion, another admin disabling an admin, 10-person cap on create AND re-enable (function and direct write), credit-side balance blocks disable / settled party can be disabled, sales-line arm of `items_guard` isolated, address writes by stranger / anon / disabled member.
+
+**Fixed — app**: see the "Second Sonnet review — app half" section of change 08's notes (credit-limit edit trap, whole-rupee balances, counter-staff edit of legacy parties, sign-in lock-out by strangers, session-age check inside `getCurrentMember`, modal drag-select, `auth.ts` tests) and change 07's notes (sticky topbar, 44 px targets, token test, language button, dates, reduced motion).
+Also: `formatDate` now accepts a date only (a timestamp's calendar day depends on the time zone); the invoice PDF converts the e-way-bill expiry to an India date once, in `data.ts`.
+
+**Left open — owner decisions**
+1. **Stock cost visible to counter staff.** `v_stock_summary` / `v_stock_ledger` expose weighted-average cost and per-movement rate/value to any member; with the sale rate that gives margin. The posted-invoice page reads `rate, value` from `v_stock_ledger` for the journal panel. Hide cost from counter staff (needs an owner-only cost view and a change to that page), or accept and record it in the spec.
+2. **Employee salary/wage on `parties`** is readable by every active member (`select_active_members`). Decide before change 13 builds the staff screen (column-level grant, or an owner-only view).
+3. **FY start** stays a month selector (1–12). Locking it to April matches the hard rule "FY April–March"; say so if wanted.
+4. **No audit trail on master edits** (credit limit, GSTIN, state, item rates, UPI / bank text). `admin_set_user` audits; nothing else does. Propose a small AFTER UPDATE audit trigger in change 19 or 16.
+5. Owner at step 1 (email code only) can still write masters through the API — closed by change 19 (item 4c of its brief), not duplicated here.
+6. Organisation identity (`legal_name`, `gstin`, `address`) is editable after invoices post; confirm the invoice PDF path reads what was snapshotted at post time or accept re-join.
+7. Item disable does not check stock on hand (parties are checked for balance).
+8. Draft-line vs unit-change race in `items_guard` is tiny; accepted.
+9. Party GSTIN can equal the organisation's own GSTIN; add a check when it matters.

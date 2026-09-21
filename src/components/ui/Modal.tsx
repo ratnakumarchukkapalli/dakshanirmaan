@@ -17,6 +17,8 @@ interface Props {
 export function Modal({ open, onClose, title, closeLabel, children }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  // Where the press began: a drag-select in a field that ends over the backdrop must not close it.
+  const pressedOnBackdrop = useRef(false);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -31,9 +33,15 @@ export function Modal({ open, onClose, title, closeLabel, children }: Props) {
       className="modal glass glass-strong"
       aria-labelledby={titleId}
       onClose={onClose}
-      // A click on the dialog itself (not its content) is a click on the dimmed backdrop.
+      onMouseDown={(e) => {
+        pressedOnBackdrop.current = e.target === e.currentTarget;
+      }}
+      // A click on the dialog itself (not its content) is a click on the dimmed backdrop, but only
+      // when the press also began there.
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        const closes = e.target === e.currentTarget && pressedOnBackdrop.current;
+        pressedOnBackdrop.current = false;
+        if (closes) onClose();
       }}
     >
       {open && (

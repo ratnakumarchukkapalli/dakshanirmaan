@@ -300,3 +300,9 @@ d. No index on `journal_entries(reversed_by)`; `is_reversal` uses one hashed sub
   discounted receipt as a `user` (00009's 900 + 100 receipt) now posts as admin; nothing else needed changing (00006's
   discounted receipt and payment and 00008's discounted receipt were already posted by admin).
 - Result: 680 tests, all green, 9 files.
+
+
+## Second Sonnet review (2026-09-21)
+- Fixed: `v_employee_ledger`, `v_bank_recon`, `bank_statements`, `bank_statement_lines` are owner-only (migration `20260921110000`; 00008 now expects five admin-only views). Spec updated.
+- Literal-value tests for ageing boundaries, interest and discount accounting: `00015_read_views_literals.test.sql` (added in the same pass).
+- Open: stock cost is visible to counter staff (see change 09 notes, owner decision 1). Optional hardening: trigger on `payments` re-checking Σ allocations when `amount`/`discount` are lowered after allocation; `CHECK (discount >= 0)`. `v_party_balances.balance` shows only the AR side for a customer-type party that also holds AP lines (all three sides are exposed separately).

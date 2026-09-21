@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decimalText, addDecimal, compareDecimal } from '@/lib/decimal';
+import { validUntilDate } from '@/lib/ewb';
 
 // Everything the invoice PDF prints, read from what the database stored: the invoice header, its
 // snapshot line columns and stored totals. Nothing is recomputed except summing stored figures
@@ -91,7 +92,7 @@ export async function loadInvoicePdfData(supabase: SupabaseClient, id: string): 
       shipping: h.shipping_address as PdfAddress | null,
       transport: {
         vehicleNo: h.vehicle_no, transporterName: h.transporter_name, transporterGstin: h.transporter_gstin, mode: h.transport_mode,
-        distanceKm: h.distance_km, ewbNo: h.ewb_no, ewbDate: h.ewb_date, ewbValidUntil: h.ewb_valid_until,
+        distanceKm: h.distance_km, ewbNo: h.ewb_no, ewbDate: h.ewb_date, ewbValidUntil: h.ewb_valid_until ? validUntilDate(h.ewb_valid_until) : null,
       },
       lines: (lines.data ?? []).map((l) => {
         const tax = sum(d2(l.cgst_amt), d2(l.sgst_amt), d2(l.igst_amt));

@@ -8,15 +8,32 @@ describe('fyLabel', () => {
     expect(fyLabel('2027-04-01')).toBe('27-28');
     expect(fyLabel('2099-12-01')).toBe('99-00');
   });
+  it('picks the year from the organisation-time date, not UTC', () => {
+    // 19:00 UTC on 31 Mar is already 1 April in Kolkata; 17:00 UTC is still 31 March there.
+    expect(fyLabel(todayIn('Asia/Kolkata', new Date('2027-03-31T19:00:00Z')))).toBe('27-28');
+    expect(fyLabel(todayIn('Asia/Kolkata', new Date('2027-03-31T17:00:00Z')))).toBe('26-27');
+  });
 });
 
 describe('formatDate', () => {
   it('shows DD-MM-YYYY without touching time zones', () => {
     expect(formatDate('2026-09-05')).toBe('05-09-2026');
-    expect(formatDate('2026-12-31T23:59:59Z')).toBe('31-12-2026');
+  });
+  it('refuses a timestamp: its calendar date depends on the time zone (23:59Z on 31 Dec is 1 Jan in India)', () => {
+    expect(() => formatDate('2026-12-31T23:59:59Z')).toThrow();
+    expect(formatDate(todayIn('Asia/Kolkata', new Date('2026-12-31T23:59:59Z')))).toBe('01-01-2027');
   });
   it('rejects non-ISO input instead of guessing', () => {
     expect(() => formatDate('05/09/2026')).toThrow();
+  });
+  it('rejects a month or day that cannot exist', () => {
+    expect(() => formatDate('2026-13-45')).toThrow();
+    expect(() => formatDate('2026-00-10')).toThrow();
+    expect(() => formatDate('2026-04-00')).toThrow();
+    expect(() => fyLabel('2026-13-01')).toThrow();
+  });
+  it('accepts a leap day', () => {
+    expect(formatDate('2028-02-29')).toBe('29-02-2028');
   });
 });
 
@@ -42,6 +59,8 @@ describe('inr / inr2', () => {
     expect(inr(-1500)).toBe('-₹1,500');
     expect(inr(null)).toBe('₹0');
     expect(inr2(undefined)).toBe('₹0.00');
+    expect(inr2(-0.4)).toBe('-₹0.40');
+    expect(inr2('100.40')).toBe('₹100.40');
   });
 });
 
