@@ -10,33 +10,40 @@ below are done.
 ## Done
 01 foundation-schema · 02 integrity-triggers · 03 posting-sales · 04 posting-purchase-payment ·
 05 posting-challan-transfer-adjust-dayclose · 06 read-views · 07 app-shell · 08 auth-users ·
-09 masters · 10a sales-billing-ui · 10b invoice-documents.
+09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui (reviewed, no findings,
+committed 2026-09-22).
 Local demo data exists (`supabase/demo/demo-data.sql`) and can be reloaded any time; it is not
 the goal, just a convenience for testing screens as they're built.
 
 ## Left (Phase 1), build in this order — one change per session
-11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 ·
+12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 ·
 16 ops · 17 cutover · 18 self-audit-and-gst · 19 aal2-enforcement.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
 Change 19 must land before 17 (cutover) for real go-live, but can be built whenever in this list
 — it does not block the other UI changes.
 
-**11 challans-ui BUILT, UNCOMMITTED, VERIFIED against a live local database (2026-09-22).** Challan
-form + Open challans panel at `/sales/challans/new`; `saveDraftChallan`/`postChallan`/
-`convertChallanToInvoice` in `src/app/actions/challans.ts`; `/sales` list gained a Challans
-segment. A real Chromium walkthrough (Docker started, `supabase db reset`, demo data loaded) found
-and fixed two bugs: the Open challans panel was always empty (ambiguous `parties` embed —
-`delivery_challans` has two FKs to `parties` — PostgREST error was being swallowed silently) and
-the form didn't actually clear after posting (state reset but not the react-hook-form values).
-Also closed the idempotency race window flagged in the first pass: migration
-`20260922100000_challan_invoice_unique_draft.sql` adds a partial unique index
-(`sales_invoices_one_draft_per_challan`) so at most one draft invoice can ever exist per challan,
-and the action recovers cleanly if it loses that race. Verified: 941/941 pgTAP (937 + 4 new),
-325/325 vitest (20 in `challans.test.ts`), lint/tsc/build clean, and the live browser walkthrough
-(10/10 checks, including converting the same open challan twice and landing on the identical
-invoice both times). Not done: 390px / dark-theme visual check (walkthrough ran at 1280px, one
-theme). Full details in `openspec/changes/11-challans-ui/implementation-notes.md`. Next: review,
-then commit when Ratna says so, then change 12.
+**12 payments-ui BUILT, UNCOMMITTED, NOT YET LIVE-BROWSER VERIFIED (2026-09-22).** Payments list
+(tiles + cheque-lifecycle row actions) at `/payments`, receipt/outgoing-payment form with an
+allocation grid at `/payments/new`; `saveDraftPayment`/`postPayment`/`depositCheque`/`markCleared`/
+`bounceCheque` in `src/app/actions/payments.ts`. One schema addition (Ratna's go-ahead):
+`v_open_purchase_invoices` (migration `20260922110000_open_purchase_invoices.sql`), the mirror of
+`v_open_sales_invoices` for the outgoing-payment direction — nothing else covered open purchase
+invoices since purchases has no UI until change 21. Role gates read directly off the database: any
+member posts a receipt; only a verified admin can post an outgoing payment or one with a discount
+(the form hides the Pay toggle and the discount field from anyone else, matching `post_payment`'s
+own rule); bounce is admin-only. A fresh-context review (same day) found 3 real issues — the
+"auto-allocate" fill used float arithmetic instead of the exact-decimal helpers, that logic had no
+test despite the proposal asking for one, and an unused `hero` tile variant had a hardcoded hex —
+all three fixed (see implementation notes). Verified after fixes: 945/945 pgTAP (941 + 4 new),
+352/352 vitest (18 in `payments.test.ts`, 9 in new `payments-alloc.test.ts`), lint/tsc/build clean,
+i18n parity checked. **Not done this round: the live-browser walkthrough.** Local Supabase came up
+clean and demo data was attempted, but creating a throwaway local test admin hit a permission block
+(exporting the local dev secret key was flagged as credential leakage) and Ratna chose to skip the
+walkthrough rather than work around it — so unlike changes 10a/10b/11, this one has not been
+watched working end to end against a real browser; the reviewer flagged this as the one open item
+worth closing before commit, since it's exactly the flow (auto-allocate) that had the bug. Full
+details in `openspec/changes/12-payments-ui/implementation-notes.md`. Next: close the live-browser
+gap if practical, then commit when Ratna says so, then change 13.
 
 ## Then Phase 2
 20 notes · 21 purchases-ui · 22 bank-recon · 24 quotes-rebates-interest · 25 exports-portability.

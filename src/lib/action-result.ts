@@ -4,7 +4,7 @@
 export type ErrorCode =
   | 'validation' | 'forbidden' | 'period_locked' | 'negative_stock' | 'credit_limit' | 'not_draft'
   | 'not_posted' | 'has_allocations' | 'unbalanced' | 'conflict' | 'partial' | 'no_period'
-  | 'rate_limited' | 'internal';
+  | 'rate_limited' | 'cheque_state' | 'internal';
 
 export type Failure = { ok: false; error: string; code: ErrorCode };
 export type ActionResult<T = null> = { ok: true; data: T } | Failure;
@@ -22,6 +22,9 @@ const DB_CODES: Record<string, ErrorCode> = {
   DN_HAS_ALLOCATIONS: 'has_allocations',
   DN_UNBALANCED: 'unbalanced',
   DN_NO_PERIOD: 'no_period',
+  // Raised by deposit_cheque / mark_cheque_cleared / bounce_cheque for any transition the
+  // cheque's current status doesn't allow (already deposited, not a cheque, wrong direction…).
+  DN_CHEQUE_STATE: 'cheque_state',
   // Raised by post_sales_invoice when the draft's challan was already converted to a different,
   // posted invoice (a stray duplicate draft from a double-click on "Invoice ->"). No detail
   // string travels with it, so this reads as the generic validation sentence.

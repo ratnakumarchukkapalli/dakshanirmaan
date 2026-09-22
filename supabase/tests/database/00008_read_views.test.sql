@@ -1002,7 +1002,9 @@ select is((select count(*)::int from pg_class c join pg_namespace n on n.oid = c
   0, 'every v_* view is WITH (security_invoker = true)');
 select is((select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
            where n.nspname = 'public' and c.relkind = 'v' and c.relname like 'v\_%'),
-  17, 'seventeen views exist (13 contracted + 2 stock _all + 2 internal helpers)');
+  -- Change 12 added v_open_purchase_invoices, the payment-allocation-grid mirror of
+  -- v_open_sales_invoices for the outgoing-payment direction.
+  18, 'eighteen views exist (14 contracted + 2 stock _all + 2 internal helpers)');
 select is((select count(*)::int from pg_matviews where schemaname = 'public'), 0,
   'nothing is materialised');
 select is((select count(*)::int from information_schema.columns
