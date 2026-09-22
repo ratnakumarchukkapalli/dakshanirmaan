@@ -1,7 +1,8 @@
 import 'server-only';
 import { decimalText } from '@/lib/decimal';
 import { todayIn } from '@/lib/format';
-import type { FormAccount, FormItem, FormParty, FormSite, InvoiceFormContext } from '@/lib/sales-types';
+import { previewTotals } from '@/lib/invoice-math';
+import type { FormAccount, FormItem, FormParty, FormSite, InvoiceFormContext, OpenChallan } from '@/lib/sales-types';
 import type { createClient } from '@/lib/supabase/server';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -67,4 +68,45 @@ export async function loadInvoiceFormContext(
   const accounts: FormAccount[] = (accRes.data ?? []).map((a) => ({ id: a.id, name: a.name, systemKey: a.system_key }));
   const timeZone = orgRes.data?.timezone ?? 'Asia/Kolkata';
   return { parties, items, accounts, orgState: orgRes.data?.state_code ?? '37', today: todayIn(timeZone), hasUpi: !!orgRes.data?.upi_vpa };
+}
+
+/**
+ * Posted challans nobody has invoiced yet (invoice_id is null): the "Open challans" panel next to
+ * the challan form, and the source list for "Invoice ->". A challan already reopened by an
+ * invoice cancellation shows up here again, same as it did the first time.
+ */
+export async function loadOpenChallans(supabase: Supabase): Promise<OpenChallan[]> {
+  // `delivery_challans` has two FKs to `parties` (party_id, driver_party_id), so the embed needs
+  // the explicit constraint name -- PostgREST refuses an ambiguous `parties(name)` outright.
+  const { data: rows, error } = await supabase
+    .from('delivery_challans')
+    .select('id, challan_no, challan_date, party:parties!delivery_challans_party_id_fkey(name)')
+    .eq('status', 'posted').is('invoice_id', null)
+    .order('challan_date', { ascending: false });
+  if (error) { console.error('[sales-data] loadOpenChallans:', error.message); return []; }
+  const challans = rows ?? [];
+  if (challans.length === 0) return [];
+
+  const ids = challans.map((c) => c.id as string);
+  const { data: lines } = await supabase.from('delivery_challan_lines').select('challan_id, qty, rate, discount_pct').in('challan_id', ids);
+  const linesByChallan = new Map<string, { qty: string; rate: string; discountPct: string; gstRate: string }[]>();
+  for (const l of lines ?? []) {
+    const key = l.challan_id as string;
+    linesByChallan.set(key, [
+      ...(linesByChallan.get(key) ?? []),
+      { qty: dec(l.qty, 3), rate: dec(l.rate, 4), discountPct: dec(l.discount_pct, 2), gstRate: '0' },
+    ]);
+  }
+  // Exact-decimal arithmetic, same rounding rule as the database's own line `value` column
+  // (qty * rate * (1 - discount / 100), 2dp): `previewTotals`'s `taxable` is that same formula.
+  const value = new Map<string, string>();
+  for (const [id, ls] of linesByChallan) value.set(id, previewTotals(ls, true).taxable);
+
+  return challans.map((c) => ({
+    id: c.id as string,
+    challanNo: c.challan_no as string,
+    challanDate: c.challan_date as string,
+    partyName: (c.party as unknown as { name: string } | null)?.name ?? '—',
+    value: value.get(c.id as string) ?? '0.00',
+  }));
 }

@@ -402,6 +402,11 @@ select is(
   'the mismatched invoice is untouched (still draft, nothing posted)'
 );
 
+-- Change 11: at most one draft invoice may exist per challan (sales_invoices_one_draft_per_challan).
+-- This bad-quantity draft has served its purpose; delete it, same as a person would, before
+-- trying again with a fresh draft below.
+delete from sales_invoices where id = (select invoice_id from _invoice_bad_qty);
+
 create temp table _invoice_bad_item as
 with inv as (
   insert into sales_invoices

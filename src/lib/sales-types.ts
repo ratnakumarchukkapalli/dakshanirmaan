@@ -79,3 +79,27 @@ export interface InvoiceFormInitial {
   updatedAt: string;
   values: InvoiceFormValues;
 }
+
+export interface ChallanFormValues {
+  partyId: string;
+  challanDate: string;
+  siteId: string;
+  vehicleNo: string;
+  lines: { itemId: string; qty: string; altQty: string; rate: string; discountPct: string }[];
+}
+
+export interface ChallanFormInitial {
+  id: string;
+  updatedAt: string;
+  values: ChallanFormValues;
+}
+
+/** A posted, un-invoiced challan, for the "Open challans" panel. */
+export interface OpenChallan {
+  id: string;
+  challanNo: string;
+  challanDate: string;
+  partyName: string;
+  /** Sum of the line values (qty x rate less discount), 2 decimals. */
+  value: string;
+}

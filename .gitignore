@@ -18,6 +18,7 @@ supabase/.temp/
 playwright-report/
 test-results/
 coverage/
+.vitest/
 # implementation scratch
 implementation-notes.local.md
 

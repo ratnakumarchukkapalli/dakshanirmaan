@@ -22,6 +22,10 @@ const DB_CODES: Record<string, ErrorCode> = {
   DN_HAS_ALLOCATIONS: 'has_allocations',
   DN_UNBALANCED: 'unbalanced',
   DN_NO_PERIOD: 'no_period',
+  // Raised by post_sales_invoice when the draft's challan was already converted to a different,
+  // posted invoice (a stray duplicate draft from a double-click on "Invoice ->"). No detail
+  // string travels with it, so this reads as the generic validation sentence.
+  DN_CONVERTED: 'validation',
 };
 
 /**
