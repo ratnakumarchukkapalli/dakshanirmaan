@@ -50,7 +50,7 @@ jobs:
         run: scripts/backup/dump.sh backups
       - name: Keep the encrypted file
         if: steps.cfg.outputs.ready == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dn-backup-${{ github.run_id }}
           path: backups/*.tar.age
