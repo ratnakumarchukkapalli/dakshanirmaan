@@ -18,36 +18,33 @@ the goal, just a convenience for testing screens as they're built.
 Independent Opus review of 10a/10b/11 and the change-12 milestone review ("money flows end to
 end") are DONE; every finding was fixed (see each change's `implementation-notes.md`: "Review
 fixes" sections). Gates on the combined tree: 1010 pgTAP, 362 vitest, tsc/lint/build clean.
-**UNCOMMITTED** (Ratna commits): change-12 fixes (migration `20260925100000_payments_note.sql`,
+**COMMITTED a4dad1e and pushed (GitHub + hosted, 2026-09-26):** change-12 fixes (migration `20260925100000_payments_note.sql`,
 cancelPayment action), 10a/posting fixes (migration `20260925110000_posting_snapshot_warehouse_guards.sql`:
 post-time item snapshot re-read, transit-warehouse refusal, e-way-bill CHECKs), 11 fixes (locked
-challan drafts, race recovery). **Hosted DB** lacks `20260922100000`, `20260922110000`,
-`20260925100000`, `20260925110000`, `20260926100000` (change 13: owner-only salary data) — push as one unit after commit.
+challan drafts, race recovery). Hosted DB now has all 25 migrations through `20260927100000`.
 Change-12 draft resume and auto-allocate-with-discount were watched live in the change-13 session (both work).
 Still open: `place_of_supply` on a draft is client-writable (owner question); re-allocating a posted receipt
 (later change); 06/07 have Sonnet-only reviews; 03–05/08/09 had Opus reviews earlier; `/security-review`
 before go-live.
 
 ## Change 13 status (2026-09-25)
-UNCOMMITTED with the rest. Extra migrations: `20260926100000_staff_salary_owner_only.sql`,
-`20260926110000_payroll_owner_only_ledger.sql` (hosted lacks them). Gates: 1265 pgTAP, 436 vitest,
+Committed a4dad1e, pushed to GitHub + hosted 2026-09-26. Extra migrations: `20260926100000_staff_salary_owner_only.sql`,
+`20260926110000_payroll_owner_only_ledger.sql` (). Gates: 1265 pgTAP, 436 vitest,
 tsc/lint/build clean. Open owner questions: counter-staff advances <= 5,000 (DB allows, no screen);
 wages account (Loading & Unloading vs own); day_closes cash figures include payroll cash. Stock cost
 readable via API until change 19. `exceljs` -> uuid audit advisory (moderate) deferred to change 16.
 
 ## Change 14 status (2026-09-26)
-UNCOMMITTED with the rest. Migration `20260927100000_dashboard_views.sql` (v_sales_daily,
-v_sales_daily_category, admin-gated v_money_balances); hosted lacks it. Gates: 1336 pgTAP, 458 vitest,
+Committed a4dad1e, pushed to GitHub + hosted 2026-09-26. Migration `20260927100000_dashboard_views.sql` (v_sales_daily,
+v_sales_daily_category, admin-gated v_money_balances);  Gates: 1336 pgTAP, 458 vitest,
 tsc/lint/build clean. **Review owed:** Sonnet reviewer (screens) + narrow Opus look at the new views'
 admin gates. Owner questions: counter sees To pay / cash drawer? (default no); sales incl. GST?
 (default yes); Telugu attention sentences (needs structured v_attention); chart 7 vs 30 days.
 Day-close quick action points at /reports until change 15 builds the screen.
 
 ## Next session
-Start **15 reports-p1** (Sonnet, daksh-ui + daksh-api). Then review 14 and 15 together, commit, and
-`supabase db push` the unpushed migrations (everything after `20260921110000` except none applied
-yet: 20260922100000, 20260922110000, 20260925100000, 20260925110000, 20260926100000,
-20260926110000, 20260927100000) as one unit.
+Start **15 reports-p1** (Sonnet, daksh-ui + daksh-api). Then review 14 and 15 together and commit.
+Nothing is unpushed.
 
 ## Left (Phase 1), build in this order — one change per session
 15 reports-p1 ·
