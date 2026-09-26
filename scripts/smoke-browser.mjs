@@ -13,8 +13,9 @@ try {
   page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
   const res = await page.goto(`${base}/login`, { waitUntil: 'networkidle' });
   if (res?.status() !== 200) problems.push(`/login returned ${res?.status()}`);
-  if ((await page.getByRole('button', { name: 'Send code' }).count()) === 0) problems.push('the "Send code" button did not render');
+  if ((await page.getByRole('button', { name: 'Sign in' }).count()) === 0) problems.push('the "Sign in" button did not render');
   if ((await page.getByLabel('Email').count()) === 0) problems.push('the Email field did not render');
+  if ((await page.getByLabel('Password').count()) === 0) problems.push('the Password field did not render');
   // Signed-out /reports must land on the sign-in page.
   await page.goto(`${base}/reports`, { waitUntil: 'networkidle' });
   if (!page.url().includes('/login')) problems.push(`/reports stayed on ${page.url()} for a signed-out visitor`);
