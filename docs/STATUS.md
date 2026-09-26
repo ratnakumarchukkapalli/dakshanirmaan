@@ -116,3 +116,7 @@ Also: lock organisation legal name/GSTIN/address once invoices exist (PDF reads 
 - Each session: load the skill and read only the one spec section the change's README row names.
 - Only one session edits the codebase at a time.
 - **pgTAP needs an empty local database.** Loading `supabase/demo/demo-data.sql` makes 13 of 25 test files fail (invoice numbers, counts). Order: `supabase db reset` → `supabase test db` → then `create-admin` and the demo load. Clean baseline 2026-09-26: 25 files, 1779 tests pass.
+
+## Ideas (Ratna, not scheduled)
+- **New-item auto-fill (2026-09-26):** when adding an item, fill HSN, GST %, base/second unit and reorder level from the category (and default the sale rate from the last sale of that item), so the owner types less. Small UI change in the item modal (`src/components/items/ItemModal.tsx`); presets must stay editable and the CA confirms HSN/GST values.
+- Users screen hint says "at least 12 characters" while the message beside it and hosted Auth say 8 — align the copy (`users.passwordHint`).
