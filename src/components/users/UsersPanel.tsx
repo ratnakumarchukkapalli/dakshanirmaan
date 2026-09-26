@@ -146,7 +146,7 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
                     ) : resetFor === u.userId ? (
                       <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                         <input aria-label={t('newPassword')} type="text" autoComplete="off" spellCheck={false} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                        <button type="button" className="btn primary sm" disabled={pending || newPassword.length < 12} onClick={() => savePassword(u)}>{t('savePassword')}</button>
+                        <button type="button" className="btn primary sm" disabled={pending || newPassword.length < 8} onClick={() => savePassword(u)}>{t('savePassword')}</button>
                         <button type="button" className="btn ghost sm" onClick={() => { setResetFor(null); setNewPassword(''); }}>{t('cancel')}</button>
                       </span>
                     ) : (

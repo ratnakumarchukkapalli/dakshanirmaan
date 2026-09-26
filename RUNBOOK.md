@@ -147,8 +147,8 @@ Restoring into a *hosted* project follows the tested local path but has not been
 Do these in order. The app's **Settings → Go-live** screen shows the first block as green/amber chips; the rest only you can check.
 
 **Before the opening entry**
-- [ ] Hosted Auth (**Authentication → Providers → Email**): email + password sign-in on, sign-ups off, **minimum password length 12**, leaked-password protection on if the plan offers it; **Authentication → Multi-factor: TOTP on**. No SMTP is needed: the app sends no email (Resend is optional, for a later "forgot password" email).
-- [ ] The owner account made with `ADMIN_PASSWORD='…12+ characters…' npm run create-admin -- <email> "<name>"` (or leave ADMIN_PASSWORD out and write down the password it prints once); the other owners added under Settings → Users; each owner has set up the authenticator app. At least two owners.
+- [ ] Hosted Auth (**Authentication → Providers → Email**): email + password sign-in on, sign-ups off, **minimum password length 8**, leaked-password protection on if the plan offers it; **Authentication → Multi-factor: TOTP on**. No SMTP is needed: the app sends no email (Resend is optional, for a later "forgot password" email).
+- [ ] The owner account made with `ADMIN_PASSWORD='…8+ characters…' npm run create-admin -- <email> "<name>"` (or leave ADMIN_PASSWORD out and write down the password it prints once); the other owners added under Settings → Users; each owner has set up the authenticator app. At least two owners.
 - [ ] Settings → Organisation: legal name, GSTIN, address filled in (they are locked once invoices exist).
 - [ ] Real masters in: parties, items (HSN, GST rate, units), godowns. `supabase/demo/demo-data.sql` was **never** loaded into this database.
 - [ ] Backup workflow has run once and the restore drill (2.3) passed.
@@ -182,7 +182,7 @@ Reports → **GST returns** (owner only). Pick the month.
 
 ## 10. Passwords
 
-- **A person forgot their password:** Settings → Users → **Reset password** (owner), type a new one (12+ characters), tell them in person; they change it from the menu.
+- **A person forgot their password:** Settings → Users → **Reset password** (owner), type a new one (8+ characters), tell them in person; they change it from the menu.
 - **An owner forgot theirs (or lost the authenticator):** another owner resets the password. Losing the authenticator app: remove the factor in the Supabase dashboard (Authentication → Users → the person → Factors) so they can enrol again after signing in. Keep at least two owners.
 - **A leaver:** Settings → Users → **Disable** (they cannot sign in at once); reset the password too if it was shared.
 - The app sends no email, so nothing arrives by mail: passwords and resets are always handed over in person.
@@ -202,7 +202,7 @@ The Supabase project `daksha-nirmaan` (ap-south-1) is separate from `expenses-ap
    - `INVOICE_LINK_SECRET` = a new value from `openssl rand -base64 48`
    - `APP_ORIGIN` = the deployed address without a trailing slash (first the `https://<project>.vercel.app` one; the family domain later)
    `npx vercel env add NAME production` prompts for each value (paste it; it is not echoed).
-4. **Supabase dashboard (hosted):** Authentication → **URL configuration**: Site URL = `APP_ORIGIN`; Providers → Email: sign-ups **off**, minimum password length **12**; Multi-factor: TOTP **on**.
+4. **Supabase dashboard (hosted):** Authentication → **URL configuration**: Site URL = `APP_ORIGIN`; Providers → Email: sign-ups **off**, minimum password length **8**; Multi-factor: TOTP **on**.
 5. **Deploy:** `npx vercel deploy --prod` (or push to `main`). Open the address, then on your own machine create the first owner **against hosted** with the hosted URL and secret key in the environment: `NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SECRET_KEY=… ADMIN_PASSWORD='…' npm run create-admin -- <email> "<name>"`. (Easiest, from the repo folder: `bash scripts/create-admin-hosted.sh <email> "<name>"` — it asks for the hosted secret key (from the dashboard; the CLI only shows it masked) and the password at hidden prompts.) Sign in, set up the authenticator app, add the other owners and the counter user under Settings → Users.
 6. **Vercel plan:** Hobby is "non-commercial personal use" and this is a business tool (security-deployment spec, Hosting): decide between Pro (about $20/month) and staying on Hobby knowing the risk of a pause. The app keeps working from the manual invoice book (`DNM/` series) meanwhile.
 7. **Never** load `supabase/demo/demo-data.sql` into hosted.

@@ -4,7 +4,7 @@
 //   NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
 //     npm run create-admin -- owner@example.com "Owner Name"
 //
-// The password comes from the ADMIN_PASSWORD environment variable (at least 12 characters); at a terminal
+// The password comes from the ADMIN_PASSWORD environment variable (at least 8 characters); at a terminal
 // without it you are asked for one (hidden, twice); otherwise a random one is made and printed once. Never pass it on the command line (it would sit in shell history).
 // Refuses to run when an active admin already exists, unless --force. No email is sent: the person signs in
 // with the email and password, then sets up their authenticator app.
@@ -53,7 +53,7 @@ if (!url || !key) {
 let password = process.env.ADMIN_PASSWORD;
 if (!password && process.stdin.isTTY) {
   // At a terminal with no ADMIN_PASSWORD: ask for it, twice, without showing it.
-  password = await askHidden('2/3  Choose the owner password (12-72 characters): ');
+  password = await askHidden('2/3  Choose the owner password (8-72 characters): ');
   const again = await askHidden('3/3  Type the password again: ');
   if (password !== again) {
     console.error('The two passwords are different. Nothing was created.');
@@ -62,8 +62,8 @@ if (!password && process.stdin.isTTY) {
 }
 const generated = !password;
 if (generated) password = randomBytes(15).toString('base64url');
-if (password.length < 12 || password.length > 72) {
-  console.error('ADMIN_PASSWORD must be 12 to 72 characters.');
+if (password.length < 8 || password.length > 72) {
+  console.error('ADMIN_PASSWORD must be 8 to 72 characters.');
   process.exit(2);
 }
 

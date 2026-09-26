@@ -78,7 +78,7 @@
   "users": {
     "title": "Users & roles",
     "addTitle": "Add a person",
-    "addHelp": "No email is sent. Choose a starting password (at least 12 characters), add the person, then tell them the email and password in person.",
+    "addHelp": "No email is sent. Choose a starting password (at least 8 characters), add the person, then tell them the email and password in person.",
     "listTitle": "People",
     "name": "Name",
     "email": "Email",
@@ -284,7 +284,7 @@
       "rate_on_loss": "A rate is only for found stock.",
       "money_positive": "Enter an amount greater than zero.",
       "employee_required": "Choose an employee.",
-      "password_short": "Use at least 12 characters.",
+      "password_short": "Use at least 8 characters.",
       "password_long": "Use at most 72 characters.",
       "password_required": "Enter your password."
     },
@@ -1514,7 +1514,7 @@
   },
   "account": {
     "title": "Change my password",
-    "hint": "Use at least 12 characters. Do not reuse a password from anywhere else.",
+    "hint": "Use at least 8 characters. Do not reuse a password from anywhere else.",
     "newPassword": "New password",
     "save": "Change password",
     "done": "Your password is changed.",

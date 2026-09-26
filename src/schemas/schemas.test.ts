@@ -17,9 +17,9 @@ describe('sign-in schemas', () => {
     expect(signInSchema.safeParse({ email: 'a@b.co', password: 'x' }).success).toBe(true);
     expect(signInSchema.safeParse({ email: 'a@b.co', password: '' }).error?.issues[0]?.message).toBe('password_required');
   });
-  it('a password being set needs 12 to 72 characters', () => {
-    expect(changePasswordSchema.safeParse({ password: 'x'.repeat(11) }).error?.issues[0]?.message).toBe('password_short');
-    expect(changePasswordSchema.safeParse({ password: 'x'.repeat(12) }).success).toBe(true);
+  it('a password being set needs 8 to 72 characters', () => {
+    expect(changePasswordSchema.safeParse({ password: 'x'.repeat(7) }).error?.issues[0]?.message).toBe('password_short');
+    expect(changePasswordSchema.safeParse({ password: 'x'.repeat(8) }).success).toBe(true);
     expect(changePasswordSchema.safeParse({ password: 'x'.repeat(73) }).error?.issues[0]?.message).toBe('password_long');
   });
   it('authenticator code: six digits, factor optional', () => {
@@ -41,7 +41,7 @@ describe('user schemas', () => {
     expect(inviteUserSchema.safeParse({ ...good, name: '   ' }).error?.issues[0]?.message).toBe('name_required');
     expect(inviteUserSchema.safeParse({ ...good, name: 'x'.repeat(81) }).error?.issues[0]?.message).toBe('name_long');
   });
-  it('a starting password is required and at least 12 characters', () => {
+  it('a starting password is required and at least 8 characters', () => {
     expect(inviteUserSchema.safeParse({ ...good, password: 'short' }).error?.issues[0]?.message).toBe('password_short');
   });
   it('user id must be a uuid', () => {
