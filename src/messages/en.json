@@ -54,13 +54,10 @@
   },
   "login": {
     "title": "Sign in",
-    "emailHelp": "Enter your work email. We will send you a 6-digit code.",
     "email": "Email",
-    "sendCode": "Send code",
-    "codeSent": "We sent a 6-digit code to {email}. It works for 10 minutes.",
-    "code": "Code",
     "signIn": "Sign in",
-    "useOtherEmail": "Use a different email"
+    "passwordHelp": "Sign in with your email and password.",
+    "password": "Password"
   },
   "a11y": {
     "skip": "Skip to main content"
@@ -81,7 +78,7 @@
   "users": {
     "title": "Users & roles",
     "addTitle": "Add a person",
-    "addHelp": "No email is sent. After you add someone, ask them to open the app and sign in with this email address; they will get a code.",
+    "addHelp": "No email is sent. Choose a starting password (at least 12 characters), add the person, then tell them the email and password in person.",
     "listTitle": "People",
     "name": "Name",
     "email": "Email",
@@ -96,7 +93,15 @@
     "you": "You",
     "enabled": "{name} can sign in again.",
     "disabled": "{name} can no longer sign in.",
-    "addedNotice": "{email} was added. Ask them to open the app and sign in with this email."
+    "addedNotice": "{email} was added. Tell them the email and starting password in person, and ask them to change it from the menu.",
+    "password": "Starting password",
+    "passwordHint": "At least 12 characters. Tell them in person; they should change it from the menu at once.",
+    "generate": "Suggest one",
+    "resetPassword": "Reset password",
+    "newPassword": "New password",
+    "savePassword": "Set password",
+    "passwordReset": "Password changed for {name}. Tell them in person.",
+    "cancel": "Cancel"
   },
   "errors": {
     "forbidden": "You do not have permission to do this.",
@@ -215,7 +220,8 @@
       "date_required": "Choose the opening date.",
       "bad_year_label": "Write the financial year like 2027-28.",
       "reason_required": "Give a reason for unlocking.",
-      "opening_after_documents": "Bills or vouchers are already posted on or before that date. Use an earlier date: the day before billing started."
+      "opening_after_documents": "Bills or vouchers are already posted on or before that date. Use an earlier date: the day before billing started.",
+      "same_password": "That is already your password. Choose a new one."
     },
     "field": {
       "email_invalid": "Enter a valid email address.",
@@ -277,11 +283,15 @@
       "godown_same": "Choose two different godowns.",
       "rate_on_loss": "A rate is only for found stock.",
       "money_positive": "Enter an amount greater than zero.",
-      "employee_required": "Choose an employee."
+      "employee_required": "Choose an employee.",
+      "password_short": "Use at least 12 characters.",
+      "password_long": "Use at most 72 characters.",
+      "password_required": "Enter your password."
     },
     "conflict": "Someone else changed this while you were editing. Reload it to see the latest version.",
     "partial": "This may not have been fully saved. Reload it and check the details before doing anything else.",
-    "transfer_state": "This transfer is not in transit. It may already be received. Reload to check."
+    "transfer_state": "This transfer is not in transit. It may already be received. Reload to check.",
+    "sign_in_failed": "The email or password is not right."
   },
   "common": {
     "close": "Close",
@@ -1501,5 +1511,13 @@
       "ambiguous_item": "Line {line}: more than one item has that name. Rename one of them first.",
       "ambiguous_godown": "Line {line}: more than one godown has that name."
     }
+  },
+  "account": {
+    "title": "Change my password",
+    "hint": "Use at least 12 characters. Do not reuse a password from anywhere else.",
+    "newPassword": "New password",
+    "save": "Change password",
+    "done": "Your password is changed.",
+    "menu": "Change password"
   }
 }

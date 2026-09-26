@@ -12,8 +12,8 @@ vi.mock('@/lib/http', () => ({ clientIp: async () => '203.0.113.7' }));
 
 interface AuthError { status?: number; code?: string; message?: string }
 const a = vi.hoisted(() => ({
-  otpError: null as AuthError | null,
-  verifyError: null as AuthError | null,
+  signInError: null as AuthError | null,
+  updateError: null as AuthError | null,
   row: null as Record<string, unknown> | null,
   factors: { totp: [] as { id: string }[], all: [] as { id: string; factor_type: string; status: string }[] },
   verifyMfaError: null as AuthError | null,
@@ -22,11 +22,11 @@ const a = vi.hoisted(() => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     auth: {
-      signInWithOtp: async () => { a.log.push('signInWithOtp'); return { error: a.otpError }; },
-      verifyOtp: async () => {
-        a.log.push('verifyOtp');
-        return a.verifyError ? { data: {}, error: a.verifyError } : { data: { user: { id: 'u-1' } }, error: null };
+      signInWithPassword: async () => {
+        a.log.push('signInWithPassword');
+        return a.signInError ? { data: {}, error: a.signInError } : { data: { user: { id: 'u-1' } }, error: null };
       },
+      updateUser: async (attrs: unknown) => { a.log.push(`updateUser:${JSON.stringify(attrs)}`); return { error: a.updateError }; },
       signOut: async (opts: unknown) => { a.log.push(`signOut:${JSON.stringify(opts)}`); return { error: null }; },
       mfa: {
         listFactors: async () => ({ data: a.factors }),
@@ -39,15 +39,15 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-import { requestCode, startTotpEnrollment, verifyCode, verifyTotp } from './auth';
+import { changePassword, signIn, startTotpEnrollment, verifyTotp } from './auth';
 
 // The limiters live for the life of the module, so each test uses its own email address.
 let n = 0;
 const email = () => `person${++n}@example.com`;
 
 beforeEach(() => {
-  a.otpError = null;
-  a.verifyError = null;
+  a.signInError = null;
+  a.updateError = null;
   a.row = { role: 'user', is_active: true, locale: 'en' };
   a.factors = { totp: [], all: [] };
   a.verifyMfaError = null;
@@ -55,88 +55,87 @@ beforeEach(() => {
   reset(null);
 });
 
-describe('requestCode', () => {
-  it('gives the identical reply for an active, an unknown and a disabled email', async () => {
-    const active = await requestCode({ email: email() });
-    a.otpError = { status: 422, code: 'otp_disabled', message: 'Signups not allowed for otp' }; // unknown
-    const unknown = await requestCode({ email: email() });
-    a.otpError = { status: 400, code: 'user_banned', message: 'User is banned' }; // disabled
-    const disabled = await requestCode({ email: email() });
-    expect(active).toEqual({ ok: true, data: null });
-    expect(unknown).toEqual(active);
-    expect(disabled).toEqual(active);
+describe('signIn', () => {
+  const password = 'a-long-enough-password';
+
+  it('an active counter user goes to the app; an owner goes on to the authenticator step', async () => {
+    expect(await signIn({ email: email(), password })).toEqual({ ok: true, data: { next: '/' } });
+    a.row = { role: 'admin', is_active: true, locale: 'te' };
+    expect(await signIn({ email: email(), password })).toEqual({ ok: true, data: { next: '/login/mfa' } });
   });
-  it('a real fault on our side is not disguised as success', async () => {
-    a.otpError = { status: 500, message: 'smtp exploded' };
-    expect(await requestCode({ email: email() })).toMatchObject({ ok: false, code: 'internal', error: 'internal' });
-    a.otpError = { message: 'network down' }; // no status at all
-    expect(await requestCode({ email: email() })).toMatchObject({ ok: false, code: 'internal' });
+  it('a wrong password, a disabled member and an unknown member all give the same failure', async () => {
+    a.signInError = { status: 400, code: 'invalid_credentials' };
+    const wrong = await signIn({ email: email(), password });
+    a.signInError = null;
+    a.row = { role: 'user', is_active: false, locale: 'en' };
+    const disabled = await signIn({ email: email(), password });
+    a.row = null;
+    const unknown = await signIn({ email: email(), password });
+    expect(wrong).toEqual({ ok: false, code: 'validation', error: 'sign_in_failed' });
+    expect(disabled).toEqual(wrong);
+    expect(unknown).toEqual(wrong);
   });
-  it('the sign-in service refusing to send again (429) maps to rate_limited', async () => {
-    a.otpError = { status: 429, code: 'over_email_send_rate_limit' };
-    expect(await requestCode({ email: email() })).toEqual({ ok: false, code: 'rate_limited', error: 'rate_limited' });
-  });
-  it('our own limit refuses the 6th request in 15 minutes, before the sign-in service is called', async () => {
-    const e = email();
-    for (let i = 0; i < 5; i++) expect((await requestCode({ email: e })).ok).toBe(true);
+  it('a disabled or unknown member is signed out again because the password check already created a session', async () => {
+    a.row = { role: 'user', is_active: false, locale: 'en' };
+    await signIn({ email: email(), password });
+    expect(a.log).toContain('signOut:{"scope":"local"}');
     a.log.length = 0;
-    expect(await requestCode({ email: e })).toEqual({ ok: false, code: 'rate_limited', error: 'rate_limited' });
+    a.row = null;
+    await signIn({ email: email(), password });
+    expect(a.log).toContain('signOut:{"scope":"local"}');
+  });
+  it('an active member is not signed out, and a wrong password creates nothing to sign out of', async () => {
+    await signIn({ email: email(), password });
+    expect(a.log.some((l) => l.startsWith('signOut'))).toBe(false);
+    a.log.length = 0;
+    a.signInError = { status: 400 };
+    await signIn({ email: email(), password });
+    expect(a.log).toEqual(['signInWithPassword']);
+  });
+  it('a real fault on our side is not disguised as a wrong password, and the service rate limit maps to rate_limited', async () => {
+    a.signInError = { status: 500, message: 'db down' };
+    expect(await signIn({ email: email(), password })).toMatchObject({ ok: false, code: 'internal', error: 'internal' });
+    a.signInError = { message: 'network down' };
+    expect(await signIn({ email: email(), password })).toMatchObject({ ok: false, code: 'internal' });
+    a.signInError = { status: 429, code: 'over_request_rate_limit' };
+    expect(await signIn({ email: email(), password })).toEqual({ ok: false, code: 'rate_limited', error: 'rate_limited' });
+  });
+  it('the 11th attempt in 15 minutes is refused as rate_limited without asking the sign-in service', async () => {
+    const e = email();
+    a.signInError = { status: 400, code: 'invalid_credentials' };
+    for (let i = 0; i < 10; i++) expect(await signIn({ email: e, password })).toMatchObject({ code: 'validation' });
+    a.log.length = 0;
+    expect(await signIn({ email: e, password })).toEqual({ ok: false, code: 'rate_limited', error: 'rate_limited' });
     expect(a.log).toEqual([]);
   });
-  it('a malformed email is a validation failure and sends nothing', async () => {
-    expect(await requestCode({ email: 'nope' })).toMatchObject({ ok: false, code: 'validation', error: 'field.email_invalid' });
+  it('a malformed email or an empty password is refused with the same wording as a wrong one, before any call', async () => {
+    expect(await signIn({ email: 'nope', password })).toEqual({ ok: false, code: 'validation', error: 'sign_in_failed' });
+    expect(await signIn({ email: email(), password: '' })).toEqual({ ok: false, code: 'validation', error: 'sign_in_failed' });
     expect(a.log).toEqual([]);
   });
 });
 
-describe('verifyCode', () => {
-  const code = '123456';
-
-  it('an active counter user goes to the app; an owner goes on to the authenticator step', async () => {
-    expect(await verifyCode({ email: email(), code })).toEqual({ ok: true, data: { next: '/' } });
-    a.row = { role: 'admin', is_active: true, locale: 'te' };
-    expect(await verifyCode({ email: email(), code })).toEqual({ ok: true, data: { next: '/login/mfa' } });
-  });
-  it('a wrong code and a disabled or unknown member all give the same failure', async () => {
-    a.verifyError = { status: 403, code: 'otp_expired' };
-    const wrong = await verifyCode({ email: email(), code });
-    a.verifyError = null;
-    a.row = { role: 'user', is_active: false, locale: 'en' };
-    const disabled = await verifyCode({ email: email(), code });
-    a.row = null;
-    const unknown = await verifyCode({ email: email(), code });
-    expect(wrong).toEqual({ ok: false, code: 'validation', error: 'code_wrong' });
-    expect(disabled).toEqual(wrong);
-    expect(unknown).toEqual(wrong);
-  });
-  it('a disabled or unknown member is signed out again because the code check already created a session', async () => {
-    a.row = { role: 'user', is_active: false, locale: 'en' };
-    await verifyCode({ email: email(), code });
-    expect(a.log).toContain('signOut:{"scope":"local"}');
+describe('changePassword', () => {
+  it('a counter user and an owner past the authenticator step change their own password', async () => {
+    reset(asCounter());
+    expect(await changePassword({ password: 'a-brand-new-password' })).toEqual({ ok: true, data: null });
+    expect(a.log).toContain('updateUser:{"password":"a-brand-new-password"}');
     a.log.length = 0;
-    a.row = null;
-    await verifyCode({ email: email(), code });
-    expect(a.log).toContain('signOut:{"scope":"local"}');
+    reset(asAdmin('aal2'));
+    expect((await changePassword({ password: 'another-new-password' })).ok).toBe(true);
   });
-  it('an active member is not signed out, and a wrong code creates nothing to sign out of', async () => {
-    await verifyCode({ email: email(), code });
-    expect(a.log.some((l) => l.startsWith('signOut'))).toBe(false);
-    a.log.length = 0;
-    a.verifyError = { status: 403 };
-    await verifyCode({ email: email(), code });
-    expect(a.log).toEqual(['verifyOtp']);
-  });
-  it('the 11th attempt in 15 minutes is refused as rate_limited without asking the sign-in service', async () => {
-    const e = email();
-    a.verifyError = { status: 403 };
-    for (let i = 0; i < 10; i++) expect(await verifyCode({ email: e, code })).toMatchObject({ code: 'validation' });
-    a.log.length = 0;
-    expect(await verifyCode({ email: e, code })).toEqual({ ok: false, code: 'rate_limited', error: 'rate_limited' });
+  it('an owner at step 1 and a signed-out visitor are refused before anything is called', async () => {
+    reset(asAdmin('aal1'));
+    expect(await changePassword({ password: 'a-brand-new-password' })).toMatchObject({ ok: false, code: 'forbidden' });
+    reset(null);
+    expect(await changePassword({ password: 'a-brand-new-password' })).toMatchObject({ ok: false, code: 'forbidden' });
     expect(a.log).toEqual([]);
   });
-  it('a malformed code is refused with the same wording as a wrong one', async () => {
-    expect(await verifyCode({ email: email(), code: '12' })).toEqual({ ok: false, code: 'validation', error: 'code_wrong' });
-    expect(a.log).toEqual([]);
+  it('a short password is refused, and the same password is said plainly', async () => {
+    reset(asCounter());
+    expect(await changePassword({ password: 'short' })).toMatchObject({ ok: false, code: 'validation', error: 'field.password_short' });
+    a.updateError = { code: 'same_password' };
+    expect(await changePassword({ password: 'a-brand-new-password' })).toMatchObject({ ok: false, code: 'validation', error: 'validation.same_password' });
   });
 });
 

@@ -4,8 +4,11 @@
 //   NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
 //     npm run create-admin -- owner@example.com "Owner Name"
 //
-// Refuses to run when an active admin already exists, unless --force. No email is sent: the
-// person then signs in with the normal code screen and sets up their authenticator app.
+// The password comes from the ADMIN_PASSWORD environment variable (at least 12 characters); without it a
+// random one is made and printed once. Never pass it on the command line (it would sit in shell history).
+// Refuses to run when an active admin already exists, unless --force. No email is sent: the person signs in
+// with the email and password, then sets up their authenticator app.
+import { randomBytes } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const args = process.argv.slice(2).filter((a) => a !== '--force');
@@ -25,6 +28,14 @@ if (!url || !key) {
   process.exit(2);
 }
 
+let password = process.env.ADMIN_PASSWORD;
+const generated = !password;
+if (generated) password = randomBytes(15).toString('base64url');
+if (password.length < 12 || password.length > 72) {
+  console.error('ADMIN_PASSWORD must be 12 to 72 characters.');
+  process.exit(2);
+}
+
 const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
 const { data: existing, error: listError } = await admin.from('app_users').select('email').eq('role', 'admin').eq('is_active', true);
@@ -38,12 +49,13 @@ if (existing.length && !force) {
 }
 
 let userId;
-const created = await admin.auth.admin.createUser({ email, email_confirm: true });
+const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
 if (created.data.user) {
   userId = created.data.user.id;
 } else if (created.error?.code === 'email_exists') {
   const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
   userId = data.users.find((u) => u.email?.toLowerCase() === email)?.id;
+  if (userId) await admin.auth.admin.updateUserById(userId, { password });
 }
 if (!userId) {
   console.error('Could not create the sign-in account:', created.error?.message);
@@ -57,4 +69,5 @@ if (error) {
   console.error('Could not record the admin:', error.message);
   process.exit(1);
 }
-console.log(`Admin ready: ${name} <${email}>. Open the app, sign in with this email, then set up the authenticator app.`);
+console.log(`Admin ready: ${name} <${email}>. Open the app, sign in with this email and password, then set up the authenticator app.`);
+if (generated) console.log(`Password (shown once, write it down): ${password}`);

@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
-import { disableUser, enableUser, inviteUser } from '@/app/actions/admin';
+import { disableUser, enableUser, inviteUser, resetUserPassword } from '@/app/actions/admin';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { Field } from '@/components/ui/Field';
@@ -32,8 +32,11 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<InviteUserInput>({ resolver: zodResolver(inviteUserSchema), defaultValues: { role: 'user' } });
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   const invite = handleSubmit((values) =>
     start(async () => {
@@ -41,9 +44,26 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
       const res = await inviteUser(values);
       if (!res.ok) return setNotice({ tone: res.code === 'partial' ? 'warn' : 'bad', text: res.error });
       setNotice({ tone: 'good', text: t('addedNotice', { email: values.email }) });
-      reset({ email: '', name: '', role: 'user' });
+      reset({ email: '', name: '', role: 'user', password: '' });
     }),
   );
+
+  /** A random starting password, shown in the box so the owner can read it out once. */
+  const suggest = () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    setValue('password', Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('') + '-' + Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => alphabet[b % alphabet.length]).join(''), { shouldValidate: true });
+  };
+
+  const savePassword = (row: UserRow) =>
+    start(async () => {
+      setNotice(null);
+      const res = await resetUserPassword({ userId: row.userId, password: newPassword });
+      if (!res.ok) return setNotice({ tone: 'bad', text: res.error });
+      setNotice({ tone: 'good', text: t('passwordReset', { name: row.name }) });
+      setResetFor(null);
+      setNewPassword('');
+    });
 
   const toggle = (row: UserRow) =>
     start(async () => {
@@ -77,6 +97,9 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
             <Field id="u-email" label={t('email')} error={errors.email ? te(`field.${errors.email.message}`) : undefined}>
               <input id="u-email" type="email" inputMode="email" autoComplete="off" {...register('email')} />
             </Field>
+            <Field id="u-password" label={t('password')} hint={t('passwordHint')} error={errors.password ? te(`field.${errors.password.message}`) : undefined}>
+              <input id="u-password" type="text" autoComplete="off" spellCheck={false} {...register('password')} />
+            </Field>
             <Field id="u-role" label={t('role')}>
               <select id="u-role" {...register('role')}>
                 <option value="user">{tRole('user')}</option>
@@ -86,6 +109,9 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
           </div>
           <button type="submit" className="btn primary" disabled={pending}>
             {t('add')}
+          </button>{' '}
+          <button type="button" className="btn ghost" disabled={pending} onClick={suggest}>
+            {t('generate')}
           </button>
         </form>
       </Card>
@@ -117,10 +143,19 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
                   <td className="nowrap">
                     {u.userId === currentUserId ? (
                       <span className="muted">{t('you')}</span>
+                    ) : resetFor === u.userId ? (
+                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <input aria-label={t('newPassword')} type="text" autoComplete="off" spellCheck={false} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                        <button type="button" className="btn primary sm" disabled={pending || newPassword.length < 12} onClick={() => savePassword(u)}>{t('savePassword')}</button>
+                        <button type="button" className="btn ghost sm" onClick={() => { setResetFor(null); setNewPassword(''); }}>{t('cancel')}</button>
+                      </span>
                     ) : (
-                      <button type="button" className={`btn sm ${u.isActive ? 'danger' : 'ghost'}`} disabled={pending} onClick={() => toggle(u)}>
-                        {u.isActive ? t('disable') : t('enable')}
-                      </button>
+                      <span style={{ display: 'inline-flex', gap: 6 }}>
+                        <button type="button" className="btn ghost sm" disabled={pending} onClick={() => setResetFor(u.userId)}>{t('resetPassword')}</button>
+                        <button type="button" className={`btn sm ${u.isActive ? 'danger' : 'ghost'}`} disabled={pending} onClick={() => toggle(u)}>
+                          {u.isActive ? t('disable') : t('enable')}
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>

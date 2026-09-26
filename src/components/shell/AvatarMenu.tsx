@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { signOut } from '@/app/actions/auth';
@@ -19,6 +20,7 @@ interface Props {
 
 export function AvatarMenu({ initial, name, roleLabel, label, signOutLabel, items }: Props) {
   const pathname = usePathname();
+  const tAccount = useTranslations('account');
   // Remember which page the menu was opened on: navigating elsewhere closes it without an effect.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === pathname;
@@ -75,6 +77,7 @@ export function AvatarMenu({ initial, name, roleLabel, label, signOutLabel, item
               {item.label}
             </Link>
           ))}
+          <Link href="/account">{tAccount('menu')}</Link>
           <form action={signOut}>
             <button type="submit" className="menubtn">
               {signOutLabel}

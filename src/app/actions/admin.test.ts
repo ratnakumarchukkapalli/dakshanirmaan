@@ -9,10 +9,10 @@ vi.mock('@/lib/supabase/server', async () => (await import('@/test/harness')).su
 
 vi.mock('@/lib/supabase/admin', async () => (await import('@/test/harness')).adminClientMock);
 
-import { disableUser, enableUser, inviteUser } from './admin';
+import { disableUser, enableUser, inviteUser, resetUserPassword } from './admin';
 
 const ID = '11111111-1111-4111-8111-111111111111';
-const invite = { email: 'Counter@Example.com', name: 'Suresh', role: 'user' };
+const invite = { email: 'Counter@Example.com', name: 'Suresh', role: 'user', password: 'a-long-enough-password' };
 
 /** The sign-in service finds nothing to reuse and creates an account. */
 function withNewAccount() {
@@ -25,7 +25,7 @@ describe('inviteUser', () => {
     reset(asAdmin());
     withNewAccount();
     expect(await inviteUser(invite)).toEqual({ ok: true, data: { userId: ID } });
-    expect(state.adminCalls[0]).toMatchObject({ fn: 'createUser', args: [{ email: 'counter@example.com', email_confirm: true }] });
+    expect(state.adminCalls[0]).toMatchObject({ fn: 'createUser', args: [{ email: 'counter@example.com', password: 'a-long-enough-password', email_confirm: true }] });
     expect(state.calls.find((c) => c.rpc === 'admin_set_user')?.payload).toMatchObject({ p_user_id: ID, p_role: 'user', p_is_active: true });
     expect(state.revalidated).toContain('/settings/users');
   });
@@ -97,5 +97,31 @@ describe('disableUser / enableUser', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(await disableUser({ userId: ID })).toEqual({ ok: false, code: 'partial', error: 'partial_disable' });
     spy.mockRestore();
+  });
+});
+
+describe('resetUserPassword', () => {
+  it('an owner sets a new password for someone in the business', async () => {
+    reset(asAdmin());
+    state.respond = () => ({ data: [{ user_id: ID }], error: null });
+    expect(await resetUserPassword({ userId: ID, password: 'a-brand-new-password' })).toEqual({ ok: true, data: null });
+    expect(state.adminCalls[0]).toMatchObject({ fn: 'updateUserById', args: [ID, { password: 'a-brand-new-password' }] });
+  });
+
+  it('is refused for a counter user and an owner at step 1, and a short password never reaches the sign-in service', async () => {
+    reset(asCounter());
+    expect(await resetUserPassword({ userId: ID, password: 'a-brand-new-password' })).toMatchObject({ ok: false, code: 'forbidden' });
+    reset(asAdmin('aal1'));
+    expect(await resetUserPassword({ userId: ID, password: 'a-brand-new-password' })).toMatchObject({ ok: false, code: 'forbidden' });
+    reset(asAdmin());
+    expect(await resetUserPassword({ userId: ID, password: 'short' })).toMatchObject({ ok: false, code: 'validation', error: 'field.password_short' });
+    expect(state.adminCalls).toHaveLength(0);
+  });
+
+  it('only people already in the business can be reset', async () => {
+    reset(asAdmin());
+    state.respond = () => ({ data: [], error: null });
+    expect(await resetUserPassword({ userId: ID, password: 'a-brand-new-password' })).toEqual({ ok: false, code: 'validation', error: 'validation.no_such_user' });
+    expect(state.adminCalls).toHaveLength(0);
   });
 });

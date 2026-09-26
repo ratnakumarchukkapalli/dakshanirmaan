@@ -147,8 +147,8 @@ Restoring into a *hosted* project follows the tested local path but has not been
 Do these in order. The app's **Settings → Go-live** screen shows the first block as green/amber chips; the rest only you can check.
 
 **Before the opening entry**
-- [ ] Hosted Auth: email code sign-in on, sign-ups off, authenticator (TOTP) on; Resend SMTP set up on `dakshanirmaantraders.in` (DKIM/SPF/DMARC) and `supabase/templates/magic_link.html` pasted — without this nobody can sign in.
-- [ ] The owner account made with `npm run create-admin`; the other owners added under Settings → Users; each owner has set up the authenticator app. At least two owners.
+- [ ] Hosted Auth (**Authentication → Providers → Email**): email + password sign-in on, sign-ups off, **minimum password length 12**, leaked-password protection on if the plan offers it; **Authentication → Multi-factor: TOTP on**. No SMTP is needed: the app sends no email (Resend is optional, for a later "forgot password" email).
+- [ ] The owner account made with `ADMIN_PASSWORD='…12+ characters…' npm run create-admin -- <email> "<name>"` (or leave ADMIN_PASSWORD out and write down the password it prints once); the other owners added under Settings → Users; each owner has set up the authenticator app. At least two owners.
 - [ ] Settings → Organisation: legal name, GSTIN, address filled in (they are locked once invoices exist).
 - [ ] Real masters in: parties, items (HSN, GST rate, units), godowns. `supabase/demo/demo-data.sql` was **never** loaded into this database.
 - [ ] Backup workflow has run once and the restore drill (2.3) passed.
@@ -162,7 +162,7 @@ Do these in order. The app's **Settings → Go-live** screen shows the first blo
 
 **Day one**
 - [ ] The paper invoice book (used if the app is down) is labelled `DNM/26-27/` so its numbers never clash with `DN/`.
-- [ ] A real phone gets the login code email from the family domain, and TOTP asks for the code.
+- [ ] Sign in from a real phone with email + password; an owner is asked for the authenticator code. Everyone changes their starting password from the avatar menu → **Change password**.
 - [ ] Do not post test bills or receipts in the real books (a posted document can only be reversed, never removed); rehearse in a second hosted project.
 - [ ] Keep Tally (or the old book) read-only for reference for the first month.
 
@@ -177,3 +177,12 @@ Reports → **GST returns** (owner only). Pick the month.
 - [ ] **GSTR-3B.** Key the rows from the table (or the Excel) into the form. The screen does not work out the cash payable after using credits.
 - [ ] **Lock the month.** Settings → Period locks → Lock, once the return is filed. Unlocking later needs a reason and shows in the Audit trail.
 - [ ] From February: Settings → Period locks → **Create** the next financial year.
+
+---
+
+## 10. Passwords
+
+- **A person forgot their password:** Settings → Users → **Reset password** (owner), type a new one (12+ characters), tell them in person; they change it from the menu.
+- **An owner forgot theirs (or lost the authenticator):** another owner resets the password. Losing the authenticator app: remove the factor in the Supabase dashboard (Authentication → Users → the person → Factors) so they can enrol again after signing in. Keep at least two owners.
+- **A leaver:** Settings → Users → **Disable** (they cannot sign in at once); reset the password too if it was shared.
+- The app sends no email, so nothing arrives by mail: passwords and resets are always handed over in person.

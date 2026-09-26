@@ -74,8 +74,8 @@ say "build with 19" — needs a decision on where they go before 17.
 ## Change 18 status (2026-09-26)
 **Built, browser-walked, Opus-reviewed (fixes applied).** Migration `20260930100000_self_audit_and_gst.sql` (`gstr1_data`, `gstr3b_summary`, `set_period_lock`, master-edit audit triggers, statements functions), reports Trial balance / P&L / Balance sheet / GST returns (GSTR-1 JSON + Excel, GSTR-3B), Settings → Period locks and Audit trail, `docs/research/gstr1-schema.md`. Gates: 1769 pgTAP, 575 vitest, tsc/lint/build clean. **17 and 18 are both uncommitted in the working tree.** Notes: `openspec/changes/18-self-audit-and-gst/implementation-notes.md` (start there; it lists what is left: browser walk, portal upload test, Opus review, two doc updates).
 
-## Decision 2026-09-26: password login (change 08b)
-Ratna chose **email + password for everyone, owners also do the authenticator step**, like MyExpenseTracker (no SMTP needed). Brief: `openspec/changes/08b-password-login/proposal.md`. Build it after 17/18 are reviewed, committed and pushed, and before the Vercel deploy.
+## Change 08b status (2026-09-26): password login — built, browser-walked
+Ratna chose **email + password for everyone, owners also do the authenticator step**, like MyExpenseTracker (no SMTP needed). Built after 17/18 were committed and pushed (76f2ed2). Notes: `openspec/changes/08b-password-login/implementation-notes.md`. Next: commit/push it, then the guided Vercel deploy (hosted db push of migrations 20260929/20260930 needs Ratna's OK; set hosted Auth min password length 12).
 
 ## Next session
 Plan agreed with Ratna 2026-09-26: finish Phase 1 fully — **19 aal2-enforcement** (Opus, DONE and committed, see above; brief in `openspec/changes/19-aal2-enforcement/proposal.md`; `daksh-schema` + `daksh-posting`), then **17 cutover**, then **18 self-audit-and-gst** (Sonnet each; 18 starts with the GSTR-1 schema research task) — and only then a guided **Vercel deploy** (Ratna uses the existing hosted Supabase project `daksha-nirmaan`). One session edits the codebase at a time.

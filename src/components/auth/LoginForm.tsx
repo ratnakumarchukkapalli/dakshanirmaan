@@ -5,65 +5,11 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
-import { requestCode, verifyCode } from '@/app/actions/auth';
-import { requestCodeSchema, verifyCodeSchema, type RequestCodeInput } from '@/schemas/auth';
+import { signIn } from '@/app/actions/auth';
+import { signInSchema, type SignInInput } from '@/schemas/auth';
 
+/** Email and password. An owner is then held on the authenticator step; the server decides where to go next. */
 export function LoginForm() {
-  const [email, setEmail] = useState<string | null>(null);
-  return email === null ? <EmailStep onSent={setEmail} /> : <CodeStep email={email} onBack={() => setEmail(null)} />;
-}
-
-function EmailStep({ onSent }: { onSent: (email: string) => void }) {
-  const t = useTranslations('login');
-  const te = useTranslations('errors');
-  const [pending, start] = useTransition();
-  const [serverError, setServerError] = useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RequestCodeInput>({ resolver: zodResolver(requestCodeSchema) });
-
-  const submit = handleSubmit((values) =>
-    start(async () => {
-      setServerError(null);
-      const res = await requestCode(values);
-      if (res.ok) onSent(values.email);
-      else setServerError(res.error);
-    }),
-  );
-
-  return (
-    <form onSubmit={submit} noValidate>
-      <p className="muted" style={{ margin: '0 0 14px' }}>
-        {t('emailHelp')}
-      </p>
-      {serverError && (
-        <p role="alert" className="alert bad">
-          {serverError}
-        </p>
-      )}
-      <div className="field">
-        <label htmlFor="email">{t('email')}</label>
-        <input
-          id="email" type="email" inputMode="email" autoComplete="email" autoFocus
-          aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-err' : undefined}
-          {...register('email')}
-        />
-        {errors.email && (
-          <p id="email-err" className="fielderror">
-            {te(`field.${errors.email.message}`)}
-          </p>
-        )}
-      </div>
-      <button type="submit" className="btn primary block" disabled={pending}>
-        {t('sendCode')}
-      </button>
-    </form>
-  );
-}
-
-function CodeStep({ email, onBack }: { email: string; onBack: () => void }) {
   const t = useTranslations('login');
   const te = useTranslations('errors');
   const router = useRouter();
@@ -73,12 +19,12 @@ function CodeStep({ email, onBack }: { email: string; onBack: () => void }) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<{ code: string }>({ resolver: zodResolver(verifyCodeSchema.pick({ code: true })) });
+  } = useForm<SignInInput>({ resolver: zodResolver(signInSchema) });
 
   const submit = handleSubmit((values) =>
     start(async () => {
       setServerError(null);
-      const res = await verifyCode({ email, code: values.code });
+      const res = await signIn(values);
       if (!res.ok) return setServerError(res.error);
       router.replace(res.data.next);
       router.refresh();
@@ -88,7 +34,7 @@ function CodeStep({ email, onBack }: { email: string; onBack: () => void }) {
   return (
     <form onSubmit={submit} noValidate>
       <p className="muted" style={{ margin: '0 0 14px' }}>
-        {t('codeSent', { email })}
+        {t('passwordHelp')}
       </p>
       {serverError && (
         <p role="alert" className="alert bad">
@@ -96,26 +42,34 @@ function CodeStep({ email, onBack }: { email: string; onBack: () => void }) {
         </p>
       )}
       <div className="field">
-        <label htmlFor="code">{t('code')}</label>
+        <label htmlFor="email">{t('email')}</label>
         <input
-          id="code" className="code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus
-          aria-invalid={!!errors.code} aria-describedby={errors.code ? 'code-err' : undefined}
-          {...register('code')}
+          id="email" type="email" inputMode="email" autoComplete="username" autoFocus
+          aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-err' : undefined}
+          {...register('email')}
         />
-        {errors.code && (
-          <p id="code-err" className="fielderror">
-            {te(`field.${errors.code.message}`)}
+        {errors.email && (
+          <p id="email-err" className="fielderror">
+            {te(`field.${errors.email.message}`)}
+          </p>
+        )}
+      </div>
+      <div className="field">
+        <label htmlFor="password">{t('password')}</label>
+        <input
+          id="password" type="password" autoComplete="current-password"
+          aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-err' : undefined}
+          {...register('password')}
+        />
+        {errors.password && (
+          <p id="password-err" className="fielderror">
+            {te(`field.${errors.password.message}`)}
           </p>
         )}
       </div>
       <button type="submit" className="btn primary block" disabled={pending}>
         {t('signIn')}
       </button>
-      <p style={{ textAlign: 'center', marginBottom: 0 }}>
-        <button type="button" className="linkbtn" onClick={onBack}>
-          {t('useOtherEmail')}
-        </button>
-      </p>
     </form>
   );
 }

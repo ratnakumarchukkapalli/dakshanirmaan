@@ -7,14 +7,14 @@ import { fail, ok, type ActionResult } from '@/lib/action-result';
 import { requireAdmin } from '@/lib/auth/require';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { inviteUserSchema, userIdSchema } from '@/schemas/users';
+import { inviteUserSchema, resetPasswordSchema, userIdSchema } from '@/schemas/users';
 
 // A ban this long is "for good"; enabling lifts it. Keeps a disabled person from getting new sessions.
 const BAN_FOREVER = '876000h';
 
 /**
- * Add a person. Creates their sign-in account (no email is sent), then records their role in
- * the business as THE ADMIN, so the database checks the admin too. They sign in with a code.
+ * Add a person. Creates their sign-in account with the owner-chosen starting password (no email is sent), then records their role in
+ * the business as THE ADMIN, so the database checks the admin too. They sign in with the email and starting password the owner hands over.
  */
 export async function inviteUser(input: unknown): Promise<ActionResult<{ userId: string }>> {
   const t = await getTranslations('errors');
@@ -22,11 +22,11 @@ export async function inviteUser(input: unknown): Promise<ActionResult<{ userId:
   if (denied) return denied;
   const parsed = inviteUserSchema.safeParse(input);
   if (!parsed.success) return zodFailure(parsed.error);
-  const { email, name, role } = parsed.data;
+  const { email, name, role, password } = parsed.data;
 
   const service = createAdminClient();
   let userId: string | undefined;
-  const created = await service.auth.admin.createUser({ email, email_confirm: true });
+  const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.data.user) {
     userId = created.data.user.id;
   } else if (created.error?.code === 'email_exists') {
@@ -90,4 +90,28 @@ export async function disableUser(input: unknown): Promise<ActionResult> {
 
 export async function enableUser(input: unknown): Promise<ActionResult> {
   return setActive(input, true);
+}
+
+/**
+ * Owner sets a new password for someone (the app sends no email, so this is the "forgot password" path).
+ * The person is told in person. Only people already in the business can be reset.
+ */
+export async function resetUserPassword(input: unknown): Promise<ActionResult> {
+  const t = await getTranslations('errors');
+  const denied = await requireAdmin();
+  if (denied) return denied;
+  const parsed = resetPasswordSchema.safeParse(input);
+  if (!parsed.success) return zodFailure(parsed.error);
+  const { userId, password } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: row } = await supabase.from('app_users').select('user_id').eq('user_id', userId).maybeSingle();
+  if (!row) return fail('validation', t('validation.no_such_user'));
+
+  const { error } = await createAdminClient().auth.admin.updateUserById(userId, { password });
+  if (error) {
+    console.error('[admin] password reset failed:', error.code ?? error.message);
+    return fail('internal', t('internal'));
+  }
+  return ok();
 }
