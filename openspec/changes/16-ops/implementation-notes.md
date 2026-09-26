@@ -1,6 +1,6 @@
 # Change 16 — ops: implementation notes
 
-Status: built, Sonnet-reviewed (APPROVE AFTER FIXES, all fixed, below), local gates green, backup and restore drill run for real against the local stack. **The two workflows have never run on GitHub** (they can only be proven by a push). Proposal: `proposal.md`.
+Status: built, Sonnet-reviewed (APPROVE AFTER FIXES, all fixed, below), local gates green, backup and restore drill run for real against the local stack. **CI ran green on GitHub on its first run (2026-09-26, both jobs, every step incl. pgTAP, bundle scan and both smokes); the Backup workflow has not run yet (needs its two secrets)** (they can only be proven by a push). Proposal: `proposal.md`.
 
 ## What was built
 - `.github/workflows/ci.yml`: **static** job (tsc, lint, vitest, `npm audit --audit-level=high`) and **integration** job (local Supabase stack with only the services needed, `supabase test db`, production build, secret scan, `next start`, HTTP smoke, browser smoke). Node 24, Supabase CLI pinned to 2.117.0 (the local version). `actionlint` clean.
@@ -32,7 +32,7 @@ Status: built, Sonnet-reviewed (APPROVE AFTER FIXES, all fixed, below), local ga
 6. `supabase db push` approval workflow, Vercel preview safety (`preview_reader`), log drain and Vercel alerts are go-live work (change 17).
 
 ## Not verified (say so before trusting it)
-- **Neither workflow has run on GitHub.** Likely first-run surprises: the `supabase start -x …` service list on the runner, Playwright browser install time, npm cache.
+- **The Backup workflow has not run on GitHub.** (CI has: green on the first run; its only annotations are GitHub's Node 20 deprecation notice for `checkout`/`setup-node`/`setup-cli`, which Dependabot will bump.)
 - **The hosted dump.** `dump.sh` has only run against the local database. Against the hosted project it needs the session-pooler `DATABASE_URL`, PostgreSQL 17 client tools (installed in the workflow from the PGDG script) and permission to read `auth.users` as the `postgres` role. Run the Backup workflow manually right after the secrets are set and do the drill with its artifact (runbook 2.1 step 4).
 - Restoring into a *hosted* project (runbook 2.4) follows the tested local path but was not rehearsed.
 - `age` was installed on this machine with Homebrew for the rehearsal (`brew install age`, also `actionlint`); the key pair used was throwaway and lives in the session scratchpad, not the repo.
