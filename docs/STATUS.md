@@ -10,7 +10,7 @@ below are done.
 ## Done
 01 foundation-schema · 02 integrity-triggers · 03 posting-sales · 04 posting-purchase-payment ·
 05 posting-challan-transfer-adjust-dayclose · 06 read-views · 07 app-shell · 08 auth-users ·
-09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 · 16 ops · 19 aal2-enforcement (committed e646613, not pushed).
+09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 · 16 ops · 19 aal2-enforcement (pushed to GitHub + hosted 2026-09-26).
 Local demo data exists (`supabase/demo/demo-data.sql`) and can be reloaded any time; it is not
 the goal, just a convenience for testing screens as they're built.
 
@@ -52,7 +52,7 @@ Owner questions: payables ageing wanted? stock as at a past date? day-close by d
 close a day out of order in the app (DB allows it; the screen asks to reopen the later day first)?
 
 ## Change 19 status (2026-09-26)
-Committed e646613 2026-09-26, **not pushed to hosted**. No separate review (Ratna, 2026-09-26: built by Opus); the pre-go-live `/security-review` covers it. Migration
+Committed e646613, **pushed to GitHub + hosted 2026-09-26** (hosted now has all 27 migrations through `20260928100000`). No separate review (Ratna, 2026-09-26: built by Opus); the pre-go-live `/security-review` covers it. Migration
 `20260928100000_aal2_enforcement.sql`: `current_app_role()` is NULL for an admin below `aal2`, `is_active_member()` goes through it,
 the 15 remaining direct `app_users` role lookups now call it. Gates: 1567 pgTAP (new `00012`; 201 test sessions got `"aal":"aal2"`),
 build clean; real-session REST proof (step-1 owner: `DN_FORBIDDEN` + empty reads) and an 18/18 Playwright login-flow walk.
@@ -69,7 +69,7 @@ say "build with 19" — needs a decision on where they go before 17.
 ## Next session
 Plan agreed with Ratna 2026-09-26: finish Phase 1 fully — **19 aal2-enforcement** (Opus, DONE and committed, see above; brief in `openspec/changes/19-aal2-enforcement/proposal.md`; `daksh-schema` + `daksh-posting`), then **17 cutover**, then **18 self-audit-and-gst** (Sonnet each; 18 starts with the GSTR-1 schema research task) — and only then a guided **Vercel deploy** (Ratna uses the existing hosted Supabase project `daksha-nirmaan`). One session edits the codebase at a time.
 At deploy time decide: that project holds the REAL books, so a fake-data demo should go in a second hosted project (Free allows two per org); `demo-data.sql` must never be loaded into the real one. Also needed then: hosted Auth settings (email OTP, signups off, TOTP), the owner account via create-admin, Resend SMTP, Vercel env vars (RUNBOOK section 3 lists the secrets).
-Change 16 is done and pushed; change 19 is committed but not pushed.
+Changes 16 and 19 are done and pushed; nothing is unpushed.
 
 ## PENDING (Ratna, deferred 2026-09-26) — turn the nightly backup on
 Until this is done **nothing is backed up** (the Backup workflow runs daily but prints a warning and stops). Steps, in `RUNBOOK.md` 2.1:
