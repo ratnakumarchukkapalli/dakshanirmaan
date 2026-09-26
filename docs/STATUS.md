@@ -57,7 +57,12 @@ Committed e646613 2026-09-26, **not pushed to hosted**. No separate review (Ratn
 the 15 remaining direct `app_users` role lookups now call it. Gates: 1567 pgTAP (new `00012`; 201 test sessions got `"aal":"aal2"`),
 build clean; real-session REST proof (step-1 owner: `DN_FORBIDDEN` + empty reads) and an 18/18 Playwright login-flow walk.
 Notes: `openspec/changes/19-aal2-enforcement/implementation-notes.md`. **Before pushing to hosted: confirm TOTP works on the hosted
-Free plan (change 08 gap 5) — if it does not, this migration locks every owner out.**
+Free plan (change 08 gap 5) — if it does not, this migration locks every owner out.** 2026-09-26: hosted dashboard shows
+TOTP (App Authenticator) **Enabled** on the Free plan, and **proven by a script against hosted**: throw-away user signed in (aal1),
+enrolled + verified a TOTP factor (aal2), user deleted. Change 19 is safe to push.
+**Found 2026-09-26: on the Free plan Supabase will not let you edit email templates until custom SMTP is set up**, and the default
+template sends only a link, no code — so nobody can sign in to hosted until Resend SMTP (domain + DKIM/SPF) is configured and
+`supabase/templates/magic_link.html` pasted. Hard prerequisite for 17 (cutover).
 Not in 19's brief, so not built: owner decisions 1 (stock cost hidden from counter) and 4 (master-edit audit trail) below, which
 say "build with 19" — needs a decision on where they go before 17.
 
