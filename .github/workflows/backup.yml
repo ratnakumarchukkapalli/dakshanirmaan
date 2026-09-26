@@ -1,0 +1,58 @@
+# Daily encrypted copy of the books. Safe to merge before it is configured: with no secrets it says so and stops.
+# Needs two repository secrets (Settings > Secrets and variables > Actions), described in RUNBOOK.md:
+#   DATABASE_URL     the Supabase *session pooler* connection string (postgres.<ref>@...pooler.supabase.com:5432).
+#                    Not the direct host: GitHub's runners have no IPv6 and the free direct host is IPv6-only.
+#   AGE_PUBLIC_KEY   the family's age public key (age1...). The private half is never stored here.
+# The encrypted file is kept as a private workflow artifact for 30 days. The off-GitHub copy (family
+# Google Drive) is a later step; see RUNBOOK.md, "Switching on the Drive copy".
+name: Backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *'     # 02:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    name: Dump, verify, encrypt
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Is the backup configured?
+        id: cfg
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AGE_PUBLIC_KEY: ${{ secrets.AGE_PUBLIC_KEY }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$AGE_PUBLIC_KEY" ]; then
+            echo "::warning title=Backup not configured::Set the DATABASE_URL and AGE_PUBLIC_KEY repository secrets (see RUNBOOK.md). Nothing was backed up."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - name: Install age and the PostgreSQL 17 client
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y age postgresql-client-17
+      - name: Dump, check and encrypt
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AGE_RECIPIENT: ${{ secrets.AGE_PUBLIC_KEY }}
+        run: scripts/backup/dump.sh backups
+      - name: Keep the encrypted file
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dn-backup-${{ github.run_id }}
+          path: backups/*.tar.age
+          retention-days: 30
+          if-no-files-found: error

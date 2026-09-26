@@ -1,0 +1,98 @@
+# Runs on every push to main and every pull request. A red job blocks the merge.
+# Every command here can be run the same way on a developer machine (see RUNBOOK.md, "What CI checks").
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'          # scripts/*.ts run with Node's built-in type stripping (Node 22.18+ / 24)
+  SUPABASE_CLI_VERSION: 2.117.0
+
+jobs:
+  static:
+    name: Types, lint, unit tests, audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Dependency audit (high or critical blocks the merge)
+        run: npm audit --audit-level=high
+
+  integration:
+    name: Database tests, build, secret scan, smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Start the local Supabase stack
+        # Only what the app and the checks need: database, auth, REST gateway, mail catcher.
+        run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,realtime,storage-api,postgres-meta
+      - name: Database tests (pgTAP)
+        run: supabase test db
+
+      - name: Environment for the app (throwaway values from the local stack)
+        run: |
+          eval "$(supabase status -o env)"
+          INVOICE_LINK_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$INVOICE_LINK_SECRET"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY"
+            echo "SUPABASE_SECRET_KEY=$SECRET_KEY"
+            echo "INVOICE_LINK_SECRET=$INVOICE_LINK_SECRET"
+            echo "APP_ORIGIN=http://localhost:3000"
+          } >> "$GITHUB_ENV"
+      - name: Production build
+        run: npm run build
+      - name: No secret in the browser bundle
+        run: npm run check:bundle
+
+      - name: Start the app
+        run: |
+          nohup npm start > app.log 2>&1 &
+          for _ in $(seq 1 60); do curl -sf http://localhost:3000/login >/dev/null && exit 0; sleep 1; done
+          echo "the app did not start"; cat app.log; exit 1
+      - name: HTTP smoke
+        run: npm run smoke
+      - name: Browser smoke
+        run: |
+          npm i --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+          npm run smoke:browser
+      - name: App log (on failure)
+        if: failure()
+        run: cat app.log || true

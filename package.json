@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "create-admin": "node scripts/create-admin.mjs"
+    "create-admin": "node scripts/create-admin.mjs",
+    "check:bundle": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-bundle.ts",
+    "smoke": "node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/smoke.ts",
+    "smoke:browser": "node scripts/smoke-browser.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",
@@ -41,5 +44,8 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vitest": "5.0.1"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

@@ -52,10 +52,13 @@ Owner questions: payables ageing wanted? stock as at a past date? day-close by d
 close a day out of order in the app (DB allows it; the screen asks to reopen the later day first)?
 
 ## Next session
-Start **16 ops** (Sonnet, daksh-api). Nothing is unpushed.
+Change 16 ops is BUILT and Sonnet-reviewed (fixes applied), committed and pushed 2026-09-26: CI + backup workflows (never run on GitHub yet), bundle scan, smoke, dump/restore
+drill (passed locally), `RUNBOOK.md`; Sentry and the Drive upload are deliberately left out (Ratna, 2026-09-26). Gates: 1456 pgTAP,
+527 vitest, tsc/lint/build clean, `npm audit` 0. Notes: `openspec/changes/16-ops/implementation-notes.md`. To finish: set the GitHub secrets `AGE_PUBLIC_KEY` + `DATABASE_URL` (RUNBOOK 2.1), watch the first CI run and run Backup once + the drill.
+Then **19 aal2-enforcement** (Opus, fresh session), then 17, then 18.
 
 ## Left (Phase 1), build in this order — one change per session
-16 ops · 17 cutover · 18 self-audit-and-gst · 19 aal2-enforcement.
+16 ops (built, see above) · 19 aal2-enforcement · 17 cutover · 18 self-audit-and-gst.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
 Change 19 must land before 17 (cutover) for real go-live, but can be built whenever in this list
 — it does not block the other UI changes.
