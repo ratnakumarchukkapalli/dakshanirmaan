@@ -1,14 +1,15 @@
 // Pure checks behind `scripts/check-bundle.ts` (the CI "no secret in the browser bundle" gate).
 // Spec: security-deployment "Client bundle hygiene" — the browser gets the Supabase URL and the
 // publishable key and nothing else; the secret key, the invoice-link secret and any service-role
-// token must never appear in `.next/static`.
+// token must never appear in `.next/static` or `public/`. Also refused anywhere in the browser-served
+// files: a database URL with a password in it, a PEM private key, an age private key (the backup key).
 
 /** The only `NEXT_PUBLIC_` variables the app is allowed to have. */
 export const ALLOWED_PUBLIC_VARS = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'] as const;
 
 export interface Finding {
   file: string;
-  kind: 'secret-key-prefix' | 'service-role-token' | 'secret-value';
+  kind: 'secret-key-prefix' | 'service-role-token' | 'secret-value' | 'db-url-password' | 'private-key' | 'age-secret-key';
   /** What matched, shortened so the log never reprints a whole secret. */
   detail: string;
 }
@@ -35,6 +36,10 @@ export function isServiceRoleJwt(token: string): boolean {
 
 const JWT = /eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/g;
 const SECRET_PREFIX = /sb_secret_[A-Za-z0-9_-]{8,}/g;
+/** postgres:// or postgresql:// with user:password@ (a URL without a password is not a credential). */
+const DB_URL_PASSWORD = /postgres(?:ql)?:\/\/[^\s:@/'"`<>]+:[^\s@/'"`<>]+@/g;
+const PEM_PRIVATE_KEY = /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----/g;
+const AGE_SECRET_KEY = /AGE-SECRET-KEY-1[0-9A-Z]{20,}/g;
 
 /**
  * Looks for secrets in one built file. `secretValues` are the actual values of server-only env vars
@@ -44,6 +49,9 @@ export function scanContent(file: string, text: string, secretValues: string[] =
   const found: Finding[] = [];
   for (const m of text.matchAll(SECRET_PREFIX)) found.push({ file, kind: 'secret-key-prefix', detail: short(m[0]) });
   for (const m of text.matchAll(JWT)) if (isServiceRoleJwt(m[0])) found.push({ file, kind: 'service-role-token', detail: short(m[0]) });
+  for (const m of text.matchAll(DB_URL_PASSWORD)) found.push({ file, kind: 'db-url-password', detail: short(m[0]) });
+  for (const m of text.matchAll(PEM_PRIVATE_KEY)) found.push({ file, kind: 'private-key', detail: short(m[0]) });
+  for (const m of text.matchAll(AGE_SECRET_KEY)) found.push({ file, kind: 'age-secret-key', detail: short(m[0]) });
   for (const v of secretValues) {
     if (v.length >= MIN_SECRET_LENGTH && text.includes(v)) found.push({ file, kind: 'secret-value', detail: short(v) });
   }

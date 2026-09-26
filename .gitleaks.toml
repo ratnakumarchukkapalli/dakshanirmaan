@@ -1,0 +1,20 @@
+# Secret scan config (CI job "Secret scan", RUNBOOK section 1). Default gitleaks rules plus ONE narrow exception.
+title = "Daksha Nirmaan"
+
+[extend]
+useDefault = true
+
+# scripts/lib/bundle-scan.test.ts uses a made-up 20-character string as a stand-in "server-only secret" to
+# prove the bundle check can find it. It is not a credential; it is in git history, so it cannot be removed.
+[[allowlists]]
+description = "fake secret value in the bundle-scan unit test"
+condition = "AND"
+paths = ['''scripts/lib/bundle-scan\.test\.ts''']
+regexes = ['''z9y8x7w6v5u4t3s2r1q0''']
+
+# The Supabase local-stack demo anon JWT (role "anon", issuer "supabase-demo"): the same public value every
+# `supabase start` prints and the docs publish. It has no power beyond what the publishable key has.
+# Matched by its signature, so any other JWT is still reported.
+[[allowlists]]
+description = "public Supabase local-demo anon JWT (attack-test scripts)"
+regexes = ['''CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0''']

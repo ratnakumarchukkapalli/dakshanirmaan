@@ -14,6 +14,16 @@ below are done.
 Local demo data exists (`supabase/demo/demo-data.sql`) and can be reloaded any time; it is not
 the goal, just a convenience for testing screens as they're built.
 
+## Attack-test fixes (2026-09-26, migration `20261001100000_attack_test_fixes.sql`, uncommitted, local only)
+From `docs/reviews/2026-09-attack-test.md`: F2 `place_of_supply` is derived in `post_sales_invoice` (shipping state if it is one of the
+party's own addresses, else the party's state; anything else -> `DN_VALIDATION:invalid_place_of_supply`) and written back; the invoice
+form shows it read-only and `saveDraftInvoice` derives it too; CHECK on all four document tables. F1 write policies on
+`payment_allocations` now require the payment to be a draft. F4 `gstin_checksum_ok` revoked from public/anon. F3 `set_created_by`
+trigger on every table with `created_by`. F5 `hidden_payroll_*` return ids to a counter user only; `set_my_locale` writes for members only.
+L1 guard: `00026_attack_test_fixes.test.sql` fails if any public function is anon-executable, any table lacks RLS, or a `created_by`
+table lacks the trigger. Debit/credit notes have no post function yet: whoever writes them must derive place of supply the same way.
+Not yet pushed to hosted. Hosted ACLs were never compared with local (review "Limits").
+
 ## Review status (2026-09-25)
 Independent Opus review of 10a/10b/11 and the change-12 milestone review ("money flows end to
 end") are DONE; every finding was fixed (see each change's `implementation-notes.md`: "Review
@@ -23,9 +33,11 @@ cancelPayment action), 10a/posting fixes (migration `20260925110000_posting_snap
 post-time item snapshot re-read, transit-warehouse refusal, e-way-bill CHECKs), 11 fixes (locked
 challan drafts, race recovery). Hosted DB now has all 25 migrations through `20260927100000`.
 Change-12 draft resume and auto-allocate-with-discount were watched live in the change-13 session (both work).
-Still open: `place_of_supply` on a draft is client-writable (owner question); re-allocating a posted receipt
-(later change); 06/07 have Sonnet-only reviews; 03–05/08/09 had Opus reviews earlier; `/security-review`
+Still open: re-allocating a posted receipt (later change; allocations of a posted receipt are now immutable through the API, see attack-test fixes below); 06/07 have Sonnet-only reviews; 03–05/08/09 had Opus reviews earlier; `/security-review`
 before go-live.
+
+## Phase 1 review (2026-09-26)
+Independent reviews of 06/07/08b/13/16/19: report `docs/reviews/2026-09-phase1-review.md` (no criticals; 19 and 06 approved). Fix-list items 1, 2, 5-9 are fixed and uncommitted (see its "Fix status"). **Owner decisions (Ratna, 2026-09-26):** payroll cash inferable via the day close = accepted (H2, recorded in the spec); session time-box / sign-in rate limit enforced only in the app = accepted and documented (M1/M2, revisit at the security review); stock cost hidden from the counter = build as **change 28** (`openspec/changes/28-stock-cost-owner-only/proposal.md`). When the backup is switched on, set the Actions variable `ALLOW_EMPTY_BACKUP=1` until the opening balances are posted (RUNBOOK 2.1).
 
 ## Change 13 status (2026-09-25)
 Committed a4dad1e, pushed to GitHub + hosted 2026-09-26. Extra migrations: `20260926100000_staff_salary_owner_only.sql`,
@@ -76,6 +88,9 @@ say "build with 19" — needs a decision on where they go before 17.
 
 ## Change 08b status (2026-09-26): password login — built, browser-walked
 Ratna chose **email + password for everyone, owners also do the authenticator step**, like MyExpenseTracker (no SMTP needed). Built after 17/18 were committed and pushed (76f2ed2). Notes: `openspec/changes/08b-password-login/implementation-notes.md`. Next: commit/push it, then the guided Vercel deploy (hosted db push of migrations 20260929/20260930 needs Ratna's OK; set hosted Auth min password length 12).
+
+## Attack test (2026-09-26)
+Adversarial permission run against local Supabase (5 identities, ~2,160 checks): `docs/reviews/2026-09-attack-test.md`. Nothing critical; the ledger, posted amounts, payroll, purchases, outgoing payments, discounts, credit override and day-close rules all held. Six small gaps (F1 posted-receipt allocations editable, F2 `place_of_supply` steerable, F3 `created_by` forgeable, F4 `gstin_checksum_ok` open to anon, F5 helpers answer no-one identities, L1 no catalog-wide guard) are scoped in `openspec/changes/27-attack-test-fixes/proposal.md` (Opus, fresh session, before change 26). Repeatable harness: `bash scripts/attack-test/run-all.sh` (local only). **K1–K4 (counter can derive bank/cash/profit/stock cost/supplier prices via the API): accepted for now (Ratna, 2026-09-26)** — counter logins are trusted family/staff; revisit if that changes. Not part of change 27. Hosted was not tested; a read-only catalog comparison on hosted needs Ratna's OK.
 
 ## Hosted (2026-09-26)
 All 29 migrations are on hosted `daksha-nirmaan` (Free, Mumbai). Hosted Auth was fixed via a minimal `supabase config push` (only declared keys are touched): **sign-ups OFF** (were ON), **minimum password length 12 → lowered to 8 on 2026-09-26 at Ratna's request** (was 6); TOTP already enabled. Still to set after the Vercel URL is known: Auth site URL (currently `http://localhost:3000`). Vercel plan: **Hobby** (Ratna's choice, 2026-09-26). Free-plan facts: project pauses after 7 idle days; no point-in-time recovery, so the nightly GitHub backup (RUNBOOK 2.1, still not switched on) is the only backup.

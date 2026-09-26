@@ -10,10 +10,12 @@ import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
 import { BUCKETS, type Bucket } from '@/lib/ageing';
 import { rows } from '@/lib/db';
-import { signOf } from '@/lib/decimal';
+import { decimalText, signOf } from '@/lib/decimal';
 import { inr2 } from '@/lib/format';
 import { cleanSearchText, orContainsFilter } from '@/lib/search';
 import { createClient } from '@/lib/supabase/server';
+
+const d2 = (v: unknown) => decimalText(v as number | string | null, 2);
 
 type Segment = 'all' | 'customer' | 'supplier' | 'overdue';
 const BUCKET_TONE: Record<Bucket, 'good' | 'warn' | 'bad'> = { b0_30: 'good', b31_60: 'warn', b61_90: 'bad', b90_plus: 'bad' };
@@ -31,12 +33,13 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
     supabase.from('v_party_interest').select('party_id'),
   ]);
   const aging = new Map(rows(agingRes, 'party ageing').map((a) => [a.party_id as string, a]));
-  const overdueIds = [...new Set(rows(overdueRes, 'overdue parties').map((r) => r.party_id as string))];
+  const overdueIds = new Set(rows(overdueRes, 'overdue parties').map((r) => r.party_id as string));
 
   let query = supabase.from('parties').select('id, name, type, gstin, credit_limit, is_active').neq('type', 'employee').order('name');
   if (segment === 'customer') query = query.in('type', ['customer', 'both']);
   if (segment === 'supplier') query = query.in('type', ['supplier', 'both']);
-  if (segment === 'overdue') query = query.in('id', overdueIds.length ? overdueIds : ['00000000-0000-0000-0000-000000000000']);
+  // The Overdue segment is narrowed in code below: an `.in('id', …)` over every overdue party puts one UUID
+  // each in the request URL, which stops fitting once there are a few hundred.
   // The typed text is escaped for both LIKE and PostgREST (see lib/search.ts), so it cannot alter the filter.
   const filter = orContainsFilter(['name', 'gstin'], q);
   if (filter) query = query.or(filter);
@@ -46,7 +49,8 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
     supabase.from('v_party_balances').select('party_id, ar_balance, ap_balance'),
     supabase.from('organization').select('state_code').maybeSingle(),
   ]);
-  const parties = rows(partiesRes, 'parties');
+  const allParties = rows(partiesRes, 'parties');
+  const parties = segment === 'overdue' ? allParties.filter((p) => overdueIds.has(p.id)) : allParties;
   const balances = rows(balancesRes, 'party balances');
   if (orgRes.error) throw new Error(`organization: ${orgRes.error.message}`);
   const org = orgRes.data;
@@ -110,8 +114,8 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
               <tbody>
                 {parties.map((p) => {
                   const b = balanceOf.get(p.id);
-                  const ar = Number(b?.ar_balance ?? 0);
-                  const ap = Number(b?.ap_balance ?? 0);
+                  const ar = d2(b?.ar_balance ?? 0);
+                  const ap = d2(b?.ap_balance ?? 0);
                   const oldest = oldestOf(p.id);
                   return (
                     <RowLink key={p.id} href={`/parties/${p.id}`}>
@@ -119,10 +123,10 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
                         <div className="pname"><Link href={`/parties/${p.id}`}>{p.name}</Link></div>
                         <div className="sub">{[typeLabel[p.type as keyof typeof typeLabel], p.gstin].filter(Boolean).join(' · ')}</div>
                       </td>
-                      <td className="r num">{ar ? inr2(ar) : '—'}</td>
-                      <td className="r num">{ap ? inr2(ap) : '—'}</td>
+                      <td className="r num">{signOf(ar) !== 0 ? inr2(ar) : '—'}</td>
+                      <td className="r num">{signOf(ap) !== 0 ? inr2(ap) : '—'}</td>
                       <td>{oldest ? <Chip tone={BUCKET_TONE[oldest]}>{bucketLabel[oldest]}</Chip> : <span className="muted">—</span>}</td>
-                      <td className="r num">{p.credit_limit == null ? t('noLimit') : Number(p.credit_limit) === 0 ? t('noCredit') : inr2(p.credit_limit)}</td>
+                      <td className="r num">{p.credit_limit == null ? t('noLimit') : signOf(d2(p.credit_limit)) === 0 ? t('noCredit') : inr2(p.credit_limit)}</td>
                       <td><Chip tone={p.is_active ? 'good' : 'muted'}>{p.is_active ? t('active') : t('inactive')}</Chip></td>
                     </RowLink>
                   );

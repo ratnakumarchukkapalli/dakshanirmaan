@@ -13,6 +13,13 @@
 # The private key is never needed here: only the public recipient. Whoever holds the private key
 # can read the books, so it lives with the family (see RUNBOOK.md), not in this repository.
 #
+# Optional guards:
+#   EXPECTED_AGE_RECIPIENT_SHA256   sha256 (hex) of the correct age1... public key. When set, a different
+#                                   recipient (a typo, or a stranger's key) stops the backup before anything
+#                                   is encrypted. See RUNBOOK 2.1. The monthly decrypt check stays the real proof.
+#   ALLOW_EMPTY_BACKUP=1            let a database with no journal entries be backed up (first run, dev only).
+#                                   Without it an empty-books dump FAILS, so an empty backup can never look fine.
+#
 # PGDUMP / PGRESTORE / PSQL may be set to another command (the local rehearsal runs them inside the
 # Supabase container: PGDUMP="docker exec -i supabase_db_Daksh_Nirmaan pg_dump").
 set -euo pipefail
@@ -28,10 +35,21 @@ case "$AGE_RECIPIENT" in
   age1*) ;;
   *) echo "dump: AGE_RECIPIENT must be the PUBLIC key (starts with age1). The value is not printed." >&2; exit 2 ;;
 esac
+AGE_RECIPIENT="$(printf '%s' "$AGE_RECIPIENT" | tr -d '[:space:]')"
+if [ -n "${EXPECTED_AGE_RECIPIENT_SHA256:-}" ]; then
+  if command -v sha256sum >/dev/null; then got="$(printf '%s' "$AGE_RECIPIENT" | sha256sum | cut -d' ' -f1)"
+  else got="$(printf '%s' "$AGE_RECIPIENT" | shasum -a 256 | cut -d' ' -f1)"; fi
+  want_fp="$(printf '%s' "$EXPECTED_AGE_RECIPIENT_SHA256" | tr -d '[:space:]' | tr 'A-F' 'a-f')"
+  if [ "$got" != "$want_fp" ]; then
+    echo "::error title=Wrong backup key::AGE_PUBLIC_KEY is not the key whose sha256 is EXPECTED_AGE_RECIPIENT_SHA256; nothing was encrypted. Neither value is printed." >&2
+    exit 1
+  fi
+fi
 command -v age >/dev/null || { echo "dump: age is not installed (brew install age / apt-get install age)" >&2; exit 2; }
 mkdir -p "$OUT_DIR"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+final=""
+trap 'rm -rf "$work"; [ -z "$final" ] || rm -f "$final.part"' EXIT
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 final="$OUT_DIR/dn-backup-$stamp.tar.age"
@@ -80,7 +98,12 @@ fi
 echo "dump: $entries tables, $size bytes, migration $(grep migration_version "$work/manifest.json" | tr -dc '0-9')" >&2
 
 if [ "$(grep -c '"journal_entries": 0' "$work/manifest.json" || true)" -gt 0 ]; then
-  echo "dump: WARNING — the database has no journal entries; this backup holds no books" >&2
+  if [ "${ALLOW_EMPTY_BACKUP:-}" = "1" ]; then
+    echo "dump: WARNING — the database has no journal entries; this backup holds no books (ALLOW_EMPTY_BACKUP=1)" >&2
+  else
+    echo "::error title=Backup holds no books::the database has no journal entries, so this dump would contain no books. Refusing to keep it (it could push good backups out). If this is a brand-new or dev database, set ALLOW_EMPTY_BACKUP=1." >&2
+    exit 1
+  fi
 fi
 
 tar -C "$work" -cf "$work/backup.tar" data.dump manifest.json

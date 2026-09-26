@@ -30,3 +30,13 @@ backups/
 
 # vercel
 .vercel
+
+# backup material and keys: nothing here may ever be committed (RUNBOOK 2.1: make the key OUTSIDE the repo)
+backups/
+*.age
+*.dump
+*.pem
+*.key
+family-age-key*
+*age-key*.txt
+AGE-SECRET-KEY*

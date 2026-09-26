@@ -51,7 +51,7 @@ export default async function PartyPage({ params, searchParams }: { params: Prom
       .maybeSingle(),
     supabase.from('party_addresses').select('id, label, state_code, is_default, address').eq('party_id', id).order('created_at'),
     supabase.from('v_party_balances').select('ar_balance, ap_balance').eq('party_id', id).maybeSingle(),
-    supabase.from('v_party_aging').select('bucket_0_30, bucket_31_60, bucket_61_90, bucket_90_plus, unallocated, interest').eq('party_id', id).maybeSingle(),
+    supabase.from('v_party_aging').select('bucket_0_30, bucket_31_60, bucket_61_90, bucket_90_plus, unallocated, interest, other_ar').eq('party_id', id).maybeSingle(),
     supabase.from('v_open_purchase_invoices').select('age_days, open_amount').eq('party_id', id),
   ]);
   const p = one(pRes, 'party');
@@ -92,6 +92,10 @@ export default async function PartyPage({ params, searchParams }: { params: Prom
   const apBuckets = bucketOpen(openPurchases.map((r) => ({ ageDays: Number(r.age_days), openAmount: d2(r.open_amount) })));
   const ageLabels = { b0_30: t('age0_30'), b31_60: t('age31_60'), b61_90: t('age61_90'), b90_plus: t('age90plus') };
   const arExtra: { label: string; value: string; sub?: string }[] = [];
+  // Receivable held on the control account that no invoice or receipt explains (opening balance, manual
+  // journal, unlinked credit note); without this tile the four buckets would not add up to "To collect".
+  // Signed: a credit opening shows as a negative amount.
+  if (aging && signOf(d2(aging.other_ar)) !== 0) arExtra.push({ label: t('tileOpening'), value: inr2(d2(aging.other_ar)), sub: t('tileOpeningSub') });
   if (aging && signOf(d2(aging.unallocated)) === 1) arExtra.push({ label: t('tileOnAccount'), value: inr2(d2(aging.unallocated)), sub: t('tileOnAccountSub') });
   if (aging && signOf(d2(aging.interest)) === 1) arExtra.push({ label: t('tileInterest'), value: inr2(d2(aging.interest)), sub: t('tileInterestSub') });
 
@@ -238,7 +242,7 @@ export default async function PartyPage({ params, searchParams }: { params: Prom
             { label: t('whatsapp'), value: p.whatsapp_phone ?? dash },
             { label: t('toCollect'), value: signOf(ar) !== 0 ? inr2(ar) : dash },
             { label: t('toPay'), value: signOf(ap) !== 0 ? inr2(ap) : dash },
-            { label: t('creditLimitField'), value: p.credit_limit == null ? t('noLimit') : Number(p.credit_limit) === 0 ? t('noCredit') : inr2(p.credit_limit) },
+            { label: t('creditLimitField'), value: p.credit_limit == null ? t('noLimit') : signOf(d2(p.credit_limit)) === 0 ? t('noCredit') : inr2(p.credit_limit) },
             { label: t('creditDays'), value: String(p.credit_days) },
             { label: t('interestRate'), value: `${p.interest_rate_pm}%` },
           ]}

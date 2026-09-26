@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { addDecimal } from './decimal';
-import { summariseVouchers, type EmployeeLedgerRow } from './staff-data';
+import { netPaid, summariseVouchers, type EmployeeLedgerRow } from './staff-data';
 
 vi.mock('server-only', () => ({}));
 
@@ -65,5 +65,37 @@ describe('summariseVouchers', () => {
   it('a cancelled advance nets out too, and a reversal is recognised by its narration when the original is not loaded', () => {
     const rows = [row({ entryId: 'e9', entryNo: 9, sourceId: 'v1', voucherType: 'advance', periodMonth: null, accountKey: 'employee_advance', credit: '2000.00', narration: 'Reversal of ADV/1' })];
     expect(summariseVouchers(rows)).toEqual([expect.objectContaining({ reversal: true, advanceGiven: '-2000.00', advanceRecovered: '0.00' })]);
+  });
+});
+
+describe('netPaid (the "Paid in {month}" tile)', () => {
+  const salary = (entryId: string, sourceId: string, gross: string, recovered: string) => [
+    row({ key: `${entryId}a`, entryId, sourceId, credit: gross }),
+    row({ key: `${entryId}b`, entryId, sourceId, debit: gross }),
+    ...(recovered === '0.00' ? [] : [row({ key: `${entryId}c`, entryId, sourceId, accountKey: 'employee_advance' as const, credit: recovered })]),
+  ];
+
+  it('is gross less the recovered advance, not the gross', () => {
+    expect(netPaid(salary('e1', 'v1', '18000.00', '3500.00'))).toBe('14500.00');
+  });
+
+  it('adds up several vouchers and ignores plain advances', () => {
+    const advance = row({ entryId: 'e3', sourceId: 'v3', voucherType: 'advance', periodMonth: null, accountKey: 'employee_advance', debit: '2000.00' });
+    const wages = salary('e2', 'v2', '6000.00', '0.00').map((r) => ({ ...r, voucherType: 'wages' as const }));
+    expect(netPaid([...salary('e1', 'v1', '18000.00', '3500.00'), ...wages, advance])).toBe('20500.00');
+  });
+
+  it('a cancelled voucher nets to zero', () => {
+    const mirror = { entryId: 'e9', entryNo: 9, narration: 'Reversal of EXP/26-27/0004' };
+    const reversal = [
+      row({ ...mirror, key: 'd', debit: '18000.00' }),
+      row({ ...mirror, key: 'e', credit: '18000.00' }),
+      row({ ...mirror, key: 'f', accountKey: 'employee_advance', debit: '3500.00' }),
+    ];
+    expect(netPaid([...salary('e1', 'v1', '18000.00', '3500.00'), ...reversal])).toBe('0.00');
+  });
+
+  it('is 0.00 with nothing paid', () => {
+    expect(netPaid([])).toBe('0.00');
   });
 });

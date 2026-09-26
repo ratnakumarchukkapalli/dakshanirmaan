@@ -9,8 +9,9 @@
 # (Foreign keys are off during the load, so the checks include orphan lines and users without an account.)
 # Checks: the archive is for the same migration version as this checkout, every table's row count
 # matches the manifest, total debits equal total credits, and the trial balance nets to zero.
-# The backup must be restored with the repository checked out at the commit it was taken from
-# (git log -1 --before=<backup date>), because the tables have to match.
+# The backup must be restored with the repository checked out at the commit whose newest migration equals
+# the manifest's migration_version (RUNBOOK 2.3 gives the commands), because the tables have to match.
+# Keep the key file outside the repository folder.
 #
 # PGRESTORE / PSQL may be set to another command; LOCAL_DB_URL is the local stack's database.
 set -euo pipefail

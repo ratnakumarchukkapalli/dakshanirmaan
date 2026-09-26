@@ -6,10 +6,10 @@ Security posture and deployment topology for dakshanirmaantraders.in. This is re
 
 ## Requirement: Accounts & authentication
 
-- Exactly two provisioned accounts at launch: **admin** (owners) and **user** (counter/general). Supabase **public signup disabled**; no OAuth; email OTP sign-in.
-- **TOTP MFA enforced for admin** (Supabase Auth MFA). Session: 8h idle expiry, refresh rotation on; sign-out everywhere on role/password change.
-- OTP brute force: Supabase built-in rate limits ON plus middleware rate limiting on `/login` (IP + email keyed).
-- Email delivery: **Supabase default email service for now** (decision 2026-07-04 — two users, low OTP volume). Custom SMTP only if delivery proves unreliable.
+- Exactly two provisioned accounts at launch: **admin** (owners) and **user** (counter/general). Supabase **public signup disabled**; no OAuth; **email + password sign-in for everyone** (change 08b, 2026-09-26, replacing email OTP so no SMTP is needed to sign in). Passwords: minimum 8 characters (Supabase Auth `minimum_password_length`, also checked by the app), set by an owner when a person is added and reset by an owner; a person changes their own from the account menu. No self-service "forgot password" (an owner resets it).
+- **TOTP MFA enforced for admin** (Supabase Auth MFA) after the password step. Session: 8 h time-box from sign-in, refresh rotation on. The time-box is enforced **by the app** (`src/proxy.ts` reads the token's `amr` sign-in time), not by Supabase Auth (its session-limit setting is a paid feature). Known limit: a stolen refresh token used directly against Supabase Auth is not cut off by the app; an owner is unaffected (below `aal2` the database treats an admin as no-one), a counter user is exposed. Resetting a password does not end the person's other open sessions (up to 8 h).
+- Sign-in brute force: Supabase built-in rate limits ON (`sign_in_sign_ups` 30 per 5 min per IP) plus an app limiter on the sign-in action (10 attempts per 15 min per email+IP and 40 per email, in memory per function instance) and on the TOTP code check. The app limiter does not cover a caller who talks to Supabase Auth directly; only the built-in per-IP limit applies there.
+- Email delivery: sign-in needs no email. Custom SMTP (Resend) is **deferred** (Ratna, 2026-09-26) until a flow that sends email (invite by link, self-service reset) is wanted; until then Supabase's default sender is used only for development.
 - An authenticated user without an active `app_users` row is a nobody — RLS checks membership, not merely `auth.uid()`.
 
 ## Requirement: Transport, domain, DNS
@@ -114,10 +114,10 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 
 ## Requirement: Non-functional clarifications (system-design audit, 2026-09-16)
 
-- **Transactional email (decision reversed):** Supabase's built-in sender is rate-limited to a few messages per hour and intended for development only. With OTP as the sole login and 8-hour sessions, four users would exhaust it on a busy morning. **Before go-live, configure custom SMTP** (Resend free tier, 3,000 emails/month) on the domain with DKIM/SPF/DMARC; until then, local development uses the Supabase local Mailpit. Change 08 owns the config; go-live checklist (change 17) verifies a real OTP arrives.
-- **Sessions:** access token 1 h, refresh rotation on, refresh-token reuse detection on, idle expiry 8 h (Supabase "time-box user sessions"). Admin actions that unlock a period, cancel, or change users require `aal2` (TOTP verified in this session). **Enforced by the database as well as the app (change 19):** an admin session below `aal2` is treated by Postgres as no-one — every RLS policy, view and posting function refuses it — so a stolen email inbox (lock 1 only) cannot reach the books through the public REST API.
+- **Transactional email (superseded by change 08b, 2026-09-26):** sign-in is email + password, so no code emails are sent. Supabase's built-in sender is rate-limited to a few messages per hour and is for development only; configure custom SMTP (Resend free tier, domain with DKIM/SPF/DMARC) **before any flow that emails people** (invite by link, self-service reset) is switched on. Not a go-live blocker while owners create and reset passwords by hand.
+- **Sessions:** access token 1 h, refresh rotation on, refresh-token reuse detection on, time-box 8 h from sign-in (enforced by the app, see "Accounts & authentication"). Admin actions that unlock a period, cancel, or change users require `aal2` (TOTP verified in this session). **Enforced by the database as well as the app (change 19):** an admin session below `aal2` is treated by Postgres as no-one — every RLS policy, view and posting function refuses it — so a stolen email inbox (lock 1 only) cannot reach the books through the public REST API.
 - **Content-Security-Policy:** nonce-based, generated per request in middleware (Next.js `headers()` cannot vary per request); `script-src 'self' 'nonce-…' 'strict-dynamic'`; no `unsafe-eval`, no `unsafe-inline` for scripts; `style-src 'self' 'unsafe-inline'` is accepted for Tailwind; `connect-src 'self' https://dcmgbkugdyxsjvkirmft.supabase.co wss://dcmgbkugdyxsjvkirmft.supabase.co`.
-- **Rate limits:** Supabase Auth defaults on; middleware limits `/login` to 5 OTP requests per email per 15 min and 20 per IP per hour (in-memory per function instance is acceptable at this scale; no Redis).
+- **Rate limits:** see "Accounts & authentication" (password sign-in limits; in-memory per function instance is acceptable at this scale; no Redis).
 - **Server-action abuse:** every action re-checks the role and the DB re-checks; posting is idempotent; there is no unauthenticated action surface. Route handlers for PDF/Excel require an active member and stream at most one document per request.
 - **API keys:** use the project's **publishable** key in the browser and the **secret** key server-only (new Supabase key format); legacy `anon`/`service_role` JWTs are not used. The CI grep covers both names.
 - **Client bundle hygiene:** `NEXT_PUBLIC_*` contains only the Supabase URL and publishable key; CI fails if any other `NEXT_PUBLIC_` variable appears.
@@ -125,6 +125,6 @@ Ten users at most, one business, real books. **Decision (Ratna, as owner): run l
 - **Observability:** Sentry on server + client with PII scrubbing (no GSTIN/phone in breadcrumbs); Supabase dashboard `pg_stat_statements` reviewed monthly; `v_attention` is the in-app alert channel (no email alerts in v1).
 - **Threats explicitly out of scope for v1:** DDoS beyond Vercel's default mitigation, malicious admin (the owners are the admins), physical theft of an unlocked signed-in device with a valid `aal2` session inside its 8-hour window (mitigated by device lock, not by the app).
 
-#### Scenario: OTP arrives on a busy morning
-- WHEN four users request login codes within ten minutes on go-live day
-- THEN all four codes arrive within a minute via the custom SMTP provider, and none are dropped by a sender-side rate limit
+#### Scenario: a stolen counter session ends after eight hours
+- WHEN a counter user's signed-in browser is used more than 8 hours after sign-in
+- THEN the app signs it out and asks for the password again (a refresh token replayed directly against Supabase Auth is a known limit, see "Accounts & authentication")

@@ -43,31 +43,55 @@ async function moneyAccounts(supabase: Supabase): Promise<MoneyAccount[]> {
   return rows(res, 'money accounts').map((a) => ({ id: a.id as string, name: a.name as string, systemKey: (a.system_key as string | null) ?? null }));
 }
 
+const PAGE = 1000;
+const MAX_PAGES = 20;
+const LEDGER_COLS = 'line_id, entry_id, entry_no, source_id, entry_date, doc_no, voucher_type, period_month, account_key, narration, debit, credit, advance_balance, payable_balance';
+
+const toLedgerRow = (r: Record<string, unknown>): EmployeeLedgerRow => ({
+  key: r.line_id as string, entryId: r.entry_id as string, entryNo: Number(r.entry_no), sourceId: (r.source_id as string | null) ?? null, date: r.entry_date as string, docNo: (r.doc_no as string | null) ?? null,
+  voucherType: (r.voucher_type as EmployeeLedgerRow['voucherType']) ?? null, periodMonth: (r.period_month as string | null) ?? null,
+  accountKey: r.account_key as EmployeeLedgerRow['accountKey'], narration: (r.narration as string | null) ?? null,
+  debit: d2(r.debit), credit: d2(r.credit), advanceBalance: d2(r.advance_balance), payableBalance: d2(r.payable_balance),
+});
+
+/** Ledger lines of every salary/wage entry (originals and their reversals) dated within [from, to]. */
+async function loadPayrollLedgerRows(supabase: Supabase, from: string, to: string): Promise<EmployeeLedgerRow[]> {
+  const out: EmployeeLedgerRow[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await supabase
+      .from('v_employee_ledger')
+      .select(LEDGER_COLS)
+      .in('voucher_type', ['salary', 'wages'])
+      .gte('entry_date', from)
+      .lte('entry_date', to)
+      .order('entry_date', { ascending: true })
+      .order('entry_no', { ascending: true })
+      .order('line_no', { ascending: true })
+      .order('line_id', { ascending: true })
+      .range(page * PAGE, page * PAGE + PAGE - 1);
+    if (error) throw new Error(`payroll ledger: ${error.message}`);
+    out.push(...(data ?? []).map(toLedgerRow));
+    if ((data?.length ?? 0) < PAGE) break;
+  }
+  return out;
+}
+
 /** The staff list, tiles and pickers. Owner-only: v_employees returns nothing to anyone else. */
 export async function loadStaffList(supabase: Supabase): Promise<StaffList> {
   const org = one(await supabase.from('organization').select('timezone').maybeSingle(), 'organization');
   const today = todayIn(org?.timezone ?? 'Asia/Kolkata');
   const monthStart = `${today.slice(0, 7)}-01`;
 
-  const [empRes, accounts, paidRes] = await Promise.all([
+  const [empRes, accounts, paidRows] = await Promise.all([
     supabase.from('v_employees').select('party_id, name, phone, is_active, monthly_salary, daily_wage, advance_balance, payable_balance').order('name'),
     moneyAccounts(supabase),
-    supabase
-      .from('expense_vouchers')
-      .select('id, expense_voucher_lines(amount)')
-      .eq('status', 'posted')
-      .in('voucher_type', ['salary', 'wages'])
-      .gte('voucher_date', monthStart)
-      .lte('voucher_date', today),
+    loadPayrollLedgerRows(supabase, monthStart, today),
   ]);
   const employees = rows(empRes, 'employees').map(toEmployee);
-  const paid = rows(paidRes, 'salary and wage vouchers');
 
   const active = employees.filter((e) => e.isActive);
   const sum = (parts: (string | null)[]) => parts.reduce<string>((s, p) => (p ? (addDecimal(s, p, 2) ?? s) : s), '0.00');
-  const paidThisMonth = sum(
-    paid.flatMap((v) => ((v.expense_voucher_lines ?? []) as { amount: number }[]).map((l) => d2(l.amount))),
-  );
+  const paidThisMonth = netPaid(paidRows);
   return {
     employees, accounts, today, monthStart,
     tiles: {
@@ -107,9 +131,6 @@ export interface EmployeeLedger {
   truncated: boolean;
 }
 
-const PAGE = 1000;
-const MAX_PAGES = 20;
-
 /** One employee's ledger (`v_employee_ledger`) plus their summary row. Null when there is no such employee (or the caller is not an owner). */
 export async function loadEmployeeLedger(supabase: Supabase, id: string): Promise<EmployeeLedger | null> {
   const empRes = await supabase
@@ -125,7 +146,7 @@ export async function loadEmployeeLedger(supabase: Supabase, id: string): Promis
   for (let page = 0; page < MAX_PAGES; page++) {
     const { data, error } = await supabase
       .from('v_employee_ledger')
-      .select('line_id, entry_id, entry_no, source_id, entry_date, doc_no, voucher_type, period_month, account_key, narration, debit, credit, advance_balance, payable_balance')
+      .select(LEDGER_COLS)
       .eq('party_id', id)
       .order('entry_date', { ascending: true })
       .order('entry_no', { ascending: true })
@@ -134,12 +155,7 @@ export async function loadEmployeeLedger(supabase: Supabase, id: string): Promis
       .range(page * PAGE, page * PAGE + PAGE - 1);
     if (error) throw new Error(`employee ledger: ${error.message}`);
     for (const r of data ?? []) {
-      out.push({
-        key: r.line_id as string, entryId: r.entry_id as string, entryNo: Number(r.entry_no), sourceId: (r.source_id as string | null) ?? null, date: r.entry_date as string, docNo: (r.doc_no as string | null) ?? null,
-        voucherType: (r.voucher_type as EmployeeLedgerRow['voucherType']) ?? null, periodMonth: (r.period_month as string | null) ?? null,
-        accountKey: r.account_key as EmployeeLedgerRow['accountKey'], narration: (r.narration as string | null) ?? null,
-        debit: d2(r.debit), credit: d2(r.credit), advanceBalance: d2(r.advance_balance), payableBalance: d2(r.payable_balance),
-      });
+      out.push(toLedgerRow(r));
     }
     if ((data?.length ?? 0) < PAGE) break;
     if (page === MAX_PAGES - 1) truncated = true;
@@ -237,4 +253,12 @@ export function summariseVouchers(rows: EmployeeLedgerRow[]): VoucherLine[] {
   }
   for (const v of out) if (v.gross !== null) v.paid = subtractDecimal(v.gross, v.advanceRecovered, 2);
   return out.filter((v) => !(v.gross === null && signOf(v.advanceGiven) === 0 && signOf(v.advanceRecovered) === 0));
+}
+
+/**
+ * Net cash actually paid out on salary and wage vouchers: gross less the advance recovered (the
+ * ledger row's "paid"), with a cancelled voucher's reversal netting its original out.
+ */
+export function netPaid(rows: EmployeeLedgerRow[]): string {
+  return summariseVouchers(rows).reduce((s, v) => (v.paid !== null && (v.voucherType === 'salary' || v.voucherType === 'wages') ? plus(s, v.paid) : s), zero);
 }

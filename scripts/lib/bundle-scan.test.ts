@@ -37,6 +37,31 @@ describe('scanContent', () => {
   });
 });
 
+describe('other credentials in browser-served files', () => {
+  // Built from pieces so this file does not itself contain a secret-shaped string (the repo secret scan reads it).
+  const pem = ['-----BEGIN', 'RSA PRIVATE KEY-----'].join(' ');
+  const ageKey = ['AGE', 'SECRET', 'KEY', '1'].join('-') + 'QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ';
+  const dbUrl = ['postgresql:', '', 'postgres.abcd:hunter2hunter2@aws-0.pooler.supabase.com:5432/postgres'].join('/');
+
+  it('flags a database URL that carries a password, and does not print it', () => {
+    const f = scanContent('c.js', `var u="${dbUrl}"`);
+    expect(f.map((x) => x.kind)).toEqual(['db-url-password']);
+    expect(f[0]!.detail).not.toContain('hunter2');
+  });
+  it('ignores a database URL without a password and non-database URLs', () => {
+    expect(scanContent('c.js', 'var u="postgresql://localhost:5432/postgres"; var v="https://user:pw@example.com"')).toEqual([]);
+  });
+  it('flags a PEM private key header but not a public key or certificate', () => {
+    expect(scanContent('k.txt', `${pem}\nMIIE`).map((x) => x.kind)).toEqual(['private-key']);
+    expect(scanContent('k.txt', ['-----BEGIN', 'PUBLIC KEY-----'].join(' '))).toEqual([]);
+    expect(scanContent('k.txt', ['-----BEGIN', 'CERTIFICATE-----'].join(' '))).toEqual([]);
+  });
+  it('flags an age private key (the backup key) but not the public recipient', () => {
+    expect(scanContent('k.txt', `# created\n${ageKey}`).map((x) => x.kind)).toEqual(['age-secret-key']);
+    expect(scanContent('k.txt', 'age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq')).toEqual([]);
+  });
+});
+
 describe('NEXT_PUBLIC_ hygiene', () => {
   it('allows exactly the two Supabase variables', () => {
     expect(disallowedPublicVars(['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'PATH', 'NODE_ENV'])).toEqual([]);

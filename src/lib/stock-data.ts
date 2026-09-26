@@ -107,22 +107,23 @@ export async function loadStockSummary(
   const onHandOf = (itemId: string): Record<string, string> =>
     Object.fromEntries((byItem.get(itemId) ?? []).map((r) => [r.warehouse_id, d3(r.qty)]));
 
+  // Every item's row first: the tiles are computed from all of them, the search only narrows the table.
   const needle = (opts.q ?? '').trim().toLowerCase();
-  const tableRows: StockRow[] = [];
+  const allRows: StockRow[] = [];
   for (const item of items) {
-    if (needle && !`${item.name} ${item.brand ?? ''} ${item.hsn}`.toLowerCase().includes(needle)) continue;
     const own = (byItem.get(item.id) ?? []).filter((r) => selected === 'all' || r.warehouse_id === selected);
     const total = sumStock(own.map((r) => ({ qty: d3(r.qty), value: r.value === undefined ? undefined : d2(r.value) })));
     const avg = total.value === null ? null : averageRate(total.value, total.qty);
     const positive = signOf(total.qty) === 1;
     const low = positive && signOf(item.reorderLevel) === 1 && compareDecimal(total.qty, item.reorderLevel, 3) !== 1;
     const level: StockLevel = own.length === 0 ? 'none' : !positive ? 'out' : low ? 'low' : 'ok';
-    tableRows.push({ item, qty: total.qty, avgRate: avg, value: total.value, level });
+    allRows.push({ item, qty: total.qty, avgRate: avg, value: total.value, level });
   }
+  const tableRows = needle ? allRows.filter((r) => `${r.item.name} ${r.item.brand ?? ''} ${r.item.hsn}`.toLowerCase().includes(needle)) : allRows;
 
-  const allShown = sumStock(tableRows.map((r) => ({ qty: r.qty, value: r.value ?? undefined })));
-  const cementRows = tableRows.filter((r) => r.item.category === 'cement');
-  const steelRows = tableRows.filter((r) => r.item.category === 'steel');
+  const allShown = sumStock(allRows.map((r) => ({ qty: r.qty, value: r.value ?? undefined })));
+  const cementRows = allRows.filter((r) => r.item.category === 'cement');
+  const steelRows = allRows.filter((r) => r.item.category === 'steel');
   const uomOf = (rs: StockRow[]) => (rs.length && rs.every((r) => r.item.baseUom === rs[0]!.item.baseUom) ? rs[0]!.item.baseUom : null);
   const cementUom = uomOf(cementRows);
   const steelUom = uomOf(steelRows);
@@ -153,7 +154,7 @@ export async function loadStockSummary(
     godowns, selected, rows: tableRows,
     tiles: {
       value: allShown.value,
-      itemCount: tableRows.filter((r) => r.level !== 'none').length,
+      itemCount: allRows.filter((r) => r.level !== 'none').length,
       cement: cementUom ? { qty: sumStock(cementRows.map((r) => ({ qty: r.qty }))).qty, uom: cementUom } : null,
       steel: steelUom ? { qty: steelQty.qty, uom: steelUom, tonnes: steelUom.toLowerCase() === 'kg' ? kgToTonnes(steelQty.qty) : null } : null,
       inTransit: { transfers: transfers.length, value: transit.value },

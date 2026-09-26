@@ -15,7 +15,7 @@ For whoever keeps the app running: Ratna, or a family member following the steps
 
 ## 1. What CI checks, and how to read a red run
 
-Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.yml`). Two jobs; both must be green before merging. (The repository is private, and GitHub only *enforces* "must be green" through branch protection on a paid plan, so on the current plan it is a rule we follow, not one GitHub forces: never merge or deploy on red.)
+Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.yml`). Three jobs; all must be green before merging. (The repository is private, and GitHub only *enforces* "must be green" through branch protection on a paid plan, so on the current plan it is a rule we follow, not one GitHub forces: never merge or deploy on red.)
 
 | Step | What it catches | Same thing on a laptop |
 |---|---|---|
@@ -25,11 +25,12 @@ Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.y
 | Dependency audit | a **high or critical** known vulnerability in a package (moderate ones do not block; Dependabot opens weekly update pull requests) | `npm audit --audit-level=high` |
 | Database tests (pgTAP) | the books' rules: balanced entries, no edits to posted entries, period locks, negative stock, who may do what | `supabase test db` |
 | Build | the app compiles for production | `npm run build` |
-| Secret scan | the secret key, the invoice-link secret, or any `service_role` token inside what the browser downloads; any `NEXT_PUBLIC_` variable other than the Supabase URL and publishable key | `npm run check:bundle` (after a build) |
+| Secret scan (files and history) | any secret-shaped string (API keys, private keys, tokens) in any file or **any past commit** of the repository, using gitleaks with the rules in `.gitleaks.toml`. A hit fails the run even if the file was deleted later: rotate the secret (section 3) and, if the string is a harmless test value, add a narrow, commented exception to `.gitleaks.toml` | `gitleaks git --config .gitleaks.toml .` and `gitleaks dir --config .gitleaks.toml .` (install gitleaks first) |
+| Bundle secret scan | the secret key, the invoice-link secret, or any `service_role` token, a database URL with a password, a private key (PEM) or the family's `AGE-SECRET-KEY-1…` inside what the browser downloads (`.next/static` and `public/`); any `NEXT_PUBLIC_` variable other than the Supabase URL and publishable key | `npm run check:bundle` (after a build) |
 | HTTP smoke | the running app: security headers and a fresh nonce on the sign-in page, signed-out visitors sent to `/login`, report downloads refused without a session, manifest and service worker served, **Supabase sign-up closed** | `npm run smoke` (app running) |
 | Browser smoke | the sign-in page renders in a real browser with no console error | `npm run smoke:browser` (needs `npm i --no-save playwright`) |
 
-**Reading a red run:** open the failed step and read its last lines. The secret scan and smoke steps print `LEAK`, `STRAY` or `FAIL` lines that name exactly what is wrong. A `LEAK` line means a secret reached the browser bundle: treat the secret as exposed and rotate it (section 3) even if the change is reverted. A pgTAP failure names the test.
+**Reading a red run:** open the failed step and read its last lines. The secret-scan and smoke steps print `LEAK`, `STRAY` or `FAIL` lines that name exactly what is wrong. A `LEAK` line from the bundle scan means a secret reached the browser bundle: treat the secret as exposed and rotate it (section 3) even if the change is reverted. A pgTAP failure names the test.
 
 ---
 
@@ -41,7 +42,7 @@ Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.y
 3. writes a `manifest.json` (migration version, row count of every table, total debits and credits);
 4. encrypts both into `dn-backup-<date>.tar.age` with the family's **public** key and uploads it as a private workflow artifact kept for 30 days.
 
-Anyone with the private key can read the books, so the private key is never in GitHub. With no secrets set, the workflow only prints a warning and stops: it still shows green, so after go-live check the monthly list below. If a posting lands while the dump is being read the script retries (up to 3 times) so the manifest always matches the dump.
+Anyone with the private key can read the books, so the private key is never in GitHub. A **manual** run (Run workflow) with a secret missing only prints a warning and stops, so it can be switched on step by step. A **scheduled** run with `DATABASE_URL` or `AGE_PUBLIC_KEY` missing **fails** (red) instead, and so does a dump of a database with no journal entries or (if you set it, 2.1 step 4) a wrong `AGE_PUBLIC_KEY`: a red Backup run means no backup was made that day, fix it the same day. If a posting lands while the dump is being read the script retries (up to 3 times) so the manifest always matches the dump.
 
 The dump prints `circular foreign-key constraints` warnings; they are normal and harmless (the restore loads with checks off and then verifies the books).
 
@@ -49,13 +50,17 @@ The dump prints `circular foreign-key constraints` warnings; they are normal and
 
 ### 2.1 Setting it up (once)
 1. **Make the key pair** on a trusted computer (`brew install age` on a Mac, `apt install age` on Linux):
-   `age-keygen -o family-age-key.txt`
-   It prints `Public key: age1…`. Copy that line.
+   `age-keygen -o ~/family-age-key.txt`
+   **Make it OUTSIDE this repository folder** (your home folder, as above, or a USB stick), never inside it: a `git add -A` in the repo would otherwise commit the key that opens every backup. (`.gitignore` and the secret scan are a safety net, not permission.) It prints `Public key: age1…`. Copy that line.
 2. **Store `family-age-key.txt` in at least two safe places** (for example a password manager and a printed copy in the family locker). Without it every backup is unreadable; with it anyone can read them. Never commit it, never email it, never put it in GitHub.
 3. In GitHub: repository → **Settings → Secrets and variables → Actions → New repository secret**:
    - `AGE_PUBLIC_KEY` = the `age1…` line.
    - `DATABASE_URL` = the Supabase **session pooler** connection string: Supabase dashboard → project → **Connect** → *Session pooler* → copy the URI (copy the exact host from that screen; the port is `5432` and the user looks like `postgres.dcmgbkugdyxsjvkirmft`) and put the database password in. If the password contains any of `@ / # : ? %` the URL breaks: reset the password to letters and digits only (section 3) instead of fiddling with encoding. Use the pooler, not the direct host: GitHub's machines have no IPv6 and the Free direct host is IPv6-only.
-4. **Actions → Backup → Run workflow.** When it is green, download the artifact from the run page (GitHub gives a **.zip**; unzip it to get the `dn-backup-….tar.age` file) and do the restore drill (2.3) once with it. Also keep a copy of that file somewhere the family owns: GitHub deletes artifacts after 30 days.
+4. *(Recommended, optional.)* Guard against a wrong-but-valid key (a typo that is still a well-formed `age1…` key would encrypt every backup so nobody can open it). Compute the fingerprint of the **correct** public key on your computer:
+   `printf '%s' 'age1…paste the public key…' | shasum -a 256` (Mac) or `… | sha256sum` (Linux); take the 64 hex characters.
+   Then GitHub → **Settings → Secrets and variables → Actions → Variables** tab (not Secrets) → **New repository variable**: name `EXPECTED_AGE_RECIPIENT_SHA256`, value = those 64 characters. The Backup run then fails before encrypting if `AGE_PUBLIC_KEY` differs. It is a fingerprint of a public key, safe to keep as a variable. Skip it and nothing else changes. **It only catches typos in the secret: the monthly decrypt check (section 5) is what proves a backup opens with the private key.**
+   **Before the opening balances are posted (go-live, section 8) the hosted books are empty, and the Backup run refuses an empty-books dump on purpose.** Until then add one more repository variable, `ALLOW_EMPTY_BACKUP` = `1`, so the runs stay green; **delete it as soon as the opening balances are posted**, so an emptied database can never pass as a good backup.
+5. **Actions → Backup → Run workflow.** When it is green, download the artifact from the run page (GitHub gives a **.zip**; unzip it to get the `dn-backup-….tar.age` file) and do the restore drill (2.3) once with it. Also keep a copy of that file somewhere the family owns: GitHub deletes artifacts after 30 days.
 
 ### 2.2 Keeping and pruning
 GitHub keeps each artifact 30 days and then deletes it. If the copies are also saved elsewhere (section 7), prune that folder with
@@ -64,12 +69,23 @@ GitHub keeps each artifact 30 days and then deletes it. If the copies are also s
 ### 2.3 Restore drill (do it once now, then every quarter)
 "An untested backup is not a backup." This never touches the hosted database: it resets your **local** Supabase, loads the backup into it and checks the books. It **wipes your local database** (fine, it is only test data) and refuses to run against anything that is not plainly this machine.
 
-You need on the computer: Docker running, the `supabase` CLI, the `age` tool, and the PostgreSQL **17** command-line tools (`psql`, `pg_restore`; on a Mac `brew install libpq` then `brew link --force libpq`). Run it from the project folder. If the code has moved on since the backup, commit or stash your own work before checking out the older commit.
+You need on the computer: Docker running, the `supabase` CLI, the `age` tool, and the PostgreSQL **17** command-line tools (`psql`, `pg_restore`; on a Mac `brew install libpq` then `brew link --force libpq`). Run it from the project folder, but keep the **key file outside the folder** (for example `~/family-age-key.txt`; never copy the key into the repository to run the drill). If the code has moved on since the backup, commit or stash your own work before checking out the older commit.
 
+**Find the right commit.** The backup only loads into a database built from the migrations it was taken with, so check out the commit whose newest migration equals the backup's `migration_version` (not a commit picked by date: the hosted database can be behind `main`):
+```
+# 1. which migration version is the backup at?
+age -d -i ~/family-age-key.txt dn-backup-<date>.tar.age | tar -xO manifest.json | grep migration_version
+#    e.g.  "migration_version": "20260920130000"
+# 2. the commit that added that migration (run inside the repository):
+git log --diff-filter=A --format=%H -1 -- supabase/migrations/<version>_*.sql
+# 3. check it out (commit or stash your own work first); afterwards `git checkout main` returns
+git checkout <that hash>
+ls supabase/migrations | sed 's/_.*//' | sort | tail -1     # must print <version>
+```
+Then run the drill:
 ```
 supabase start                                   # local stack (Docker running)
-git log -1 --before="<backup date>" --format=%H  # if the code has moved on, check out this commit first
-AGE_IDENTITY=/path/to/family-age-key.txt \
+AGE_IDENTITY=~/family-age-key.txt \
   scripts/backup/restore-drill.sh dn-backup-<date>.tar.age --yes
 ```
 It passes only when: the backup is for the same migration version as the checkout, every table's row count equals the manifest, the sign-in accounts match, total debits equal total credits, every entry balances, and the totals equal the manifest. It ends with `drill: PASSED`. Anything else is a failed backup: fix the cause the same day and take a new one.
@@ -79,10 +95,28 @@ It passes only when: the backup is for the same migration version as the checkou
 **Do not attempt this alone.** It has not been rehearsed against a hosted project, and a mistake can wipe a database that still has data. Ask Ratna (or whoever built the app) to do it; ask them to make it a script with the drill's safety checks first.
 
 1. Create a new Supabase project (Free, Mumbai). Note its new database URL.
-2. From a checkout at the commit the backup was taken from: `supabase link --project-ref <new ref>` then `supabase db push` (builds the tables and seed data).
-3. Decrypt and empty the seed rows, then load the data. Steps 1–2 of `scripts/backup/restore-drill.sh` show the exact SQL (`truncate` of every `public` table and `auth.users`, then `pg_restore --data-only -f - | psql` inside one `session_replication_role = replica` session). Point it at the **new** project's session-pooler URL; do this only on a database with no data of its own.
+2. From a checkout at the right commit (the one whose newest migration equals the backup's `migration_version`, found with the commands in 2.3): `supabase link --project-ref <new ref>` then `supabase db push` (builds the tables and seed data).
+3. Decrypt, empty the seed rows, load the data. This is exactly what `scripts/backup/restore-drill.sh` does against the local database (it uses `supabase db reset` in place of step 2 and never touches a hosted one). Write `NEW_URL` = the **new** project's session-pooler URL; run this only on a database with no data of its own, and keep the key outside the repository:
+   ```
+   # decrypt and unpack
+   age -d -i ~/family-age-key.txt dn-backup-<date>.tar.age | tar -xf - data.dump manifest.json
+   # empty the seed rows (all public tables, and the sign-in accounts)
+   psql "$NEW_URL" -v ON_ERROR_STOP=1 -c "
+     set session_replication_role = replica;
+     do \$\$ declare t text; begin
+       for t in select format('%I.%I', schemaname, tablename) from pg_tables where schemaname = 'public' loop
+         execute 'truncate table ' || t || ' restart identity cascade';
+       end loop;
+       truncate table auth.identities, auth.users cascade;
+     end \$\$;"
+   # load the data in one transaction, with triggers off
+   { echo "set session_replication_role = replica;"; pg_restore --data-only --no-owner -f - data.dump; } \
+     | psql "$NEW_URL" -v ON_ERROR_STOP=1 --single-transaction
+   ```
+   Then run the drill's checks (the `checks` SQL near the end of `restore-drill.sh`: row counts against `manifest.json`, sign-in accounts, debits = credits, every entry balances, no orphan lines).
+   **This whole hosted path is UNTESTED.** Only the same commands against the local database have been rehearsed. On a hosted project the pooler login may not be allowed to set `session_replication_role` or to truncate `auth.users`; if psql refuses, stop and ask Ratna rather than working around it.
 4. Check the manifest numbers the same way the drill does, sign in as an owner, open the trial balance on Reports (or ask Ratna), and only then point the app at the new project (`NEXT_PUBLIC_SUPABASE_URL`, both keys, in the app's environment).
-Restoring into a *hosted* project follows the tested local path but has not been rehearsed against a hosted target. Do the local drill first; if time allows, rehearse step 3 on a throwaway second project before you ever need it.
+Restoring into a *hosted* project follows the tested local path but has **not been rehearsed** against a hosted target. Do the local drill first; if time allows, rehearse steps 1–4 on a throwaway second project before you ever need it.
 
 ---
 
@@ -117,7 +151,7 @@ Restoring into a *hosted* project follows the tested local path but has not been
 ---
 
 ## 5. Monthly checklist (10 minutes)
-- [ ] The Backup workflow ran every day this month (Actions → Backup). A run that says "Backup not configured" is not a backup.
+- [ ] The Backup workflow ran every day this month (Actions → Backup). A red run, or a manual run that says "Backup not configured", is not a backup.
 - [ ] Downloaded the latest artifact (a .zip: unzip it) and confirmed it decrypts (`age -d -i family-age-key.txt dn-backup-….tar.age | tar -t` lists `data.dump` and `manifest.json`). If the backup run prints `WARNING — the database has no journal entries`, something is badly wrong.
 - [ ] Every third month: the full restore drill (2.3) passed.
 - [ ] Supabase dashboard → **Reports/Usage**: database size under 400 MB of the 500 MB Free limit; file storage under 80%.

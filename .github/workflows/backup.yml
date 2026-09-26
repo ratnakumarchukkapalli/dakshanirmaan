@@ -1,8 +1,12 @@
-# Daily encrypted copy of the books. Safe to merge before it is configured: with no secrets it says so and stops.
+# Daily encrypted copy of the books. Not configured yet: a manual run (workflow_dispatch) warns and stops so it
+# can be switched on step by step; a SCHEDULED run with a missing secret FAILS, so a deleted or rotated secret
+# can never leave a green run and no backup.
 # Needs two repository secrets (Settings > Secrets and variables > Actions), described in RUNBOOK.md:
 #   DATABASE_URL     the Supabase *session pooler* connection string (postgres.<ref>@...pooler.supabase.com:5432).
 #                    Not the direct host: GitHub's runners have no IPv6 and the free direct host is IPv6-only.
 #   AGE_PUBLIC_KEY   the family's age public key (age1...). The private half is never stored here.
+# Optional repository VARIABLE (not a secret): EXPECTED_AGE_RECIPIENT_SHA256, the sha256 of the right public key
+# (RUNBOOK 2.1). When set, a wrong key fails the run before anything is encrypted.
 # The encrypted file is kept as a private workflow artifact for 30 days. The off-GitHub copy (family
 # Google Drive) is a later step; see RUNBOOK.md, "Switching on the Drive copy".
 name: Backup
@@ -26,10 +30,16 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AGE_PUBLIC_KEY: ${{ secrets.AGE_PUBLIC_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -z "$DATABASE_URL" ] || [ -z "$AGE_PUBLIC_KEY" ]; then
-            echo "::warning title=Backup not configured::Set the DATABASE_URL and AGE_PUBLIC_KEY repository secrets (see RUNBOOK.md). Nothing was backed up."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+            if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::warning title=Backup not configured::Set the DATABASE_URL and AGE_PUBLIC_KEY repository secrets (see RUNBOOK.md). Nothing was backed up."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error title=Backup not configured::DATABASE_URL or AGE_PUBLIC_KEY is missing, so NO backup was made (event: $EVENT_NAME). Restore the repository secret (RUNBOOK.md 2.1)."
+              exit 1
+            fi
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -47,9 +57,13 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AGE_RECIPIENT: ${{ secrets.AGE_PUBLIC_KEY }}
+          EXPECTED_AGE_RECIPIENT_SHA256: ${{ vars.EXPECTED_AGE_RECIPIENT_SHA256 }}
+          ALLOW_EMPTY_BACKUP: ${{ vars.ALLOW_EMPTY_BACKUP }}   # set to 1 ONLY until the opening balances are posted
         run: scripts/backup/dump.sh backups
       - name: Keep the encrypted file
-        if: steps.cfg.outputs.ready == 'true'
+        # Only after a fully successful dump; each run uploads under its own name, so a failed run
+        # can never replace an earlier good artifact.
+        if: success() && steps.cfg.outputs.ready == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: dn-backup-${{ github.run_id }}

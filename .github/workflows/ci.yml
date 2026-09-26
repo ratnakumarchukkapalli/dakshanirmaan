@@ -17,6 +17,8 @@ concurrency:
 env:
   NODE_VERSION: '24'          # scripts/*.ts run with Node's built-in type stripping (Node 22.18+ / 24)
   SUPABASE_CLI_VERSION: 2.117.0
+  GITLEAKS_VERSION: 8.30.0
+  GITLEAKS_SHA256: 79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e   # gitleaks_8.30.0_linux_x64.tar.gz
 
 jobs:
   static:
@@ -40,6 +42,28 @@ jobs:
         run: npm test
       - name: Dependency audit (high or critical blocks the merge)
         run: npm audit --audit-level=high
+
+  secrets:
+    name: Secret scan (files and full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0            # the whole history, not just the tip
+          persist-credentials: false
+      - name: Install gitleaks (pinned release, checksum verified)
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          rm gitleaks.tar.gz
+          ./gitleaks version
+      - name: Scan every commit in the history
+        # Exits 1 on any finding (the default); findings print redacted. Exceptions: .gitleaks.toml.
+        run: ./gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="--all" .
+      - name: Scan the files as checked out
+        run: ./gitleaks dir --config .gitleaks.toml --redact --no-banner .
 
   integration:
     name: Database tests, build, secret scan, smoke
