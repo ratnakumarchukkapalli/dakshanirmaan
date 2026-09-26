@@ -138,9 +138,9 @@ async function loadPaymentTiles(supabase: Supabase): Promise<PaymentTiles> {
 
   const [receivedRes, inHandRes, issuedRes, postedRes, allocRes] = await Promise.all([
     supabase.from('payments').select('amount').eq('direction', 'receipt').eq('status', 'posted').eq('payment_date', today),
-    supabase.from('payments').select('amount').eq('mode', 'cheque').eq('cheque_status', 'in_hand'),
-    supabase.from('payments').select('amount').eq('direction', 'payment').eq('mode', 'cheque').in('cheque_status', ['issued', 'presented']),
-    supabase.from('payments').select('id, amount').eq('status', 'posted'),
+    supabase.from('payments').select('amount').eq('status', 'posted').eq('mode', 'cheque').eq('cheque_status', 'in_hand'),
+    supabase.from('payments').select('amount').eq('status', 'posted').eq('direction', 'payment').eq('mode', 'cheque').in('cheque_status', ['issued', 'presented']),
+    supabase.from('payments').select('id, amount, discount').eq('status', 'posted'),
     supabase.from('payment_allocations').select('payment_id, amount'),
   ]);
 
@@ -154,7 +154,9 @@ async function loadPaymentTiles(supabase: Supabase): Promise<PaymentTiles> {
     allocByPayment.set(key, addDecimal(allocByPayment.get(key) ?? '0.00', dec(a.amount, 2), 2) ?? '0.00');
   }
   const unallocated = (postedRes.data ?? []).reduce((s, p) => {
-    const remainder = addDecimal(dec(p.amount, 2), `-${allocByPayment.get(p.id as string) ?? '0.00'}`, 2) ?? '0.00';
+    // Allocations may total amount + discount (the database's cap), so that is what is left to place.
+    const settle = addDecimal(dec(p.amount, 2), dec(p.discount, 2), 2) ?? '0.00';
+    const remainder = addDecimal(settle, `-${allocByPayment.get(p.id as string) ?? '0.00'}`, 2) ?? '0.00';
     return remainder.startsWith('-') ? s : addDecimal(s, remainder, 2) ?? s;
   }, '0.00');
 

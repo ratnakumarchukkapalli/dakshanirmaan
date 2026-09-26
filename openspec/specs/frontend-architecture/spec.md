@@ -66,6 +66,7 @@ Tokens as CSS custom properties with the prototype's names/values:
 | `--brand` (mark + highlights only, never buttons) | `#E8A020` | same |
 | `--good` / `--warn` / `--bad` (+ `-bg` 11–16% tints) | `#1F7A45` / `#92650A` / `#B23830` | `#5BBF85` / `#D9A93F` / `#E08078` |
 | Chart `--c-steel` / `--c-cement` (CVD-validated) | `#2A69A8` / `#B36F12` | `#3E7FC4` / `#C08023` |
+| Chart `--c-other` (neutral, only when a third category sold; passes CVD/contrast, chroma floor waived on purpose) / `--hero-end` (hero tile gradient end) | `#7A8594` / `#1F5187` | `#8C96A4` / `#7FB0E0` |
 | Radii `--r-outer` / `--r-inner` / `--r-chip` | 22px / 12px / 999px (concentric: inner = outer − padding) | same |
 
 - **Glass recipe** (`.glass`): `background: var(--glass); backdrop-filter: blur(22px) saturate(180%); border: 1px solid var(--glass-edge-b); box-shadow: inset 0 1px 0 var(--glass-edge), var(--shadow)`. `prefers-reduced-transparency` → solid surface, no blur. The ambient ground (three blurred radial glows, fixed, pointer-events none) exists so the glass has colour to refract; it is part of the contract.

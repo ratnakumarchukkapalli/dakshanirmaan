@@ -17,7 +17,7 @@ import { Picker, type PickerOption } from '@/components/ui/Picker';
 import type { ErrorCode } from '@/lib/action-result';
 import { addDecimal, compareDecimal } from '@/lib/decimal';
 import { inr, inr2 } from '@/lib/format';
-import { autoAllocateOldestFirst } from '@/lib/payments-alloc';
+import { autoAllocateOldestFirst, settleAmount } from '@/lib/payments-alloc';
 import type { FormAccount, PaymentFormContext, PaymentFormInitial, PaymentFormValues } from '@/lib/payments-types';
 import { PAYMENT_MODES, saveDraftPaymentSchema } from '@/schemas/payments';
 import { AllocationGrid } from './AllocationGrid';
@@ -67,6 +67,7 @@ export function PaymentForm({ ctx, initial }: Props) {
   const partyId = watched.partyId ?? '';
   const mode = watched.mode ?? 'cash';
   const amount = watched.amount ?? '';
+  const discount = watched.discount ?? '';
   const party = partiesById.get(partyId);
 
   const invoiceType = direction === 'receipt' ? 'sales_invoice' : 'purchase_invoice';
@@ -102,17 +103,26 @@ export function PaymentForm({ ctx, initial }: Props) {
 
   const err = (m?: string) => (m ? te(`field.${m}`) : undefined);
 
-  const allocated = useMemo(() => Object.values(allocations).reduce((s, v) => (v ? addDecimal(s, v, 2) ?? s : s), '0.00'), [allocations]);
+  // A resumed draft can carry allocations to invoices that are no longer open (settled or cancelled
+  // since it was saved). They have no visible row, so they are neither counted nor sent — otherwise
+  // a hidden row could fail the save with allocation_exceeds_invoice.
+  const liveAllocations = useMemo(() => {
+    const open = new Set(openForParty.map((i) => i.invoiceId));
+    return Object.fromEntries(Object.entries(allocations).filter(([id]) => open.has(id)));
+  }, [allocations, openForParty]);
+  const allocated = useMemo(() => Object.values(liveAllocations).reduce((s, v) => (v ? addDecimal(s, v, 2) ?? s : s), '0.00'), [liveAllocations]);
+  // Allocations may total amount + discount (what the database caps them at and the journal credits).
+  const settle = useMemo(() => settleAmount(amount, discount), [amount, discount]);
   const onAccountAmount = useMemo(() => {
-    const r = addDecimal(amount || '0.00', `-${allocated}`, 2) ?? '0.00';
+    const r = addDecimal(settle, `-${allocated}`, 2) ?? '0.00';
     return r.startsWith('-') ? '0.00' : r;
-  }, [amount, allocated]);
+  }, [settle, allocated]);
   const balanceAfter = useMemo(() => {
     if (!party) return null;
     const bal = direction === 'receipt' ? party.arBalance : party.apBalance;
-    const delta = direction === 'receipt' ? `-${amount || '0.00'}` : amount || '0.00';
+    const delta = direction === 'receipt' ? `-${settle}` : settle;
     return addDecimal(bal, delta, 2);
-  }, [party, direction, amount]);
+  }, [party, direction, settle]);
 
   const zeroAmount = !amount || compareDecimal(amount, '0.00', 2) !== 1;
 
@@ -135,7 +145,7 @@ export function PaymentForm({ ctx, initial }: Props) {
           ...values,
           id: draftId ?? undefined,
           expectedUpdatedAt: updatedAt ?? undefined,
-          allocations: Object.entries(allocations).filter(([, v]) => v).map(([invoiceId, v]) => ({ invoiceType, invoiceId, amount: v })),
+          allocations: Object.entries(liveAllocations).filter(([, v]) => v).map(([invoiceId, v]) => ({ invoiceType, invoiceId, amount: v })),
         };
         const saved = await saveDraftPayment(payload);
         if (!saved.ok) {
@@ -281,9 +291,9 @@ export function PaymentForm({ ctx, initial }: Props) {
           <Card>
             {party ? (
               <AllocationGrid
-                invoices={openForParty} values={allocations} amount={amount}
+                invoices={openForParty} values={liveAllocations} amount={settle}
                 onChange={(id, v) => setAllocations((prev) => ({ ...prev, [id]: v }))}
-                onAutoAllocate={() => setAllocations(autoAllocateOldestFirst(openForParty, amount))}
+                onAutoAllocate={() => setAllocations(autoAllocateOldestFirst(openForParty, settle))}
                 onClear={() => setAllocations({})}
               />
             ) : (

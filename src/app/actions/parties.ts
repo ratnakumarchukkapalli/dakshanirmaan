@@ -152,6 +152,9 @@ async function setActive(input: unknown, active: boolean): Promise<ActionResult>
 
   revalidatePath('/parties');
   revalidatePath(`/parties/${parsed.data.partyId}`);
+  // An employee is disabled from the staff screen through this same action.
+  revalidatePath('/staff');
+  revalidatePath(`/staff/${parsed.data.partyId}`);
   return ok();
 }
 

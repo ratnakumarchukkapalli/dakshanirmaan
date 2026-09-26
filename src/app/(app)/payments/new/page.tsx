@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { PaymentForm } from '@/components/payments/PaymentForm';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
-import { decimalText } from '@/lib/decimal';
+import { compareDecimal, decimalText } from '@/lib/decimal';
 import { loadPaymentFormContext } from '@/lib/payments-data';
 import type { PaymentFormInitial } from '@/lib/payments-types';
 import { createClient } from '@/lib/supabase/server';
@@ -47,7 +47,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
         instrumentDate: head.instrument_date ?? '',
         chequeBank: head.cheque_bank ?? '',
         amount: decimalText(head.amount, 2),
-        discount: Number(head.discount) === 0 ? '' : decimalText(head.discount, 2),
+        discount: compareDecimal(decimalText(head.discount, 2), '0.00', 2) === 0 ? '' : decimalText(head.discount, 2),
         accountId: head.account_id,
         note: head.note ?? '',
         allocations: (allocs ?? []).map((a) => ({

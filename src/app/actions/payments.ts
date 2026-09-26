@@ -5,9 +5,10 @@ import { revalidatePath } from 'next/cache';
 import { dbFailure, zodFailure } from '@/lib/action-errors';
 import { fail, ok, type ActionResult, type Failure } from '@/lib/action-result';
 import { isVerifiedAdmin, requireAdmin, requireMember } from '@/lib/auth/require';
+import { compareDecimal, decimalText } from '@/lib/decimal';
 import { todayIn } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
-import { bounceChequeSchema, paymentIdSchema, saveDraftPaymentSchema } from '@/schemas/payments';
+import { bounceChequeSchema, cancelPaymentSchema, paymentIdSchema, saveDraftPaymentSchema } from '@/schemas/payments';
 
 // Receipts and outgoing payments: drafts are written by any active member (RLS allows
 // insert/update/delete only while status = 'draft'); posting and the cheque-lifecycle actions are
@@ -21,6 +22,9 @@ const bad = async (detail: string): Promise<Failure> => fail('validation', (awai
 function revalidatePayments() {
   revalidatePath('/payments');
   revalidatePath('/payments/new');
+  // A reversal changes party balances and re-opens invoices.
+  revalidatePath('/parties');
+  revalidatePath('/sales');
 }
 
 /** Creates or updates a draft receipt/payment together with its allocations. */
@@ -61,6 +65,7 @@ export async function saveDraftPayment(input: unknown): Promise<ActionResult<{ i
     amount: v.amount,
     discount: v.discount,
     account_id: v.accountId,
+    note: v.note ?? null,
   };
   const allocRows = (paymentId: string) =>
     v.allocations.map((a) => ({ payment_id: paymentId, invoice_type: a.invoiceType, invoice_id: a.invoiceId, amount: a.amount }));
@@ -139,7 +144,7 @@ export async function postPayment(input: unknown): Promise<ActionResult<{ id: st
   const supabase = await createClient();
   const { data: draft } = await supabase.from('payments').select('direction, discount').eq('id', parsed.data.id).maybeSingle();
   if (!draft) return bad('no_such_payment');
-  if ((draft.direction === 'payment' || Number(draft.discount) > 0) && !isVerifiedAdmin(gate.member)) {
+  if ((draft.direction === 'payment' || compareDecimal(decimalText(draft.discount as number | string | null, 2), '0.00', 2) === 1) && !isVerifiedAdmin(gate.member)) {
     return fail('forbidden', (await getTranslations('errors'))('forbidden'));
   }
 
@@ -191,6 +196,27 @@ export async function bounceCheque(input: unknown): Promise<ActionResult<{ id: s
 
   const supabase = await createClient();
   const { error } = await supabase.rpc('bounce_cheque', { p_payment_id: parsed.data.id, p_reason: parsed.data.reason });
+  if (error) return dbFailure(error);
+
+  revalidatePayments();
+  return ok({ id: parsed.data.id });
+}
+
+/**
+ * Reverses a posted receipt or payment (owners only; the database refuses anyone else). Books a
+ * reversal entry, deletes the payment's allocations so the invoices it settled are open again, and
+ * marks it cancelled. Cheques that have reached the bank (deposited / cleared / presented /
+ * bounced) are refused with `cheque_state` — a receipt cheque goes through `bounceCheque` instead.
+ * Re-allocating a posted receipt without reversing it is not offered (open item, change 12 notes).
+ */
+export async function cancelPayment(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const denied = await requireAdmin();
+  if (denied) return denied;
+  const parsed = cancelPaymentSchema.safeParse(input);
+  if (!parsed.success) return zodFailure(parsed.error);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('cancel_document', { p_source_type: 'payment', p_source_id: parsed.data.id, p_reason: parsed.data.reason });
   if (error) return dbFailure(error);
 
   revalidatePayments();

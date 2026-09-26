@@ -23,10 +23,12 @@ interface Props {
   onQty: (value: string) => void;
   onAlt: (value: string) => void;
   onRemove: () => void;
+  /** The item and quantity are fixed by a delivery challan (rate and discount stay editable). */
+  locked?: boolean;
 }
 
 /** One invoice line. A card on phones; on wide screens the fields sit in one row. */
-export function LineRow({ index: i, item, itemOptions, itemId, qty, preview, register, errors, onPickItem, onQty, onAlt, onRemove }: Props) {
+export function LineRow({ index: i, item, itemOptions, itemId, qty, preview, register, errors, onPickItem, onQty, onAlt, onRemove, locked = false }: Props) {
   const t = useTranslations('sales');
   const tc = useTranslations('common');
   const te = useTranslations('errors');
@@ -42,9 +44,10 @@ export function LineRow({ index: i, item, itemOptions, itemId, qty, preview, reg
           <Picker
             id={`l${i}-item`} options={itemOptions} value={itemId} onPick={onPickItem} placeholder={t('pickItem')}
             dialogTitle={t('pickItem')} searchLabel={t('searchItems')} emptyText={t('noMatches')} closeLabel={tc('close')}
+            disabled={locked}
           />
         </Field>
-        <button type="button" className="iconbtn lremove" onClick={onRemove} aria-label={t('removeLine', { n: i + 1 })}>
+        <button type="button" className="iconbtn lremove" onClick={onRemove} disabled={locked} aria-label={t('removeLine', { n: i + 1 })}>
           <span aria-hidden="true">✕</span>
         </button>
       </div>
@@ -58,17 +61,18 @@ export function LineRow({ index: i, item, itemOptions, itemId, qty, preview, reg
             </>
           )}
           {over && <span className="warntext" role="status"> · {t('overStock')}</span>}
+          {locked && <span> · {t('challanLockedItem')}</span>}
         </p>
       )}
       <div className="lnums">
         <Field id={`l${i}-qty`} label={t('qtyIn', { uom: item?.baseUom ?? t('qty') })} error={err(e?.qty?.message)}>
           <input id={`l${i}-qty`} inputMode="decimal" autoComplete="off" className="num r"
-            {...register(`lines.${i}.qty`, { onChange: (ev) => onQty(ev.target.value) })} />
+            readOnly={locked} {...register(`lines.${i}.qty`, { onChange: (ev) => onQty(ev.target.value) })} />
         </Field>
         {hasAlt && (
           <Field id={`l${i}-alt`} label={t('qtyIn', { uom: item.altUom! })} error={err(e?.altQty?.message)}>
             <input id={`l${i}-alt`} inputMode="decimal" autoComplete="off" className="num r"
-              {...register(`lines.${i}.altQty`, { onChange: (ev) => onAlt(ev.target.value) })} />
+              readOnly={locked} {...register(`lines.${i}.altQty`, { onChange: (ev) => onAlt(ev.target.value) })} />
           </Field>
         )}
         <Field id={`l${i}-rate`} label={t('rate')} error={err(e?.rate?.message)}>

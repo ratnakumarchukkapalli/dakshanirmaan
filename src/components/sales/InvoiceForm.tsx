@@ -16,7 +16,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Picker, type PickerOption } from '@/components/ui/Picker';
 import type { ErrorCode } from '@/lib/action-result';
 import { addDecimal, compareDecimal } from '@/lib/decimal';
-import { inr, inr2, inrRate } from '@/lib/format';
+import { formatDate, inr, inr2, inrRate } from '@/lib/format';
 import { EWAY_BILL_THRESHOLD, GST_STATES, stateName } from '@/lib/gst';
 import { previewTotals } from '@/lib/invoice-math';
 import type { FormAccount, FormParty, InvoiceFormContext, InvoiceFormInitial, InvoiceFormValues } from '@/lib/sales-types';
@@ -51,6 +51,9 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
   const cashAccount = ctx.accounts.find((a) => a.systemKey === 'cash') ?? ctx.accounts[0];
   const [accountId, setAccountId] = useState(cashAccount?.id ?? '');
   const alertRef = useRef<HTMLDivElement>(null);
+  // A draft started from a delivery challan: the database compares customer, stock items and quantities (and that the
+  // invoice is not dated before the challan) when posting, so exactly those are fixed here.
+  const challan = initial?.challan;
 
   const partiesById = useMemo(() => new Map(ctx.parties.map((p) => [p.id, p])), [ctx.parties]);
   const itemsById = useMemo(() => new Map(ctx.items.map((i) => [i.id, i])), [ctx.items]);
@@ -106,6 +109,12 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
     [ctx.items, t],
   );
 
+  // Beside a challan, a line for a stock item is the challan's own; only non-stock charges (freight, hamali) may be added.
+  const extraItemOptions: PickerOption[] = useMemo(
+    () => (challan ? itemOptions.filter((o) => itemsById.get(o.id)?.isStock === false) : itemOptions),
+    [challan, itemOptions, itemsById],
+  );
+
   const err = (m?: string) => (m ? te(`field.${m}`) : undefined);
 
   function pickParty(id: string) {
@@ -147,6 +156,7 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
     setNotice(null);
     if (!(await trigger())) return;
     if (getValues('invoiceDate') > ctx.today) return setFailure({ message: te('validation.date_future') });
+    if (challan?.date && getValues('invoiceDate') < challan.date) return setFailure({ message: te('validation.invoice_before_challan') });
     if (zeroTotal) return setFailure({ message: te('validation.zero_total') });
     setConfirm(kind);
   }
@@ -246,12 +256,21 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
             {notice && <div role="status" className="alert good">{notice}</div>}
           </div>
 
+          {challan && (
+            <div role="note" className="alert warn">
+              <b>{t('fromChallan', { no: challan.no, date: challan.date ? formatDate(challan.date) : '—' })}</b>
+              <br />
+              {t('challanLockedNote')}
+            </div>
+          )}
+
           <Card>
             <div className="fieldrow">
               <Field id="inv-party" label={t('customer')} error={partyErr} className="grow2">
                 <Picker
                   id="inv-party" options={partyOptions} value={partyId} onPick={pickParty} placeholder={t('pickCustomer')}
                   dialogTitle={t('pickCustomer')} searchLabel={t('searchCustomers')} emptyText={t('noMatches')} closeLabel={tc('close')}
+                  disabled={!!challan}
                 />
               </Field>
               <Field id="inv-date" label={t('invoiceDate')} hint={t('dateHint')} error={err(errors.invoiceDate?.message)} className="datefield">
@@ -312,9 +331,10 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
             <div className="lines">
               {fields.map((f, i) => {
                 const l = lines[i];
+                const isLocked = !!challan && itemsById.get(l?.itemId ?? '')?.isStock === true;
                 return (
                   <LineRow
-                    key={f.id} index={i} item={itemsById.get(l?.itemId ?? '')} itemOptions={itemOptions} itemId={l?.itemId ?? ''}
+                    key={f.id} index={i} item={itemsById.get(l?.itemId ?? '')} itemOptions={isLocked ? itemOptions : extraItemOptions} locked={isLocked} itemId={l?.itemId ?? ''}
                     qty={l?.qty ?? ''} preview={totals.lines[i] ?? null} register={register} errors={errors}
                     onPickItem={(id) => pickItem(i, id)} onQty={(v) => onQty(i, v)} onAlt={(v) => onAlt(i, v)}
                     onRemove={() => (fields.length > 1 ? remove(i) : setValue(`lines.${i}`, emptyLine()))}

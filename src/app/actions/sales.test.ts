@@ -229,6 +229,15 @@ describe('postInvoice', () => {
     state.respond = () => dbError('new row for relation "journal_lines" violates check constraint "journal_lines_check"', '23514');
     expect(await postInvoice({ id: INV })).toEqual({ ok: false, code: 'validation', error: 'validation.zero_total' });
   });
+  it('a draft that no longer matches its delivery challan gets the specific, actionable sentence, not the generic one', async () => {
+    for (const detail of ['challan_mismatch', 'invoice_before_challan', 'challan_not_posted']) {
+      reset(asCounter());
+      state.respond = () => dbError(`DN_VALIDATION:${detail}`);
+      const res = await postInvoice({ id: INV });
+      expect(res).toEqual({ ok: false, code: 'validation', error: `validation.${detail}` });
+      expect(res).not.toMatchObject({ error: 'validation.generic' });
+    }
+  });
   it('rejects a malformed id without calling the database', async () => {
     reset(asAdmin());
     expect(await postInvoice({ id: 'x' })).toMatchObject({ ok: false, code: 'validation' });

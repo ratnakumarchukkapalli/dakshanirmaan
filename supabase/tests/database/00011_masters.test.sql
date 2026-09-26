@@ -57,11 +57,16 @@ select lives_ok(
   $$insert into parties (id, name, type, state_code, credit_limit, credit_days, interest_rate_pm, monthly_salary)
     values ('a0000000-0000-0000-0000-0000000000f1', 'Walk-up Customer', 'customer', '37', 500000, 30, 2, 15000)$$,
   'a counter user can add a customer');
+-- Change 13: monthly_salary is no longer readable by a counter user (column-level SELECT), so the
+-- check that the salary they tried to set was reset reads it as the database owner.
+reset role;
 select is(
   (select credit_limit::text || '/' || credit_days || '/' || interest_rate_pm::text || '/' || coalesce(monthly_salary::text, 'null')
      from parties where id = 'a0000000-0000-0000-0000-0000000000f1'),
   '0.00/0/0.00/null',
   'credit terms and salary a counter user tried to set are reset (new customers start with no credit)');
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal1"}';
 select throws_ok(
   $$insert into parties (name, type, state_code) values ('Sneaky Employee', 'employee', '37')$$,
   'P0001', 'DN_VALIDATION:admin_only_field', 'a counter user cannot create an employee party');

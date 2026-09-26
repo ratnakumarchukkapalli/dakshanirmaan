@@ -29,6 +29,7 @@ export async function createItem(input: unknown): Promise<ActionResult<{ id: str
   if (error) return dbFailure(error);
 
   revalidatePath('/settings/items');
+  revalidatePath('/stock', 'layout');
   return ok({ id: data.id as string });
 }
 
@@ -46,6 +47,7 @@ export async function updateItem(input: unknown): Promise<ActionResult> {
   if (!data?.length) return fail('validation', t('validation.no_such_item'));
 
   revalidatePath('/settings/items');
+  revalidatePath('/stock', 'layout');
   return ok();
 }
 
@@ -62,6 +64,7 @@ async function setActive(input: unknown, active: boolean): Promise<ActionResult>
   if (!data?.length) return fail('validation', t('validation.no_such_item'));
 
   revalidatePath('/settings/items');
+  revalidatePath('/stock', 'layout');
   return ok();
 }
 

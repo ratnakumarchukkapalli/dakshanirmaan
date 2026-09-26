@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addDecimal } from './decimal';
-import { autoAllocateOldestFirst, capAllocationInput } from './payments-alloc';
+import { autoAllocateOldestFirst, capAllocationInput, settleAmount } from './payments-alloc';
 import type { OpenInvoiceForAlloc } from './payments-types';
 
 const inv = (id: string, ageDays: number, openAmount: string): OpenInvoiceForAlloc => ({
@@ -62,5 +62,19 @@ describe('autoAllocateOldestFirst', () => {
     expect(total).toBe('1666.66');
     expect(filled.r5).toBe('0.01');
     expect(filled.r6).toBeUndefined();
+  });
+});
+
+describe('settleAmount + discount', () => {
+  it('adds the discount to the amount, exactly', () => {
+    expect(settleAmount('900.00', '100.00')).toBe('1000.00');
+    expect(settleAmount('0.10', '0.20')).toBe('0.30');
+    expect(settleAmount('500.00', '')).toBe('500.00');
+    expect(settleAmount('500.00', undefined)).toBe('500.00');
+    expect(settleAmount('', '50.00')).toBe('50.00');
+  });
+
+  it('900 paid + 100 discount fully settles a 1,000 invoice (the database caps at amount + discount)', () => {
+    expect(autoAllocateOldestFirst([inv('a', 30, '1000.00')], settleAmount('900.00', '100.00'))).toEqual({ a: '1000.00' });
   });
 });

@@ -15,7 +15,18 @@ export function capAllocationInput(raw: string, openAmount: string): string | nu
   return compareDecimal(raw, openAmount, 2) === 1 ? openAmount : raw;
 }
 
-/** Fills open invoices oldest-first (highest `ageDays`) up to `amount`; the remainder is left on account. */
+/**
+ * What a payment can settle on invoices: amount + discount. The database caps allocations at that
+ * sum and the journal credits AR (debits AP) by it, so a discount settles invoice value exactly
+ * like cash does. Blank or malformed input counts as zero.
+ */
+export function settleAmount(amount: string, discount: string | undefined): string {
+  const a = /^\d+(\.\d{1,2})?$/.test(amount) ? amount : '0.00';
+  const d = discount && /^\d+(\.\d{1,2})?$/.test(discount) ? discount : '0.00';
+  return addDecimal(a, d, 2) ?? '0.00';
+}
+
+/** Fills open invoices oldest-first (highest `ageDays`) up to `amount` (pass `settleAmount(amount, discount)`); the remainder is left on account. */
 export function autoAllocateOldestFirst(invoices: OpenInvoiceForAlloc[], amount: string): Record<string, string> {
   let left = /^\d+(\.\d{1,2})?$/.test(amount) ? amount : '0.00';
   const next: Record<string, string> = {};

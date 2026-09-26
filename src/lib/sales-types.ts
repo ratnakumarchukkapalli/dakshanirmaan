@@ -78,6 +78,8 @@ export interface InvoiceFormInitial {
   id: string;
   updatedAt: string;
   values: InvoiceFormValues;
+  /** Set when the draft was started from a delivery challan: the form then locks what the posting check compares. */
+  challan?: { no: string; date: string };
 }
 
 export interface ChallanFormValues {

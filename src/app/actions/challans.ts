@@ -28,6 +28,10 @@ function snapshot(a: AddressRow | undefined | null) {
   };
 }
 
+// Race recovery in convertChallanToInvoice: how many times, and how far apart, the loser looks for the winner's finished draft.
+const RACE_RETRIES = 3;
+const RACE_RETRY_MS = 120;
+
 function revalidateChallan() {
   revalidatePath('/sales');
   revalidatePath('/sales/challans/new');
@@ -252,12 +256,21 @@ export async function convertChallanToInvoice(input: unknown): Promise<ActionRes
   if (error) {
     // Lost a race with another call converting the same challan at the same instant (the
     // existing-draft check above and this insert are not atomic together): the database's own
-    // unique index refused the second row. The winner already has the one draft this challan
-    // gets — hand its id back instead of surfacing a failure for what is, from here, a success.
+    // unique index refused the second row. The winner's draft may not have its lines yet (it
+    // inserts the header first), or may be deleted again if its own line insert fails, so the
+    // id is only handed back once that draft still exists AND carries lines. A few short
+    // retries cover the first case; if it never settles, say so and let the person press again.
     if (error.code === '23505' && /sales_invoices_one_draft_per_challan/.test(error.message ?? '')) {
-      const { data: winner } = await supabase
-        .from('sales_invoices').select('id').eq('challan_id', id).eq('status', 'draft').maybeSingle();
-      if (winner) return ok({ id: winner.id as string });
+      for (let attempt = 0; attempt < RACE_RETRIES; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, RACE_RETRY_MS));
+        const { data: winner } = await supabase
+          .from('sales_invoices').select('id').eq('challan_id', id).eq('status', 'draft').maybeSingle();
+        if (!winner) continue;
+        const { data: winnerLines } = await supabase
+          .from('sales_invoice_lines').select('id').eq('invoice_id', winner.id as string).limit(1);
+        if (winnerLines?.length) return ok({ id: winner.id as string });
+      }
+      return fail('conflict', (await getTranslations('errors'))('validation.convert_in_progress'));
     }
     return dbFailure(error);
   }

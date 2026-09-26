@@ -32,7 +32,12 @@ export function Modal({ open, onClose, title, closeLabel, children }: Props) {
       ref={ref}
       className="modal glass glass-strong"
       aria-labelledby={titleId}
-      onClose={onClose}
+      // React bubbles a dialog's `close` up its component tree, so a Modal nested in another (a Picker
+      // inside a form dialog) would otherwise close its parent too.
+      onClose={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
       onMouseDown={(e) => {
         pressedOnBackdrop.current = e.target === e.currentTarget;
       }}

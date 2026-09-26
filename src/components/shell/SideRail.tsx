@@ -14,7 +14,7 @@ export async function SideRail({ role }: { role: 'admin' | 'user' }) {
   );
   return (
     <GlassPanel as="nav" className="rail" aria-label={t('main')}>
-      {RAIL_MAIN.map(item)}
+      {visibleFor(role, RAIL_MAIN).map(item)}
       <div className="sep" role="separator" />
       {visibleFor(role, RAIL_ADMIN).map(item)}
     </GlassPanel>

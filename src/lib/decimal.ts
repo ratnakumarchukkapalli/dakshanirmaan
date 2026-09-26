@@ -53,3 +53,34 @@ export function addDecimal(a: string, b: string, dp: number): string | null {
   if (x === null || y === null) return null;
   return formatScaled((a.startsWith('-') ? -x : x) + (b.startsWith('-') ? -y : y), dp);
 }
+
+/** -1 / 0 / 1 for a signed decimal text ("-12.50", "0.00", "3"); 0 for anything that is not a plain decimal. */
+export function signOf(text: string | null | undefined): -1 | 0 | 1 {
+  const t = (text ?? '').trim();
+  const negative = t.startsWith('-');
+  const digits = negative ? t.slice(1) : t;
+  if (!/^\d+(\.\d+)?$/.test(digits) || /^0+(\.0+)?$/.test(digits)) return 0;
+  return negative ? -1 : 1;
+}
+
+/** Negates a plain decimal text ("12.50" -> "-12.50", "-3" -> "3", "0.00" stays "0.00"). */
+export function negateDecimal(text: string): string {
+  if (signOf(text) === 0) return text;
+  return text.startsWith('-') ? text.slice(1) : `-${text}`;
+}
+
+/** a - b at `dp` places, for texts that may be negative; null when either is not a plain decimal. */
+export function subtractDecimal(a: string, b: string, dp: number): string | null {
+  return addDecimal(a, negateDecimal(b), dp);
+}
+
+/**
+ * days x rate: an integer-or-half-day count (`days`, up to 1 decimal) times a rate (up to 2 decimals)
+ * -> an amount at 2 decimals, half away from zero. Null when either is not a plain decimal.
+ */
+export function multiplyDays(days: string, rate: string): string | null {
+  const d = parseScaled(days, 1);
+  const r = parseScaled(rate, 2);
+  if (d === null || r === null) return null;
+  return formatScaled(roundDiv(d * r, 10n), 2);
+}

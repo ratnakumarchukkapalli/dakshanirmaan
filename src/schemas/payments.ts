@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { compareDecimal } from '@/lib/decimal';
 import { blankToUndefined, boundedDecimal, decimal } from './common';
 
 // Receipt / outgoing payment input, shared by the payment form and the server actions. Money
@@ -23,7 +24,7 @@ export const paymentAllocationSchema = z.object({
   invoiceId: z.uuid('id_invalid'),
   // NUMERIC(14,2), > 0 — a zero-amount allocation row is pointless and the DB's own check
   // would only ever see it as noise.
-  amount: boundedDecimal(14, 2, 'money_invalid').refine((v) => Number(v) > 0, 'money_invalid'),
+  amount: boundedDecimal(14, 2, 'money_invalid').refine((v) => compareDecimal(v, '0.00', 2) === 1, 'money_invalid'),
 });
 
 export const MAX_ALLOCATIONS = 100;
@@ -42,7 +43,7 @@ export const saveDraftPaymentSchema = z
     instrumentNo: z.preprocess(blankToUndefined, z.string().trim().max(40, 'text_long').optional()),
     instrumentDate: z.preprocess(blankToUndefined, isoDate.optional()),
     chequeBank: z.preprocess(blankToUndefined, z.string().trim().max(60, 'text_long').optional()),
-    amount: boundedDecimal(14, 2, 'money_invalid').refine((v) => Number(v) > 0, 'money_invalid'),
+    amount: boundedDecimal(14, 2, 'money_invalid').refine((v) => compareDecimal(v, '0.00', 2) === 1, 'money_invalid'),
     // Admin-only at post time (the database's own rule); accepted from anyone at draft time,
     // same as the invoice form accepts a credit override at draft time and the DB decides later.
     discount: z.preprocess(
@@ -62,6 +63,12 @@ export const paymentIdSchema = z.object({ id: z.uuid('id_invalid') });
 
 export const bounceChequeSchema = z.object({
   id: z.uuid('id_invalid'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+});
+
+export const cancelPaymentSchema = z.object({
+  id: z.uuid('id_invalid'),
+  // Kept in the audit trail beside the reversal.
   reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
 });
 

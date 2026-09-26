@@ -27,13 +27,13 @@ describe('visibleFor', () => {
     expect(visibleFor('admin', MENU_EXTRAS)).toEqual(MENU_EXTRAS);
     expect(visibleFor('admin', RAIL_ADMIN)).toEqual(RAIL_ADMIN);
   });
-  it('a counter user does not see settings, and keeps the order of the rest', () => {
-    expect(visibleFor('user', MENU_EXTRAS)).toEqual(['purchases', 'staff', 'reports']);
+  it('a counter user does not see settings or staff (salaries are owner-only), and keeps the order of the rest', () => {
+    expect(visibleFor('user', MENU_EXTRAS)).toEqual(['purchases', 'reports']);
     expect(visibleFor('user', RAIL_ADMIN)).toEqual(['reports']);
     expect(visibleFor('user', ['settings'])).toEqual([]);
   });
   it('leaves the everyday screens alone for a counter user', () => {
-    expect(visibleFor('user', RAIL_MAIN)).toEqual(RAIL_MAIN);
+    expect(visibleFor('user', RAIL_MAIN)).toEqual(RAIL_MAIN.filter((k) => k !== 'staff'));
   });
   it('does not change the list it was given', () => {
     const keys = [...MENU_EXTRAS];

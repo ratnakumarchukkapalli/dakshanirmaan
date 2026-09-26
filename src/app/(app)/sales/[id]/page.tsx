@@ -15,12 +15,19 @@ export default async function DraftInvoicePage({ params }: { params: Promise<{ i
   const supabase = await createClient();
 
   const [{ data: head }, { data: lines }, member] = await Promise.all([
-    supabase.from('sales_invoices').select('id, status, updated_at, invoice_date, party_id, place_of_supply, shipping_address, vehicle_no, transporter_name, transport_mode, distance_km, transporter_gstin').eq('id', id).maybeSingle(),
+    supabase.from('sales_invoices').select('id, status, updated_at, invoice_date, party_id, place_of_supply, shipping_address, vehicle_no, transporter_name, transport_mode, distance_km, transporter_gstin, challan_id').eq('id', id).maybeSingle(),
     supabase.from('sales_invoice_lines').select('item_id, qty, alt_qty, rate, discount_pct, line_no').eq('invoice_id', id).order('line_no'),
     getCurrentMember(),
   ]);
   if (!head) notFound();
   if (head.status !== 'draft') redirect(`/sales/${id}/view`);
+
+  // Started from a delivery challan: the form shows which one and locks what the posting check compares.
+  let challan: InvoiceFormInitial['challan'];
+  if (head.challan_id) {
+    const { data: dc } = await supabase.from('delivery_challans').select('challan_no, challan_date').eq('id', head.challan_id as string).maybeSingle();
+    challan = { no: (dc?.challan_no as string | null) ?? '—', date: (dc?.challan_date as string | null) ?? '' };
+  }
 
   const ctx = await loadInvoiceFormContext(supabase, { partyId: head.party_id, itemIds: (lines ?? []).map((l) => l.item_id as string) });
 
@@ -32,6 +39,7 @@ export default async function DraftInvoicePage({ params }: { params: Promise<{ i
   const initial: InvoiceFormInitial = {
     id: head.id,
     updatedAt: head.updated_at,
+    challan,
     values: {
       partyId: head.party_id,
       invoiceDate: head.invoice_date,

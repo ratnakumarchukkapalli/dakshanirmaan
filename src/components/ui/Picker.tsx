@@ -28,6 +28,8 @@ interface Props {
   'aria-invalid'?: boolean;
   /** Extra content on the button (e.g. a sub-line). */
   buttonExtra?: ReactNode;
+  /** Shows the current choice but cannot be changed (e.g. fixed by a delivery challan). */
+  disabled?: boolean;
 }
 
 /**
@@ -36,7 +38,7 @@ interface Props {
  * inside a `Field`, which supplies the label and the aria wiring.
  */
 export function Picker({
-  id, options, value, onPick, placeholder, dialogTitle, searchLabel, emptyText, closeLabel, buttonExtra, ...aria
+  id, options, value, onPick, placeholder, dialogTitle, searchLabel, emptyText, closeLabel, buttonExtra, disabled, ...aria
 }: Props) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -53,7 +55,7 @@ export function Picker({
 
   return (
     <>
-      <button type="button" id={id} className="pickbtn" aria-haspopup="dialog" onClick={() => setOpen(true)} {...aria}>
+      <button type="button" id={id} className="pickbtn" aria-haspopup="dialog" disabled={disabled} onClick={() => setOpen(true)} {...aria}>
         <span className={chosen ? 'pick-title' : 'pick-title placeholder'}>{chosen ? chosen.title : placeholder}</span>
         {buttonExtra}
         <span className="pick-caret" aria-hidden="true">▾</span>

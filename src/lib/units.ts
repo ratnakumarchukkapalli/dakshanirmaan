@@ -31,3 +31,14 @@ export function rateText(rate: string): string {
   const [w = '0', f = ''] = t.split('.');
   return f.length >= 2 ? t : `${w}.${f.padEnd(2, '0')}`;
 }
+
+const grouped = new Intl.NumberFormat('en-IN');
+
+/** "1120.500" -> "1,120.5", "-3.000" -> "-3": a quantity for display, en-IN grouping, no trailing zeros. */
+export function qtyDisplay(text: string): string {
+  const t = trimZeros(text);
+  const negative = t.startsWith('-');
+  const [whole = '0', frac] = (negative ? t.slice(1) : t).split('.');
+  if (!/^\d+$/.test(whole)) return text;
+  return `${negative ? '-' : ''}${grouped.format(BigInt(whole))}${frac ? `.${frac}` : ''}`;
+}

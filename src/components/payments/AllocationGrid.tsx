@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
-import { addDecimal, compareDecimal } from '@/lib/decimal';
+import { addDecimal, compareDecimal, parseScaled } from '@/lib/decimal';
 import { inr2 } from '@/lib/format';
 import { capAllocationInput } from '@/lib/payments-alloc';
 import type { OpenInvoiceForAlloc } from '@/lib/payments-types';
@@ -12,7 +12,7 @@ interface Props {
   invoices: OpenInvoiceForAlloc[];
   /** invoiceId -> the amount typed against it, '' when none. */
   values: Record<string, string>;
-  /** The payment's own amount — what the progress bar and "unallocated" summary are against. */
+  /** What the payment can settle (amount + discount) — what the progress bar and "unallocated" summary are against. */
   amount: string;
   onChange: (invoiceId: string, value: string) => void;
   onAutoAllocate: () => void;
@@ -40,7 +40,13 @@ export function AllocationGrid({ invoices, values, amount, onChange, onAutoAlloc
     return r.startsWith('-') ? '0.00' : r;
   }, [amount, allocated]);
   const fullyAllocated = compareDecimal(remainder, '0.00', 2) === 0 && compareDecimal(amount || '0.00', '0.00', 2) === 1;
-  const progressPct = Number(amount) > 0 ? Math.min((Number(allocated) / Number(amount)) * 100, 100) : 0;
+  // Display-only percentage for a CSS width, computed on paise as integers (never a stored value).
+  const progressPct = useMemo(() => {
+    const total = parseScaled(amount || '0.00', 2);
+    const done = parseScaled(allocated, 2);
+    if (total === null || done === null || total <= 0n) return 0;
+    return Math.min(Number((done * 10000n) / total) / 100, 100);
+  }, [amount, allocated]);
 
   function onInput(inv: OpenInvoiceForAlloc, raw: string) {
     const capped = capAllocationInput(raw, inv.openAmount);

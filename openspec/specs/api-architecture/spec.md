@@ -20,7 +20,7 @@ items.ts      createItem, updateItem, deactivateItem
 sales.ts      saveDraftInvoice(header+lines), postInvoice(id), cancelInvoice(id)
 purchases.ts  saveDraftBill, postBill(id), cancelBill(id)
 notes.ts      saveDraftNote, postNote(id)   -- credit/debit
-payments.ts   saveDraftPayment(+allocations), postPayment(id)
+payments.ts   saveDraftPayment(+allocations), postPayment(id), cancelPayment(id, reason)   -- cancel admin only
 expenses.ts   saveDraftVoucher, postVoucher(id)   -- salaries, advances, wages, freight
 admin.ts      lockPeriod, unlockPeriod (owner), updateOrganization, manageUsers
 ```
@@ -84,7 +84,7 @@ Streaming responses; filenames `DN-<doc-no>.pdf`, `GSTR1-<YYYY-MM>.json`. No oth
 challans.ts    saveDraftChallan, postChallan(id), convertChallanToInvoice(id) -> draft invoice id
 quotes.ts      saveQuote, markQuote(id, status), convertQuoteToInvoice(id)            [Phase 2]
 transfers.ts   saveDraftTransfer, postTransfer(id), receiveTransfer(id)
-payments.ts    + depositCheque(id), markCleared(id), bounceCheque(id)   -- admin for bounce
+payments.ts    + depositCheque(id), markCleared(id), bounceCheque(id)   -- admin for bounce; cancelPayment -> cancel_document('payment') maps DN_CHEQUE_STATE/DN_NOT_POSTED/DN_PERIOD_LOCKED
 bank.ts        importStatement(csv) -> statementId, matchLine(lineId, paymentId|entryId),
                ignoreLine(lineId), createFromLine(lineId, kind: 'receipt'|'expense')
 dayclose.ts    postDayClose(date, counted, note), reopenDayClose(date)  -- reopen admin only
@@ -113,3 +113,20 @@ share.ts       whatsappInvoiceLink(invoiceId) -> wa.me deep link with signed PDF
 - **GSTR-1 (change 18):** before implementing, a research task fetches the current GST portal offline-tool JSON schema for B2B, B2CS, CDNR, HSN, DOC sections and saves it under `docs/research/gstr1-schema.md`; the exporter validates against that shape in a unit test with a golden file.
 - **Excel exports:** `exceljs` streaming; numbers written as numbers with `numFmt '#,##0.00'`, dates as dates; never pre-formatted strings.
 - **Error codes added:** `'partial'` (multi-step action stopped midway), `'no_period'` (maps `DN_NO_PERIOD`).
+
+## Requirement: Parties, stock and staff actions (change 13, added 2026-09-25)
+
+```
+stock.ts   recordAdjustment(header+lines)  -- saves the draft and calls post_stock_adjustment in one action; a refused post deletes the draft. Admin (aal2) only.
+           recordTransfer(header+lines)    -- same shape over post_stock_transfer. Admin only.
+           receiveTransfer(id)             -- receive_stock_transfer. Admin only; DN_TRANSFER_STATE -> 'transfer_state'.
+staff.ts   recordAdvance / recordSalary / recordWages -- draft expense voucher + post_expense_voucher in one action (draft deleted on a refused post). Admin only.
+           createEmployee / updateEmployee -- parties rows of type 'employee' with the pay rates. Admin only.
+```
+
+- These collapse the catalog's `saveDraft*` + `post*` pairs (`saveDraftTransfer`/`postTransfer`, `saveDraftVoucher`/`postVoucher`): the modals never keep a draft, so one action per modal is the whole contract. Adjustments (no row in the original catalog) follow the same shape.
+- **Role gates mirror the database exactly.** `post_stock_adjustment`, `post_stock_transfer` and `receive_stock_transfer` are admin-only; so are the actions, and the controls are not rendered for a counter session. The database lets `user` post an advance voucher up to Rs 5,000; the owner decision (salary/wages owner-only) means there is **no staff screen or action for a counter user** — the route is refused by the proxy and the page, the pay rates and salary/wage vouchers are unreadable to `user` in the database (`20260926100000_staff_salary_owner_only.sql`).
+- **Route handlers implemented:** `GET /api/parties/[id]/statement.xlsx?fy=` (exceljs; money as numbers with `#,##0.00`, dates as dates) and `statement.pdf?fy=` (`@react-pdf/renderer`, English). `fy` = a start year or `all`; default the current FY (April–March). Any active member; row-level security decides what is readable.
+- **Error code added:** `'transfer_state'` (maps `DN_TRANSFER_STATE`).
+- **Never `select *` on `parties`:** the two pay columns are not granted to `authenticated`, so `select *` (or `parties(*)`) fails with `permission denied`. Select columns by name; owner-only pay rates come through `employee_pay_rates()` / `v_employees`.
+- **Schemas run twice** (form resolver, then the action): a schema must not `.transform` into a shape it would then reject.

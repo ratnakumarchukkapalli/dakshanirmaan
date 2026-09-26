@@ -1,4 +1,4 @@
-# Where we are (updated 2026-09-22)
+# Where we are (updated 2026-09-25)
 
 One page. If this and a chat disagree, fix this file.
 
@@ -10,40 +10,51 @@ below are done.
 ## Done
 01 foundation-schema · 02 integrity-triggers · 03 posting-sales · 04 posting-purchase-payment ·
 05 posting-challan-transfer-adjust-dayclose · 06 read-views · 07 app-shell · 08 auth-users ·
-09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui (reviewed, no findings,
-committed 2026-09-22).
+09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui (built + live-verified 2026-09-25, UNCOMMITTED; review owed).
 Local demo data exists (`supabase/demo/demo-data.sql`) and can be reloaded any time; it is not
 the goal, just a convenience for testing screens as they're built.
 
+## Review status (2026-09-25)
+Independent Opus review of 10a/10b/11 and the change-12 milestone review ("money flows end to
+end") are DONE; every finding was fixed (see each change's `implementation-notes.md`: "Review
+fixes" sections). Gates on the combined tree: 1010 pgTAP, 362 vitest, tsc/lint/build clean.
+**UNCOMMITTED** (Ratna commits): change-12 fixes (migration `20260925100000_payments_note.sql`,
+cancelPayment action), 10a/posting fixes (migration `20260925110000_posting_snapshot_warehouse_guards.sql`:
+post-time item snapshot re-read, transit-warehouse refusal, e-way-bill CHECKs), 11 fixes (locked
+challan drafts, race recovery). **Hosted DB** lacks `20260922100000`, `20260922110000`,
+`20260925100000`, `20260925110000`, `20260926100000` (change 13: owner-only salary data) — push as one unit after commit.
+Change-12 draft resume and auto-allocate-with-discount were watched live in the change-13 session (both work).
+Still open: `place_of_supply` on a draft is client-writable (owner question); re-allocating a posted receipt
+(later change); 06/07 have Sonnet-only reviews; 03–05/08/09 had Opus reviews earlier; `/security-review`
+before go-live.
+
+## Change 13 status (2026-09-25)
+UNCOMMITTED with the rest. Extra migrations: `20260926100000_staff_salary_owner_only.sql`,
+`20260926110000_payroll_owner_only_ledger.sql` (hosted lacks them). Gates: 1265 pgTAP, 436 vitest,
+tsc/lint/build clean. Open owner questions: counter-staff advances <= 5,000 (DB allows, no screen);
+wages account (Loading & Unloading vs own); day_closes cash figures include payroll cash. Stock cost
+readable via API until change 19. `exceljs` -> uuid audit advisory (moderate) deferred to change 16.
+
+## Change 14 status (2026-09-26)
+UNCOMMITTED with the rest. Migration `20260927100000_dashboard_views.sql` (v_sales_daily,
+v_sales_daily_category, admin-gated v_money_balances); hosted lacks it. Gates: 1336 pgTAP, 458 vitest,
+tsc/lint/build clean. **Review owed:** Sonnet reviewer (screens) + narrow Opus look at the new views'
+admin gates. Owner questions: counter sees To pay / cash drawer? (default no); sales incl. GST?
+(default yes); Telugu attention sentences (needs structured v_attention); chart 7 vs 30 days.
+Day-close quick action points at /reports until change 15 builds the screen.
+
+## Next session
+Start **15 reports-p1** (Sonnet, daksh-ui + daksh-api). Then review 14 and 15 together, commit, and
+`supabase db push` the unpushed migrations (everything after `20260921110000` except none applied
+yet: 20260922100000, 20260922110000, 20260925100000, 20260925110000, 20260926100000,
+20260926110000, 20260927100000) as one unit.
+
 ## Left (Phase 1), build in this order — one change per session
-12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 ·
+15 reports-p1 ·
 16 ops · 17 cutover · 18 self-audit-and-gst · 19 aal2-enforcement.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
 Change 19 must land before 17 (cutover) for real go-live, but can be built whenever in this list
 — it does not block the other UI changes.
-
-**12 payments-ui BUILT, UNCOMMITTED, NOT YET LIVE-BROWSER VERIFIED (2026-09-22).** Payments list
-(tiles + cheque-lifecycle row actions) at `/payments`, receipt/outgoing-payment form with an
-allocation grid at `/payments/new`; `saveDraftPayment`/`postPayment`/`depositCheque`/`markCleared`/
-`bounceCheque` in `src/app/actions/payments.ts`. One schema addition (Ratna's go-ahead):
-`v_open_purchase_invoices` (migration `20260922110000_open_purchase_invoices.sql`), the mirror of
-`v_open_sales_invoices` for the outgoing-payment direction — nothing else covered open purchase
-invoices since purchases has no UI until change 21. Role gates read directly off the database: any
-member posts a receipt; only a verified admin can post an outgoing payment or one with a discount
-(the form hides the Pay toggle and the discount field from anyone else, matching `post_payment`'s
-own rule); bounce is admin-only. A fresh-context review (same day) found 3 real issues — the
-"auto-allocate" fill used float arithmetic instead of the exact-decimal helpers, that logic had no
-test despite the proposal asking for one, and an unused `hero` tile variant had a hardcoded hex —
-all three fixed (see implementation notes). Verified after fixes: 945/945 pgTAP (941 + 4 new),
-352/352 vitest (18 in `payments.test.ts`, 9 in new `payments-alloc.test.ts`), lint/tsc/build clean,
-i18n parity checked. **Not done this round: the live-browser walkthrough.** Local Supabase came up
-clean and demo data was attempted, but creating a throwaway local test admin hit a permission block
-(exporting the local dev secret key was flagged as credential leakage) and Ratna chose to skip the
-walkthrough rather than work around it — so unlike changes 10a/10b/11, this one has not been
-watched working end to end against a real browser; the reviewer flagged this as the one open item
-worth closing before commit, since it's exactly the flow (auto-allocate) that had the bug. Full
-details in `openspec/changes/12-payments-ui/implementation-notes.md`. Next: close the live-browser
-gap if practical, then commit when Ratna says so, then change 13.
 
 ## Then Phase 2
 20 notes · 21 purchases-ui · 22 bank-recon · 24 quotes-rebates-interest · 25 exports-portability.

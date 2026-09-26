@@ -33,9 +33,9 @@ $$;
 -- A draft sales invoice. p_lines = [[item name, qty, rate, discount %], ...]
 create function pg_temp.mk_sale(p_date date, p_party text, p_site text, p_lines jsonb,
   p_vehicle text default null, p_transporter text default null, p_dist int default null) returns uuid language plpgsql as $$
-declare v_party parties; v_id uuid; v_n int := 0; l jsonb; v_item items;
+declare v_party record; v_id uuid; v_n int := 0; l jsonb; v_item items;
 begin
-  select * into strict v_party from parties where name = p_party;
+  select id, state_code into strict v_party from parties where name = p_party;
   insert into sales_invoices (invoice_date, party_id, place_of_supply, status, warehouse_id, billing_address, shipping_address,
                               vehicle_no, transporter_name, transport_mode, distance_km)
   values (p_date, v_party.id, v_party.state_code, 'draft', (select id from warehouses where is_default and not is_transit),
@@ -55,9 +55,9 @@ end $$;
 
 -- A draft purchase invoice. p_lines = [[item name, qty, rate], ...]
 create function pg_temp.mk_purchase(p_date date, p_supplier text, p_bill text, p_lines jsonb) returns uuid language plpgsql as $$
-declare v_party parties; v_id uuid; v_n int := 0; l jsonb; v_item items;
+declare v_party record; v_id uuid; v_n int := 0; l jsonb; v_item items;
 begin
-  select * into strict v_party from parties where name = p_supplier;
+  select id, state_code into strict v_party from parties where name = p_supplier;
   insert into purchase_invoices (invoice_date, party_id, place_of_supply, status, warehouse_id, supplier_bill_no, itc_eligible)
   values (p_date, v_party.id, v_party.state_code, 'draft', (select id from warehouses where is_default and not is_transit), p_bill, true)
   returning id into v_id;
@@ -87,6 +87,9 @@ begin
   insert into payment_allocations (payment_id, invoice_type, invoice_id, amount) values (v_id, p_inv_type, p_inv, v_amt);
   return v_id;
 end $$;
+
+-- A second godown for the transfer and stock screens (masters are owner-written; the demo seeds it as the database owner).
+insert into warehouses (name, is_default, is_transit) values ('Gannavaram Godown', false, false);
 
 -- ---------------------------------------------------------------- act as the owner from here
 select set_config('request.jwt.claims',
@@ -203,6 +206,40 @@ begin
   insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narration)
     values (ev, 1, (select id from accounts where system_key = 'loading_unloading'), 3500, 'Hamali - unloading TMT lorry');
   perform post_expense_voucher(ev);
+
+  -- Staff: two employees, an advance, a salary that recovers it, daily wages, and a stock adjustment + a transfer left in transit ----
+  insert into parties (name, type, state_code, phone, monthly_salary) values ('Suribabu', 'employee', '37', '9876500001', 18000);
+  insert into parties (name, type, state_code, phone, daily_wage) values ('Ramana', 'employee', '37', '9876500002', 600);
+  insert into expense_vouchers (voucher_date, status, voucher_type, party_id, pay_account_id)
+    values (pg_temp.d(20), 'draft', 'advance', (select id from parties where name = 'Suribabu'), (select id from accounts where system_key = 'cash')) returning id into ev;
+  insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narration)
+    values (ev, 1, (select id from accounts where system_key = 'employee_advance'), 3500, 'Advance - house expense');
+  perform post_expense_voucher(ev);
+  insert into expense_vouchers (voucher_date, status, voucher_type, party_id, pay_account_id, period_month)
+    values (pg_temp.d(10), 'draft', 'salary', (select id from parties where name = 'Suribabu'), (select id from accounts where system_key = 'bank'),
+            date_trunc('month', pg_temp.d(10))::date) returning id into ev;
+  insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narration)
+    values (ev, 1, (select id from accounts where code = '5500'), 18000, 'Salary');
+  perform post_expense_voucher(ev);
+  insert into expense_vouchers (voucher_date, status, voucher_type, party_id, pay_account_id, advance_recovered)
+    values (pg_temp.d(6), 'draft', 'wages', (select id from parties where name = 'Ramana'), (select id from accounts where system_key = 'cash'), 0) returning id into ev;
+  insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narration)
+    values (ev, 1, (select id from accounts where system_key = 'loading_unloading'), 3600, '6 days x 600');
+  perform post_expense_voucher(ev);
+
+  declare adj uuid; tr uuid;
+  begin
+    insert into stock_adjustments (adj_date, warehouse_id, reason, status)
+      values (pg_temp.d(7), (select id from warehouses where is_default and not is_transit), '3 bags torn in rain', 'draft') returning id into adj;
+    insert into stock_adjustment_lines (adjustment_id, line_no, item_id, item_name, qty)
+      select adj, 1, id, name, -3 from items where name = 'UltraTech PPC 50kg';
+    perform post_stock_adjustment(adj);
+    insert into stock_transfers (transfer_date, from_warehouse_id, to_warehouse_id, vehicle_no, status)
+      values (pg_temp.d(2), (select id from warehouses where is_default and not is_transit), (select id from warehouses where name = 'Gannavaram Godown'), 'AP 16 TC 4455', 'draft') returning id into tr;
+    insert into stock_transfer_lines (transfer_id, line_no, item_id, item_name, uom, qty)
+      select tr, 1, id, name, base_uom, 20 from items where name = 'UltraTech PPC 50kg';
+    perform post_stock_transfer(tr);
+  end;
 
   -- Goods sent on a challan and not yet billed (one old enough to show in the attention list) --
   insert into delivery_challans (challan_date, party_id, warehouse_id, site_address, vehicle_no, status)

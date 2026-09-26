@@ -192,16 +192,19 @@ describe('convertChallanToInvoice', () => {
     expect(header).toMatchObject({ party_id: PARTY, warehouse_id: 'wh-1', place_of_supply: '37', challan_id: DC, status: 'draft', created_by: 'u-counter' });
   });
 
-  it('recovers from a genuine race: a unique-violation on insert returns the winning draft instead of failing', async () => {
-    reset(asCounter());
-    // Simulates the loser of a race: its own "no existing draft yet" read finds nothing (another
-    // call hasn't been seen yet), its insert then hits the database's unique index because that
-    // other call won in between, and the recovery re-select finds the winner's row.
-    let selects = 0;
+  /** The loser of the race: its own existing-draft read finds nothing, its insert hits the unique index. */
+  function loser(winnerSelect: (n: number) => { id: string }[], linesSelect: (n: number) => unknown[]) {
+    let winnerReads = 0;
+    let lineReads = 0;
     state.respond = (call) => {
       switch (`${call.table}:${call.op}`) {
         case 'delivery_challans:select': return { data: [challanRow] };
-        case 'sales_invoices:select': selects += 1; return { data: selects === 1 ? [] : [{ id: INV }] };
+        case 'sales_invoices:select': {
+          winnerReads += 1;
+          // Read 1 is the up-front "existing draft?" check (nothing yet); the rest are the recovery's.
+          return { data: winnerReads === 1 ? [] : winnerSelect(winnerReads - 1) };
+        }
+        case 'sales_invoice_lines:select': lineReads += 1; return { data: linesSelect(lineReads) };
         case 'parties:select': return { data: [{ state_code: '37', type: 'customer', is_active: true }] };
         case 'party_addresses:select': return { data: [] };
         case 'delivery_challan_lines:select': return { data: [line] };
@@ -210,26 +213,37 @@ describe('convertChallanToInvoice', () => {
         default: return { data: null, error: null };
       }
     };
+    return { reads: () => ({ winnerReads, lineReads }) };
+  }
+
+  it('recovers from a genuine race: the winner\'s draft, once it has its lines, is returned instead of a failure', async () => {
+    reset(asCounter());
+    const probe = loser(() => [{ id: INV }], () => [{ id: 'l-1' }]);
     expect(await convertChallanToInvoice({ id: DC })).toEqual({ ok: true, data: { id: INV } });
     expect(state.calls.filter((c) => c.table === 'sales_invoices' && c.op === 'insert')).toHaveLength(1);
-    expect(selects).toBe(2);
+    expect(probe.reads()).toEqual({ winnerReads: 2, lineReads: 1 });
   });
 
-  it('a unique-violation with no winner visible yet (a genuinely unknown state) is a plain failure, not a crash', async () => {
+  it('waits for the winner\'s lines: a draft that has none yet is not returned, a later look finds them', async () => {
     reset(asCounter());
-    state.respond = (call) => {
-      switch (`${call.table}:${call.op}`) {
-        case 'delivery_challans:select': return { data: [challanRow] };
-        case 'sales_invoices:select': return { data: [] };
-        case 'parties:select': return { data: [{ state_code: '37', type: 'customer', is_active: true }] };
-        case 'party_addresses:select': return { data: [] };
-        case 'delivery_challan_lines:select': return { data: [line] };
-        case 'organization:select': return { data: [{ timezone: 'Asia/Kolkata' }] };
-        case 'sales_invoices:insert': return dbError('duplicate key value violates unique constraint "sales_invoices_one_draft_per_challan"', '23505');
-        default: return { data: null, error: null };
-      }
-    };
-    expect(await convertChallanToInvoice({ id: DC })).toEqual({ ok: false, code: 'validation', error: 'validation.duplicate' });
+    const probe = loser(() => [{ id: INV }], (n) => (n < 2 ? [] : [{ id: 'l-1' }]));
+    expect(await convertChallanToInvoice({ id: DC })).toEqual({ ok: true, data: { id: INV } });
+    expect(probe.reads().lineReads).toBe(2);
+  });
+
+  it('a winner that never gets lines is not returned: bounded retries, then a retryable error', async () => {
+    reset(asCounter());
+    const probe = loser(() => [{ id: INV }], () => []);
+    expect(await convertChallanToInvoice({ id: DC })).toEqual({ ok: false, code: 'conflict', error: 'validation.convert_in_progress' });
+    expect(probe.reads().lineReads).toBe(3);
+  });
+
+  it('a winner that deleted its draft after failing is not returned either: bounded retries, then a retryable error', async () => {
+    reset(asCounter());
+    // Visible on the first look, gone on every later one (the winner\'s own line insert failed and it cleaned up).
+    const probe = loser((n) => (n === 1 ? [{ id: INV }] : []), () => []);
+    expect(await convertChallanToInvoice({ id: DC })).toEqual({ ok: false, code: 'conflict', error: 'validation.convert_in_progress' });
+    expect(probe.reads().winnerReads).toBe(1 + 3);
   });
 
   it('once the invoice is posted, the challan itself carries the id and no new draft is ever considered', async () => {

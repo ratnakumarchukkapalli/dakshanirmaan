@@ -3,19 +3,22 @@
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { bounceCheque, depositCheque, markCleared } from '@/app/actions/payments';
+import { bounceCheque, cancelPayment, depositCheque, markCleared } from '@/app/actions/payments';
 import { Modal } from '@/components/ui/Modal';
 
 interface Props {
   id: string;
   chequeStatus: 'in_hand' | 'deposited' | 'cleared' | 'bounced' | 'issued' | 'presented' | null;
   direction: 'receipt' | 'payment';
-  /** Only an admin session sees Bounce (the database is admin-only on it). */
+  /** Only an admin session sees Bounce and Cancel (the database is admin-only on both). */
   isAdmin: boolean;
 }
 
 /**
- * Inline cheque-lifecycle actions on a payments-list row. There is no dedicated view screen for a
+ * Inline actions on a POSTED payments-list row: the cheque lifecycle (cheques only) and, for an
+ * admin, Cancel — a reversal of the whole payment, offered unless the cheque has reached the bank
+ * (deposited / cleared / presented: the database refuses those with DN_CHEQUE_STATE; a received
+ * cheque goes through Bounce instead). There is no dedicated view screen for a
  * posted payment (same reasoning as change 11's challans), so the row carries every action the
  * database currently allows for that cheque's status.
  */
@@ -25,6 +28,7 @@ export function PaymentRowActions({ id, chequeStatus, direction, isAdmin }: Prop
   const router = useRouter();
   const [pending, start] = useTransition();
   const [bounceOpen, setBounceOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -34,12 +38,15 @@ export function PaymentRowActions({ id, chequeStatus, direction, isAdmin }: Prop
       const res = await action();
       if (!res.ok) return setFailure(res.error ?? null);
       setBounceOpen(false);
+      setCancelOpen(false);
       setReason('');
       router.refresh();
     });
   }
 
-  if (chequeStatus === null || chequeStatus === 'bounced' || chequeStatus === 'cleared') return null;
+  const chequeActionable = chequeStatus !== null && chequeStatus !== 'bounced' && chequeStatus !== 'cleared';
+  const canCancel = isAdmin && (chequeStatus === null || chequeStatus === 'in_hand' || chequeStatus === 'issued');
+  if (!chequeActionable && !canCancel) return null;
 
   return (
     <>
@@ -54,6 +61,9 @@ export function PaymentRowActions({ id, chequeStatus, direction, isAdmin }: Prop
         {isAdmin && (chequeStatus === 'in_hand' || chequeStatus === 'deposited') && direction === 'receipt' && (
           <button type="button" className="btn danger sm" disabled={pending} onClick={() => setBounceOpen(true)}>{t('bounceBtn')}</button>
         )}
+        {canCancel && (
+          <button type="button" className="btn ghost sm" disabled={pending} onClick={() => setCancelOpen(true)}>{t('cancelBtn')}</button>
+        )}
       </div>
 
       <Modal open={bounceOpen} onClose={() => setBounceOpen(false)} title={t('bounceTitle')} closeLabel={tc('close')}>
@@ -66,6 +76,20 @@ export function PaymentRowActions({ id, chequeStatus, direction, isAdmin }: Prop
           <button type="button" className="btn ghost" onClick={() => setBounceOpen(false)}>{tc('cancel')}</button>
           <button type="button" className="btn danger" disabled={pending || reason.trim().length < 3} onClick={() => run(() => bounceCheque({ id, reason }))}>
             {t('bounceConfirm')}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title={t('cancelTitle')} closeLabel={tc('close')}>
+        <p>{t('cancelBody')}</p>
+        <div className="field">
+          <label htmlFor="cancel-reason" className="lbl">{t('cancelReasonLabel')}</label>
+          <input id="cancel-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" onClick={() => setCancelOpen(false)}>{tc('cancel')}</button>
+          <button type="button" className="btn danger" disabled={pending || reason.trim().length < 3} onClick={() => run(() => cancelPayment({ id, reason }))}>
+            {t('cancelConfirm')}
           </button>
         </div>
       </Modal>

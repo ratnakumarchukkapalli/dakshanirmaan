@@ -112,7 +112,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                       <td className="r num"><b>{inr2(r.amount)}</b></td>
                       <td className="muted">{r.allocatedRefs.length ? r.allocatedRefs.join(', ') : t('onAccount')}</td>
                       <td><Chip tone={statusChip.tone}>{statusChip.label}</Chip></td>
-                      <td>{!draft && r.status === 'posted' && r.mode === 'cheque' && <PaymentRowActions id={r.id} chequeStatus={r.chequeStatus} direction={r.direction} isAdmin={isAdmin} />}</td>
+                      <td>{!draft && r.status === 'posted' && <PaymentRowActions id={r.id} chequeStatus={r.chequeStatus} direction={r.direction} isAdmin={isAdmin} />}</td>
                     </>
                   );
                   // Only a draft opens anything (its edit form); a posted or cancelled payment has

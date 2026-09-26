@@ -132,3 +132,46 @@ field array would have fought that shape for no benefit.
 `supabase db reset` + `supabase test db` → **945/945 pgTAP** (941 + 4 new); `tsc`, `lint`,
 `next build` clean; **352/352 vitest** (18 in `payments.test.ts`, 9 in `payments-alloc.test.ts`);
 i18n key parity (en/te) checked with a script, zero drift either direction.
+
+## Milestone review fixes (Opus milestone review: APPROVE AFTER FIXES)
+1. **BLOCKER: `payments.note` did not exist.** `/payments/new?id=` selected it, so resuming any draft
+   404ed (untyped client + mocked tests hid it). New migration
+   `20260925100000_payments_note.sql` (`alter table payments add column note text`, plain nullable;
+   payments has only row-level RLS, no column grants/allow-lists/freezing triggers, so nothing else
+   needed the column). `saveDraftPayment` now writes `note: v.note ?? null`. pgTAP
+   `00018_payments_columns.test.sql` (40 assertions): `has_column` for every column the payments
+   pages/actions/loaders read or write (payments, payment_allocations, the two open-invoice views,
+   `v_party_balances`) plus a note round-trip on a draft. This is the drift guard; extend it when a
+   payments query gains a column.
+2. **Auto-allocate ignored discount.** New `settleAmount(amount, discount)` in `payments-alloc.ts`
+   (exact decimal). Used for auto-allocate, the grid's `amount` prop (remainder + progress bar), the
+   "on account" row, "Outstanding after", and the list's "unallocated" tile (which now also selects
+   `discount`). Vitest: 900 + 100 discount settles a 1,000 invoice. The grid's progress percentage
+   is now computed on scaled BigInts instead of `Number`.
+3. **Reversing a posted payment.** Admin-only `cancelPayment(id, reason)` -> `cancel_document('payment')`
+   (`cancelPaymentSchema`, same reason rule as bounce). `DN_CHEQUE_STATE`/`DN_NOT_POSTED`/
+   `DN_PERIOD_LOCKED` already map to `cheque_state`/`not_posted`/`period_locked` with en+te strings.
+   List row action "Cancel payment" (verified admin, posted rows only; hidden for cheques that reached
+   the bank: deposited/cleared/presented, which the database refuses; a received cheque goes through
+   Bounce) with a reason + confirm modal. The `has_allocations` sentence ("Cancel that payment
+   first") now has a real path. api-architecture spec `payments.ts` rows updated in this change.
+   Tests: 4 new in `payments.test.ts`.
+   **OPEN ITEM (out of scope): re-allocating a posted receipt without reversing it** is not offered;
+   the only route is cancel + re-enter.
+4. `PaymentForm`: a resumed draft's allocations to invoices no longer in `openForParty` are neither
+   counted nor sent (`liveAllocations`), so a hidden row cannot cause `allocation_exceeds_invoice`.
+   Dropped silently, no "stale" indicator.
+5. Added `errors.validation.{allocation_direction, allocation_amount, allocation_payment_cancelled,
+   allocation_payment_missing, allocation_invoice_type}` (en + te) and made `errors.conflict` /
+   `errors.partial` document-neutral. New `payments.cancel*` strings too. en/te key parity kept.
+6. `Number()` on money replaced by `compareDecimal`/`decimalText` in `payments.ts` (post gate),
+   `new/page.tsx`, `schemas/payments.ts` (amount > 0 checks), `AllocationGrid.tsx`.
+7. Cheque tiles ("in hand", "issued") now filter `status = 'posted'`.
+
+**Needs native-speaker review (Telugu, written by the agent):** the five new `errors.validation.*`
+allocation strings, the reworded `errors.conflict` / `errors.partial`, and `payments.cancelBtn`,
+`cancelTitle`, `cancelBody`, `cancelReasonLabel`, `cancelConfirm`.
+
+**Not done / not verified:** Docker Desktop was not running, so `supabase start`, `db reset`,
+`supabase test db` (the new migration and `00018` are unexecuted) and the live draft-resume check
+could not run. No `payments-data.ts` unit test exists for the tile filters.

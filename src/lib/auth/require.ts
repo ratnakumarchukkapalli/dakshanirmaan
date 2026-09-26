@@ -25,3 +25,10 @@ export async function requireMember(): Promise<MemberGate> {
   if (member && (member.role !== 'admin' || member.aal === 'aal2')) return { member };
   return { denied: fail('forbidden', (await getTranslations('errors'))('forbidden')) };
 }
+
+/** A verified owner (authenticator step passed), with their session facts; anyone else gets the refusal. */
+export async function requireAdminMember(): Promise<MemberGate> {
+  const member = await getCurrentMember();
+  if (member && isVerifiedAdmin(member)) return { member };
+  return { denied: fail('forbidden', (await getTranslations('errors'))('forbidden')) };
+}

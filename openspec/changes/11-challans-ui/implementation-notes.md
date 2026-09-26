@@ -50,8 +50,11 @@ plain index), so idempotency is enforced in the action, in this order:
    `state_code`, `billing_address` from the party's default address, `shipping_address` = the
    challan's own site snapshot, `challan_id`), lines copied verbatim from
    `delivery_challan_lines` (same item/hsn/uom/gst_rate/qty/rate/discount the challan already
-   carries — not re-read from `items`, so the invoice matches exactly what the challan already
-   declared, which is what `post_sales_invoice`'s challan-match check requires).
+   carries). **Correction (Opus review, 2026-09-25):** "not re-read from `items`" only holds for
+   this first insert. The first `saveDraftInvoice` on the draft re-snapshots every line from
+   `items` (name, HSN, GST rate, UoM), like any invoice save. That is harmless: the challan-match
+   check in `post_sales_invoice` compares only `item_id` and quantity (for stock items), never the
+   snapshot columns or the rate.
 
 **Race window — fixed in the follow-up session (see below).** Step 3's select-then-insert
 originally had a race window: two genuinely simultaneous clicks could each pass step 3 before
@@ -145,3 +148,45 @@ and a few demo challans/invoices) — nothing from this session's manual testing
 Still not done: a real look at both themes and 390px width (the walkthrough ran at 1280px in one
 theme). The component-level review earlier in this file (matching `globals.css` classes by hand)
 is the only check that width/theme fidelity has had.
+
+## Review fixes (Opus review of 11, 2026-09-25)
+
+An independent Opus review found the items below. All are app-side fixes; no database change.
+
+1. **MAJOR: a converted draft could be edited into a mismatch, and posting then said only "some
+   details are not valid".** Fixed in three parts.
+   - *Messages.* `errors.validation.challan_mismatch`, `invoice_before_challan`,
+     `challan_not_posted` (en + te, key parity kept). The error mapping already passed
+     `DN_VALIDATION:<detail>` through (`parseDbError` -> `dbFailure`); the keys were simply
+     missing, so it fell back to `validation.generic`. **Telugu needs native-speaker review**,
+     like the earlier changes' strings.
+   - *Draft UI.* `sales/[id]/page.tsx` reads `challan_id` and the challan's number/date and passes
+     `initial.challan` to `InvoiceForm`. When set, the form shows a "From challan DC/... (date)"
+     banner (plain text: there is no challan view route, see default 5) and locks exactly what
+     `post_sales_invoice` compares: the **customer** (party picker disabled), and for every
+     **stock-item line** the item (picker disabled), quantity and pieces (read-only), and remove.
+     Rate, discount, notes, transport, site and place of supply stay editable, because the DB does
+     not compare them. New lines may be added, but the item list is limited to non-stock items
+     (freight, hamali), which the DB check excludes. `Picker` gained a `disabled` prop and
+     `LineRow` a `locked` prop.
+   - *Invoice date: deliberately not locked.* The brief asked to lock the date input, but the DB
+     only requires `invoice_date >= challan_date` (`invoice_before_challan`), and a draft that sits
+     for a day should be re-datable to today. So the form does not lock it: "Post" is stopped with
+     the `invoice_before_challan` sentence when the date is earlier than the challan's; the DB stays
+     the authority. Easy to lock instead if the owner prefers.
+   - *Not enforced server-side in `saveDraftInvoice`.* Only the form locks; the DB check at post
+     time is the real guard (it is what the review found unhandled), and `sales.ts` was left
+     untouched.
+   - *Test.* `sales.test.ts` (postInvoice): the three details map to their own sentence, never
+     `validation.generic`.
+2. **MINOR: race-recovery could return a draft that was not ready.** The loser of the `23505` race
+   used to return the winner's draft id straight away, which could be before the winner inserted
+   its lines, or a draft the winner then deleted after a failed line insert. Now the loser looks
+   up to 3 times (120 ms apart) for a draft that still exists **and** has at least one line;
+   otherwise it returns `conflict` with `errors.validation.convert_in_progress` ("being turned into
+   an invoice right now, press Invoice again"). Four tests in `challans.test.ts` (ready, lines
+   arrive late, never gets lines, draft deleted). **Cleaner fix for later:** an atomic
+   `convert_challan_to_invoice` RPC (header + lines in one transaction) removes the window entirely;
+   not done because the database was off-limits in this round.
+3. **Docs.** The "copied verbatim, not re-read from items" statement above is corrected;
+   `docs/STATUS.md` no longer says "reviewed, no findings".

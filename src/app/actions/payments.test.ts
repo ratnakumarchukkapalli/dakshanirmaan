@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { asAdmin, asCounter, dbError, reset, state, type Answer, type Call } from '@/test/harness';
-import { bounceCheque, depositCheque, markCleared, postPayment, saveDraftPayment } from './payments';
+import { bounceCheque, cancelPayment, depositCheque, markCleared, postPayment, saveDraftPayment } from './payments';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next-intl/server', async () => (await import('@/test/harness')).intlMock);
@@ -43,6 +43,18 @@ const find = (table: string, op: Call['op']) => state.calls.find((c) => c.table 
 const rpc = (fn: string) => state.calls.find((c) => c.rpc === fn);
 
 describe('saveDraftPayment', () => {
+  it('persists the note (null when blank)', async () => {
+    reset(asCounter());
+    healthy();
+    await saveDraftPayment({ ...receipt, note: '  advance for cement  ' });
+    expect(find('payments', 'insert')!.payload).toMatchObject({ note: 'advance for cement' });
+
+    reset(asCounter());
+    healthy();
+    await saveDraftPayment(receipt);
+    expect(find('payments', 'insert')!.payload).toMatchObject({ note: null });
+  });
+
   it('creates a draft receipt', async () => {
     reset(asCounter());
     healthy();
@@ -201,5 +213,36 @@ describe('cheque lifecycle', () => {
     reset(asAdmin());
     expect(await bounceCheque({ id: PAY, reason: 'customer said insufficient funds' })).toEqual({ ok: true, data: { id: PAY } });
     expect(rpc('bounce_cheque')?.payload).toEqual({ p_payment_id: PAY, p_reason: 'customer said insufficient funds' });
+  });
+});
+
+describe('cancelPayment', () => {
+  const reason = 'entered against the wrong customer';
+
+  it('is admin-only: a counter session is refused before the database is touched', async () => {
+    reset(asCounter());
+    expect(await cancelPayment({ id: PAY, reason })).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(rpc('cancel_document')).toBeUndefined();
+  });
+
+  it('needs a real reason', async () => {
+    reset(asAdmin());
+    expect(await cancelPayment({ id: PAY, reason: 'no' })).toEqual({ ok: false, code: 'validation', error: 'field.reason_required' });
+    expect(rpc('cancel_document')).toBeUndefined();
+  });
+
+  it('an admin reverses a posted payment through cancel_document and the lists refresh', async () => {
+    reset(asAdmin());
+    expect(await cancelPayment({ id: PAY, reason })).toEqual({ ok: true, data: { id: PAY } });
+    expect(rpc('cancel_document')?.payload).toEqual({ p_source_type: 'payment', p_source_id: PAY, p_reason: reason });
+    expect(state.revalidated).toEqual(expect.arrayContaining(['/payments', '/parties', '/sales']));
+  });
+
+  it('maps the database refusals to codes with a friendly sentence', async () => {
+    for (const [db, code] of [['DN_CHEQUE_STATE', 'cheque_state'], ['DN_NOT_POSTED', 'not_posted'], ['DN_PERIOD_LOCKED', 'period_locked']] as const) {
+      reset(asAdmin());
+      state.respond = () => dbError(db);
+      expect(await cancelPayment({ id: PAY, reason })).toEqual({ ok: false, code, error: code });
+    }
   });
 });

@@ -36,6 +36,7 @@ Status: **built, all gates green, NOT reviewed.** A library-layer WIP commit (`2
 - The e-way-bill threshold text is advice, never a block.
 
 ## Known limits
+- **`INVOICE_LINK_SECRET` rotation is the only kill switch for share links.** There is no per-link revocation: every issued link stays valid until its 24-hour expiry unless the secret is changed, which invalidates all live links at once (and needs a redeploy). The bad-signature rate limiter is per server instance (memory), so it slows guessing but is not a global limit. **Open owner question:** is "rotate the secret to revoke everything" acceptable, or should links be revocable one by one (a small table of issued link ids)? (Opus review of 10b/11, 2026-09-25.)
 - The rate limiter for bad signatures is in memory per server instance (the same accepted limit as sign-in).
 - `record_invoice_ewb` and the PDF route check membership, not the authenticator step, in the database (change 19 covers all functions; the route and action check it in the app).
 - The function's `search_path` is `public, pg_temp`, like the posting functions (the proposal said `''`).

@@ -30,3 +30,16 @@ export const addressSchema = z.object({
   pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/, 'pincode_invalid'),
 });
 export type AddressInput = z.infer<typeof addressSchema>;
+
+/** A real calendar date on the wire (YYYY-MM-DD). Forms hold ISO and show DD-MM-YYYY. */
+export const isoDateField = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'date_invalid')
+  .refine((v) => {
+    const [y, m, d] = v.split('-').map(Number) as [number, number, number];
+    const t = new Date(Date.UTC(y, m - 1, d));
+    return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+  }, 'date_invalid');
+
+/** Quantity NUMERIC(12,3), more than zero (text, never a float). */
+export const positiveQty = boundedDecimal(12, 3, 'qty_invalid').refine((v) => /[1-9]/.test(v), 'qty_positive');
