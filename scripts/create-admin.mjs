@@ -12,23 +12,6 @@ import { randomBytes } from 'node:crypto';
 import readline from 'node:readline';
 import { createClient } from '@supabase/supabase-js';
 
-const args = process.argv.slice(2).filter((a) => a !== '--force');
-const force = process.argv.includes('--force');
-const [emailArg, nameArg] = args;
-const email = emailArg?.trim().toLowerCase();
-const name = nameArg?.trim();
-
-if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name) {
-  console.error('Usage: npm run create-admin -- <email> "<name>" [--force]');
-  process.exit(2);
-}
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SECRET_KEY;
-if (!url || !key) {
-  console.error('Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY first.');
-  process.exit(2);
-}
-
 /** Reads a line from the terminal without echoing it (stars instead). */
 function askHidden(question) {
   return new Promise((resolve) => {
@@ -42,6 +25,25 @@ function askHidden(question) {
       resolve(answer);
     });
   });
+}
+
+const args = process.argv.slice(2).filter((a) => a !== '--force');
+const force = process.argv.includes('--force');
+const [emailArg, nameArg] = args;
+const email = emailArg?.trim().toLowerCase();
+const name = nameArg?.trim();
+
+if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name) {
+  console.error('Usage: npm run create-admin -- <email> "<name>" [--force]');
+  process.exit(2);
+}
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+let key = process.env.SUPABASE_SECRET_KEY;
+// The Supabase CLI only shows a masked secret key, so on a terminal the real one is asked for (hidden).
+if (!key && process.stdin.isTTY) key = (await askHidden('Supabase secret key (dashboard -> Project Settings -> API Keys -> Secret keys): ')).trim();
+if (!url || !key) {
+  console.error('Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY first.');
+  process.exit(2);
 }
 
 let password = process.env.ADMIN_PASSWORD;
