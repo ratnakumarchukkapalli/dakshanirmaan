@@ -115,3 +115,4 @@ Also: lock organisation legal name/GSTIN/address once invoices exist (PDF reads 
   fresh. Don't chain several changes into one prompt — context fills up and quality drops.
 - Each session: load the skill and read only the one spec section the change's README row names.
 - Only one session edits the codebase at a time.
+- **pgTAP needs an empty local database.** Loading `supabase/demo/demo-data.sql` makes 13 of 25 test files fail (invoice numbers, counts). Order: `supabase db reset` → `supabase test db` → then `create-admin` and the demo load. Clean baseline 2026-09-26: 25 files, 1779 tests pass.
