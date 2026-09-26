@@ -72,7 +72,7 @@ say "build with 19" — needs a decision on where they go before 17.
 **Deploy plan:** the GitHub repo stays **private** and goes public only after the `/security-review`; link Vercel ↔ Supabase the same way as MyExpenseTracker (Vercel project from the GitHub repo via `vercel link`, env vars in Vercel, region `bom1` here vs `hnd1` there).
 
 ## Change 18 status (2026-09-26)
-**Built, browser-walked, Opus-reviewed (fixes applied).** Migration `20260930100000_self_audit_and_gst.sql` (`gstr1_data`, `gstr3b_summary`, `set_period_lock`, master-edit audit triggers, statements functions), reports Trial balance / P&L / Balance sheet / GST returns (GSTR-1 JSON + Excel, GSTR-3B), Settings → Period locks and Audit trail, `docs/research/gstr1-schema.md`. Gates: 1769 pgTAP, 575 vitest, tsc/lint/build clean. **17 and 18 are both uncommitted in the working tree.** Notes: `openspec/changes/18-self-audit-and-gst/implementation-notes.md` (start there; it lists what is left: browser walk, portal upload test, Opus review, two doc updates).
+**Built, browser-walked, Opus-reviewed (fixes applied), committed with 17.** Migration `20260930100000_self_audit_and_gst.sql` (`gstr1_data`, `gstr3b_summary`, `set_period_lock`, master-edit audit triggers, statements functions), reports Trial balance / P&L / Balance sheet / GST returns (GSTR-1 JSON + Excel, GSTR-3B), Settings → Period locks and Audit trail, `docs/research/gstr1-schema.md`. Gates: 1769 pgTAP, 575 vitest, tsc/lint/build clean. Committed 76f2ed2 and pushed (GitHub + hosted). Notes: `openspec/changes/18-self-audit-and-gst/implementation-notes.md` (start there; it lists what is left: browser walk, portal upload test, Opus review, two doc updates).
 
 ## Change 08b status (2026-09-26): password login — built, browser-walked
 Ratna chose **email + password for everyone, owners also do the authenticator step**, like MyExpenseTracker (no SMTP needed). Built after 17/18 were committed and pushed (76f2ed2). Notes: `openspec/changes/08b-password-login/implementation-notes.md`. Next: commit/push it, then the guided Vercel deploy (hosted db push of migrations 20260929/20260930 needs Ratna's OK; set hosted Auth min password length 12).
@@ -80,7 +80,7 @@ Ratna chose **email + password for everyone, owners also do the authenticator st
 ## Hosted (2026-09-26)
 All 29 migrations are on hosted `daksha-nirmaan` (Free, Mumbai). Hosted Auth was fixed via a minimal `supabase config push` (only declared keys are touched): **sign-ups OFF** (were ON), **minimum password length 12 → lowered to 8 on 2026-09-26 at Ratna's request** (was 6); TOTP already enabled. Still to set after the Vercel URL is known: Auth site URL (currently `http://localhost:3000`). Vercel plan: **Hobby** (Ratna's choice, 2026-09-26). Free-plan facts: project pauses after 7 idle days; no point-in-time recovery, so the nightly GitHub backup (RUNBOOK 2.1, still not switched on) is the only backup.
 
-## Next session
+## Next session (superseded: Phase 1 finished, Phase 2 starts with 21)
 Plan agreed with Ratna 2026-09-26: finish Phase 1 fully — **19 aal2-enforcement** (Opus, DONE and committed, see above; brief in `openspec/changes/19-aal2-enforcement/proposal.md`; `daksh-schema` + `daksh-posting`), then **17 cutover**, then **18 self-audit-and-gst** (Sonnet each; 18 starts with the GSTR-1 schema research task) — and only then a guided **Vercel deploy** (Ratna uses the existing hosted Supabase project `daksha-nirmaan`). One session edits the codebase at a time.
 At deploy time decide: that project holds the REAL books, so a fake-data demo should go in a second hosted project (Free allows two per org); `demo-data.sql` must never be loaded into the real one. Also needed then: hosted Auth settings (email OTP, signups off, TOTP), the owner account via create-admin, Resend SMTP, Vercel env vars (RUNBOOK section 3 lists the secrets).
 Changes 16 and 19 are done and pushed; nothing is unpushed.
@@ -93,11 +93,12 @@ Until this is done **nothing is backed up** (the Backup workflow runs daily but 
 Also open: 7 Dependabot pull requests (eslint 10, typescript 7, @types/node 26, actions/checkout 7 are major bumps; do not merge blindly).
 Must be done before go-live (change 17) at the latest.
 
-## Left (Phase 1), build in this order — one change per session
-19 aal2-enforcement (committed) · 17 cutover and 18 self-audit-and-gst (both built, uncommitted, unreviewed). Then review, commit, push, and the guided Vercel deploy.
+## Left before go-live
+Phase 1 (01–19, 08b) is built, committed and pushed. Remaining: the nightly backup switched on (PENDING below), Resend SMTP before the family signs in (invite/reset emails), the pre-go-live `/security-review` (after all phases, per Ratna 2026-09-26), owner decision 1 (stock cost hidden from counter, still homeless), and the open owner questions listed per change above.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
-Change 19 must land before 17 (cutover) for real go-live, but can be built whenever in this list
-— it does not block the other UI changes.
+
+## Deployed (2026-09-26)
+Vercel (Hobby) is linked to the private GitHub repo and deploys every push to `main`; stable address `https://dakshanirmaan.vercel.app` (Deployment Protection on, so only Ratna's Vercel login reaches it). Hosted Auth Site URL and Redirect URL are set to that address. Ratna signed in on it and it works. Commit 6284fc7 (dashboard tiles link to their screens, `loading.tsx` skeleton, dotted GST message keys renamed) is live. Hosted holds the REAL books: never load demo data there.
 
 ## Then Phase 2
 20 notes · 21 purchases-ui · 22 bank-recon · 24 quotes-rebates-interest · 25 exports-portability.
