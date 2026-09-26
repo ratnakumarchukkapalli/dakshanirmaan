@@ -40,7 +40,11 @@ if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name) {
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 let key = process.env.SUPABASE_SECRET_KEY;
 // The Supabase CLI only shows a masked secret key, so on a terminal the real one is asked for (hidden).
-if (!key && process.stdin.isTTY) key = (await askHidden('Supabase secret key (dashboard -> Project Settings -> API Keys -> Secret keys): ')).trim();
+if (!key && process.stdin.isTTY) key = (await askHidden('1/3  Supabase SECRET key (starts with sb_secret_; from the dashboard): ')).trim();
+if (key && !/^sb_secret_[A-Za-z0-9_-]{20,}$/.test(key) && !/^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(key)) {
+  console.error('That does not look like a Supabase SECRET key (it starts with sb_secret_). The first prompt asks for the key, the next two for the password. Nothing was created.');
+  process.exit(2);
+}
 if (!url || !key) {
   console.error('Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY first.');
   process.exit(2);
@@ -49,8 +53,8 @@ if (!url || !key) {
 let password = process.env.ADMIN_PASSWORD;
 if (!password && process.stdin.isTTY) {
   // At a terminal with no ADMIN_PASSWORD: ask for it, twice, without showing it.
-  password = await askHidden('Password for the new owner (12-72 characters): ');
-  const again = await askHidden('Type it again: ');
+  password = await askHidden('2/3  Choose the owner password (12-72 characters): ');
+  const again = await askHidden('3/3  Type the password again: ');
   if (password !== again) {
     console.error('The two passwords are different. Nothing was created.');
     process.exit(2);
