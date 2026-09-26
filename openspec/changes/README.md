@@ -59,6 +59,7 @@ Numbering: each phase owns a block (Phase 1 = 01–19, Phase 2 = 20–29, Phase 
 | 21 | `purchases-ui` — bill form (supplier ref, ITC flags, RCM block), attachments (bill photo) | Sonnet | daksh-ui + daksh-api | frontend: purchases; api: attachments.ts |
 | 22 | `bank-recon` — **HIGH PRIORITY (owner: HDFC, mostly UPI/bank transfers).** Starts with a research task on HDFC's statement CSV/Excel format (same pattern as the GSTR-1 research before 18), then CSV import, matching on UPI/NEFT reference + amount + date, create-from-line | Sonnet | daksh-api | db: bank_statements; api: bank.ts |
 | 23 | `cash-deposit` — `post_cash_deposit` (Dr Bank · Cr Cash), "Deposit cash to bank" modal, HDFC ledger name, go-live checklist item. Brief: `openspec/changes/23-cash-deposit/proposal.md` | Opus (posting) / Sonnet (UI) | daksh-posting, daksh-ui | db: day_closes `deposited` rule |
+| 26 | `delete-unused-items` — admin Delete for items never used (FKs already block used ones), audit on delete. Brief: `openspec/changes/26-delete-unused-items/proposal.md`. Run after the attack test and review fixes (touches RLS) | Opus (policy) / Sonnet (UI) | daksh-schema, daksh-ui | db: masters RLS + change 18 audit |
 | 24 | `quotes-rebates-interest` — quotations, brand rebate tracker, interest debit note | Sonnet | daksh-api | db: quotations, brand_rebates, v_party_interest |
 | 25 | `exports-portability` — full-books Excel, FY archive bundle, Tally XML | Sonnet | daksh-api | security: Business continuity |
 
