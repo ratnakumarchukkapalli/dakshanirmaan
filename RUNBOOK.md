@@ -95,7 +95,7 @@ Restoring into a *hosted* project follows the tested local path but has not been
 | **Invoice-link secret** (`INVOICE_LINK_SECRET`) | signs the 24-hour WhatsApp invoice links | server environment | leaked, or you want every shared link to stop working |
 | **age private key** | opens the backups | the family's safe places only | a holder leaves or a copy is lost |
 | Database password | direct database access (used by the Backup workflow and `supabase db push`) | GitHub secret `DATABASE_URL`; Supabase dashboard | anyone with it leaves |
-| Resend key (email codes) | sending sign-in codes | set up in change 17 | anyone with it leaves |
+| Resend key (optional) | sending email, only if a "forgot password" email is added later | not used now | anyone with it leaves |
 
 **How:**
 - *Supabase secret key:* dashboard → **Project Settings → API Keys** → create a new secret key, put it in the app's environment (and `.env.local`), redeploy, then delete the old key.
@@ -186,3 +186,23 @@ Reports → **GST returns** (owner only). Pick the month.
 - **An owner forgot theirs (or lost the authenticator):** another owner resets the password. Losing the authenticator app: remove the factor in the Supabase dashboard (Authentication → Users → the person → Factors) so they can enrol again after signing in. Keep at least two owners.
 - **A leaver:** Settings → Users → **Disable** (they cannot sign in at once); reset the password too if it was shared.
 - The app sends no email, so nothing arrives by mail: passwords and resets are always handed over in person.
+
+---
+
+## 11. First deploy to Vercel (private GitHub repo, like MyExpenseTracker)
+
+The Supabase project `daksha-nirmaan` (ap-south-1) is separate from `expenses-app` (each app has its own project, in the same organisation). The repo stays **private**; make it public only after the `/security-review`.
+
+1. **Once, in a terminal:** `npx vercel login` (opens the browser). Then in the repo folder: `npx vercel link` → create a new project `daksha-nirmaan` under your personal team (this writes `.vercel/`, which is git-ignored). `vercel.json` already sets the region to Mumbai (`bom1`).
+2. **Connect Git:** Vercel dashboard → the project → Settings → Git → connect `ratnakumarchukkapalli/dakshanirmaan` (private repos need the Vercel GitHub app authorised for that repo). Production branch `main`.
+3. **Environment variables** (Production; add the same to Preview only if you will use previews, and then with a *different* Supabase project, never the real books):
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://dcmgbkugdyxsjvkirmft.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = the publishable key (Supabase → Project Settings → API Keys)
+   - `SUPABASE_SECRET_KEY` = the secret key (same page). **Server-only; never prefix with NEXT_PUBLIC_.**
+   - `INVOICE_LINK_SECRET` = a new value from `openssl rand -base64 48`
+   - `APP_ORIGIN` = the deployed address without a trailing slash (first the `https://<project>.vercel.app` one; the family domain later)
+   `npx vercel env add NAME production` prompts for each value (paste it; it is not echoed).
+4. **Supabase dashboard (hosted):** Authentication → **URL configuration**: Site URL = `APP_ORIGIN`; Providers → Email: sign-ups **off**, minimum password length **12**; Multi-factor: TOTP **on**.
+5. **Deploy:** `npx vercel deploy --prod` (or push to `main`). Open the address, then on your own machine create the first owner **against hosted** with the hosted URL and secret key in the environment: `NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SECRET_KEY=… ADMIN_PASSWORD='…' npm run create-admin -- <email> "<name>"`. Sign in, set up the authenticator app, add the other owners and the counter user under Settings → Users.
+6. **Vercel plan:** Hobby is "non-commercial personal use" and this is a business tool (security-deployment spec, Hosting): decide between Pro (about $20/month) and staying on Hobby knowing the risk of a pause. The app keeps working from the manual invoice book (`DNM/` series) meanwhile.
+7. **Never** load `supabase/demo/demo-data.sql` into hosted.
