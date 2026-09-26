@@ -25,6 +25,11 @@ Contract: `openspec/specs/db-architecture/spec.md`. This skill is the distilled 
 ## System accounts
 Resolve via `accounts.system_key`, never by name: `ar, ap, inventory, cogs, output_cgst/sgst/igst, input_cgst/sgst/igst, round_off, salary_payable, employee_advance, cash, rcm_payable`.
 
+## New objects (pgTAP 00026 fails the build if you forget)
+- Every new function: `revoke all ... from public, anon` then grant to the roles that need it. Supabase's default hands `anon` EXECUTE on new functions.
+- Every new table: `enable row level security` in the same migration. Defaults give `authenticated` full DML.
+- Every table with `created_by` gets the `set_created_by` trigger (`create trigger set_created_by before insert or update ... execute function public.set_created_by()`).
+
 ## Migrations
 - `supabase` CLI, files committed, **never edited after apply**. Apply to staging project first, production only after verification.
 - Every new query path gets an index consideration: existing baseline `journal_lines(party_id, entry_id)`, `journal_entries(entry_date)`, `stock_movements(item_id, warehouse_id, movement_date)`.

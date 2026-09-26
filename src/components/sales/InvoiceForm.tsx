@@ -68,10 +68,12 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' });
   const watched = useWatch({ control });
   const partyId = watched.partyId ?? '';
-  const place = watched.placeOfSupply ?? ctx.orgState;
   const siteId = watched.siteId ?? '';
   const lines = useMemo(() => watched.lines ?? [], [watched.lines]);
   const party: FormParty | undefined = partiesById.get(partyId);
+  // Place of supply is not typed in: it is the delivery site's state, else the customer's own.
+  const site = party?.sites.find((s) => s.id === siteId && !s.isBilling);
+  const place = site?.stateCode ?? party?.stateCode ?? ctx.orgState;
   const intra = place === ctx.orgState;
 
   const totals = useMemo(
@@ -82,6 +84,10 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
       ),
     [lines, itemsById, intra],
   );
+
+  useEffect(() => {
+    setValue('placeOfSupply', place);
+  }, [place, setValue]);
 
   useEffect(() => {
     if (failure || notice) alertRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -121,7 +127,6 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
     const p = partiesById.get(id);
     if (!p) return;
     setValue('partyId', id, { shouldValidate: true });
-    setValue('placeOfSupply', p.stateCode);
     const site = p.sites.find((s) => s.id === p.defaultSiteId && !s.isBilling);
     setValue('siteId', site ? site.id : '');
   }
@@ -280,7 +285,7 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
                 />
               </Field>
               <Field id="inv-pos" label={t('placeOfSupply')} error={err(errors.placeOfSupply?.message)} className="posfield">
-                <select id="inv-pos" {...register('placeOfSupply')}>
+                <select id="inv-pos" value={place} disabled>
                   {GST_STATES.map((s) => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
                 </select>
               </Field>

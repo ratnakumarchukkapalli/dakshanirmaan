@@ -66,7 +66,7 @@ export async function saveDraftInvoice(input: unknown): Promise<ActionResult<{ i
   }
 
   // Party: a customer (or both), active. An existing draft may keep a party that was disabled since.
-  const { data: party } = await supabase.from('parties').select('id, type, is_active').eq('id', v.partyId).maybeSingle();
+  const { data: party } = await supabase.from('parties').select('id, type, is_active, state_code').eq('id', v.partyId).maybeSingle();
   if (!party || !['customer', 'both'].includes(party.type as string)) return bad('invalid_party');
   if (!party.is_active && v.partyId !== previousPartyId) return bad('invalid_party');
 
@@ -100,7 +100,9 @@ export async function saveDraftInvoice(input: unknown): Promise<ActionResult<{ i
   const header = {
     invoice_date: v.invoiceDate,
     party_id: v.partyId,
-    place_of_supply: v.placeOfSupply,
+    // Derived, never taken from the form: the delivery state, else the customer's own. post_sales_invoice
+    // derives it again from the database's own addresses, so this is only what the draft shows.
+    place_of_supply: shipping?.state_code ?? (party.state_code as string),
     billing_address: snapshot(billing),
     shipping_address: snapshot(shipping),
     vehicle_no: v.vehicleNo ?? null,
