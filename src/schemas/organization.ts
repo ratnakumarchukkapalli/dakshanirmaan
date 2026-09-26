@@ -9,7 +9,8 @@ export const organizationSchema = z
     gstin: gstinField,
     stateCode: stateField,
     address: addressSchema,
-    fyStartMonth: z.string().regex(/^(1[0-2]|[1-9])$/, 'month_invalid'),
+    // The financial year starts in April, always (owner decision 2026-09-21); the database has the same CHECK.
+    fyStartMonth: z.literal('4', 'month_invalid'),
     invoiceBankDetails: optionalText(200),
     upiVpa: z.preprocess(
       (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),

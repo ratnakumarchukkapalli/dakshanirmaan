@@ -6,6 +6,9 @@ const TABS = [
   { key: 'users', href: '/settings/users' },
   { key: 'items', href: '/settings/items' },
   { key: 'coa', href: '/settings/chart-of-accounts' },
+  { key: 'periods', href: '/settings/period-locks' },
+  { key: 'audit', href: '/settings/audit-trail' },
+  { key: 'cutover', href: '/settings/cutover' },
 ] as const;
 
 export async function SettingsTabs() {

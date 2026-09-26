@@ -14,6 +14,8 @@
 -- "Payments: discount and cheques" clarification ("add system_key + account 1130 in change 04").
 -- Change 01's seed comment already records that this one key was deliberately deferred to here,
 -- so this edit is the planned completion of that deferral, not a break.
+-- Moves again, 33 -> 34, with change 17's migration: 'opening_balance_equity' (account 3900), named by
+-- the spec's "Opening balances (change 17)" section ("add system_key + account 3900").
 begin;
 
 create extension if not exists pgtap with schema extensions;
@@ -22,8 +24,8 @@ select plan(2);
 
 select is(
   (select count(*)::int from accounts where system_key is not null),
-  33,
-  'exactly 33 system_key accounts are seeded (25 original + 7 from change 03 + 1 from change 04)'
+  34,
+  'exactly 34 system_key accounts are seeded (25 original + 7 from change 03 + 1 from change 04 + 1 from change 17)'
 );
 
 select set_eq(
@@ -41,7 +43,9 @@ select set_eq(
     'sales_cement', 'sales_steel', 'sales_other', 'freight_recovered',
     'discount_received', 'salaries', 'godown_rent',
     -- Change 04 migration (1): the cheque lifecycle's own ledger
-    'cheques_in_hand'
+    'cheques_in_hand',
+    -- Change 17 migration (1): the balancing side of the opening entry
+    'opening_balance_equity'
   ],
   'every spec-named system_key exists as exactly one accounts row'
 );

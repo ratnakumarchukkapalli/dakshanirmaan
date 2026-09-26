@@ -204,7 +204,18 @@
       "expected_changed": "The cash figure changed while you were counting (a sale or receipt was posted). Reload the page and count again.",
       "later_close_exists": "A later day is already closed. An owner must reopen that day first.",
       "close_date_old": "Only an owner can close a day older than yesterday.",
-      "reopen_later_first": "A later day is closed too. Reopen the latest closed day first."
+      "reopen_later_first": "A later day is closed too. Reopen the latest closed day first.",
+      "opening_batch_not_draft": "The opening balances are already posted, so they cannot be changed. Cancel the posting first.",
+      "party_inactive": "One of the parties is disabled. Enable it or remove that line.",
+      "party_type": "A customer can only owe you money and a supplier can only be owed money. Check the side of each party.",
+      "not_money_account": "Only the cash and bank accounts can hold an opening balance.",
+      "stock_exists": "One of these items already has stock in that godown, so opening stock cannot be added to it.",
+      "stale_preview": "The figures changed after you looked at them. Check the totals and post again.",
+      "books_in_use": "Bills or vouchers have already been posted, so the opening balances can no longer be cancelled here.",
+      "date_required": "Choose the opening date.",
+      "bad_year_label": "Write the financial year like 2027-28.",
+      "reason_required": "Give a reason for unlocking.",
+      "opening_after_documents": "Bills or vouchers are already posted on or before that date. Use an earlier date: the day before billing started."
     },
     "field": {
       "email_invalid": "Enter a valid email address.",
@@ -297,7 +308,77 @@
       "organisation": "Organisation",
       "users": "Users & roles",
       "items": "Items",
-      "coa": "Chart of accounts"
+      "coa": "Chart of accounts",
+      "cutover": "Go-live",
+      "periods": "Period locks",
+      "audit": "Audit trail"
+    },
+    "periods": {
+      "title": "Period locks",
+      "hint": "Lock a month once its GST return is filed. Nothing can be posted into a locked month. Unlocking needs a reason and is kept in the audit trail.",
+      "colMonth": "Month",
+      "colStatus": "Status",
+      "colDrafts": "Drafts in the month",
+      "open": "Open",
+      "locked": "Locked",
+      "lock": "Lock",
+      "unlock": "Unlock",
+      "reason": "Reason for unlocking",
+      "confirmUnlock": "Unlock",
+      "cancel": "Cancel",
+      "locked_done": "{month} is locked.",
+      "unlocked_done": "{month} is unlocked.",
+      "empty": "No months are set up yet.",
+      "createTitle": "Create the next financial year",
+      "createHint": "Months must exist before anything can be posted in them. Create the next year from February.",
+      "createBtn": "Create {label}",
+      "created": "{label} created.",
+      "createdNone": "{label} already exists.",
+      "monthName": "{month}"
+    },
+    "audit": {
+      "title": "Audit trail",
+      "hint": "The latest 200 changes: who posted, cancelled, locked or edited what. Edits of parties, items, accounts and the organisation show the old and new values.",
+      "filterEntity": "What",
+      "filterPerson": "Who",
+      "from": "From",
+      "to": "To",
+      "all": "All",
+      "show": "Show",
+      "colWhen": "When",
+      "colWho": "Who",
+      "colAction": "Action",
+      "colWhat": "What",
+      "colDetails": "Details",
+      "system": "System",
+      "empty": "Nothing recorded for these filters.",
+      "changed": "{key}: {before} → {after}",
+      "actions": {
+        "insert": "Added",
+        "update": "Changed",
+        "post": "Posted",
+        "cancel": "Cancelled",
+        "lock": "Locked",
+        "unlock": "Unlocked",
+        "ensure_fiscal_year": "Created year"
+      },
+      "entities": {
+        "parties": "Party",
+        "party_addresses": "Party address",
+        "items": "Item",
+        "organization": "Organisation",
+        "accounts": "Account",
+        "fiscal_periods": "Month",
+        "sales_invoices": "Sales invoice",
+        "purchase_invoices": "Purchase invoice",
+        "payments": "Payment",
+        "expense_vouchers": "Voucher",
+        "delivery_challans": "Challan",
+        "stock_adjustments": "Stock adjustment",
+        "stock_transfers": "Stock transfer",
+        "day_closes": "Day close",
+        "opening_batches": "Opening balances"
+      }
     }
   },
   "parties": {
@@ -1036,7 +1117,7 @@
   },
   "reports": {
     "title": "Reports",
-    "subtitle": "Day close, day book, ageing, stock and the cash & bank book.",
+    "subtitle": "Day close, day book, ageing, stock, cash & bank, the books and GST returns.",
     "back": "Reports",
     "cards": {
       "dayClose": {
@@ -1058,6 +1139,22 @@
       "cashBank": {
         "title": "Cash & bank book",
         "desc": "Every cash and bank line with its running balance."
+      },
+      "trialBalance": {
+        "title": "Trial balance",
+        "desc": "Every account's debit and credit; the two sides must match."
+      },
+      "pnl": {
+        "title": "Profit & loss",
+        "desc": "Income less expenses for a date range."
+      },
+      "balanceSheet": {
+        "title": "Balance sheet",
+        "desc": "What the business owns, owes and is worth on a date."
+      },
+      "gst": {
+        "title": "GST returns",
+        "desc": "GSTR-1 file for the portal and the GSTR-3B summary."
       }
     },
     "exportXlsx": "Download Excel",
@@ -1202,6 +1299,207 @@
       "empty": "No lines on this account in this range.",
       "tooMany": "That range has too many lines to show with a running balance. Narrow the dates.",
       "hint": "Balance runs over the whole history of the account, so the opening figure is the balance before the first date."
+    },
+    "statements": {
+      "tbTitle": "Trial balance",
+      "tbSubtitle": "Every account with a balance, as at a date.",
+      "pnlTitle": "Profit & loss",
+      "pnlSubtitle": "Income and expenses between two dates.",
+      "bsTitle": "Balance sheet",
+      "bsSubtitle": "Assets, liabilities and equity as at a date.",
+      "asAt": "As at {date}",
+      "dateLabel": "As at",
+      "colCode": "Code",
+      "colAccount": "Account",
+      "colDebit": "Debit",
+      "colCredit": "Credit",
+      "colAmount": "Amount",
+      "total": "Total",
+      "balanced": "Debits equal credits",
+      "notBalanced": "Debits and credits differ. Tell the owner before relying on any figure.",
+      "bsBalanced": "Assets equal liabilities + equity",
+      "bsNotBalanced": "Assets and liabilities + equity differ. Tell the owner before relying on any figure.",
+      "income": "Income",
+      "expenses": "Expenses",
+      "net": "Net profit / (loss)",
+      "assets": "Assets",
+      "liabilities": "Liabilities",
+      "equity": "Equity",
+      "liabilitiesEquity": "Liabilities + equity",
+      "profitRow": "Profit / (loss) not yet closed to equity",
+      "empty": "Nothing has been posted up to this date.",
+      "tbHint": "Cancelled bills are reversed entries, so they net to nothing here.",
+      "pnlHint": "Cost of goods sold is shown with the other expenses. A cancelled bill nets to nothing.",
+      "bsHint": "The books are not closed to equity at year end in Phase 1, so the profit line is everything since the books began."
+    },
+    "gst": {
+      "title": "GST returns",
+      "subtitle": "GSTR-1 for the portal and the GSTR-3B summary, built from posted bills.",
+      "month": "Month",
+      "gstr1Title": "GSTR-1",
+      "gstr3bTitle": "GSTR-3B summary",
+      "period": "Period {period}",
+      "sections": {
+        "b2b": "B2B: invoices to registered buyers",
+        "b2cl": "B2C large: inter-state above ₹1,00,000",
+        "b2cs": "B2C small: summarised by state and rate",
+        "cdnr": "Credit notes to registered buyers",
+        "nil": "Nil-rated supplies"
+      },
+      "colSection": "Section",
+      "colDocs": "Documents",
+      "colTaxable": "Taxable value",
+      "colIgst": "IGST",
+      "colCgst": "CGST",
+      "colSgst": "SGST",
+      "colRow": "Row",
+      "netTotal": "Net of credit notes",
+      "hsnLines": "HSN summary lines: {count}",
+      "downloadJson": "Download for the GST portal (JSON)",
+      "downloadXlsx": "Download Excel",
+      "blocked": "This month cannot be downloaded yet. Fix these first:",
+      "warn": {
+        "no_hsn": "{count, plural, one {# sale line has} other {# sale lines have}} no HSN code. Ask the owner.",
+        "hsn_short": "{count, plural, one {# line has} other {# lines have}} an HSN code shorter than 4 digits.",
+        "unmapped_uom": "{count, plural, one {# unit is} other {# units are}} not in the GST unit list (bag, kg, tonne, nos, bundle, metre).",
+        "export_not_supported": "{count, plural, one {# bill goes} other {# bills go}} to another country. Exports are not supported yet.",
+        "org_gstin_missing": "The business GSTIN is not set (Settings → Organisation).",
+        "cdnur_not_supported": "{count, plural, one {# credit note is} other {# credit notes are}} to an unregistered inter-state buyer for a bill over ₹1,00,000. That belongs in CDNUR, which is not supported yet."
+      },
+      "turnoverNote": "The turnover fields (gt, cur_gt) are written as 0: enter your turnover on the portal.",
+      "uploadNote": "Upload the file on the GST portal (Returns → GSTR-1 → Prepare offline) and let it validate before you rely on it.",
+      "empty": "No posted bills in this month.",
+      "summaryOnly": "A summary to key into the GSTR-3B form. It does not work out the tax payable after using credits.",
+      "rows": {
+        "3.1": "3.1",
+        "3.1a": "3.1(a) Outward taxable supplies",
+        "3.1c": "3.1(c) Nil-rated and exempt supplies",
+        "3.1d": "3.1(d) Inward supplies on reverse charge",
+        "3.2": "3.2 Inter-state to unregistered buyers, place of supply",
+        "4A3": "4(A)(3) ITC on reverse charge",
+        "4A5": "4(A)(5) All other ITC",
+        "4D": "4(D) Ineligible ITC",
+        "books_output": "Ledger: output tax this month",
+        "books_input": "Ledger: input tax this month",
+        "recon_output": "Difference: return less ledger (output)",
+        "recon_input": "Difference: return less ledger (input)"
+      },
+      "checkTitle": "Check against the books",
+      "reconOk": "The return agrees with the ledger for this month.",
+      "reconDiff": "The return differs from the ledger. Usual reasons: a bill cancelled in a later month, or a credit note that no entry carries yet.",
+      "hint": "GSTR-1 is built only from posted bills and credit notes; cancelled bills are left out but counted in the documents issued."
+    }
+  },
+  "cutover": {
+    "title": "Opening balances and go-live",
+    "intro": "Enter what the business is owed, owes, holds in cash and bank, and has in the godown at the end of the last day before you start billing here. Nothing reaches the books until you press Post. The opening figures are final once bills are posted, so check them against your Tally or paper book first.",
+    "close": "Close",
+    "add": "Add",
+    "remove": "Remove",
+    "dues": {
+      "title": "Money owed to you and by you",
+      "hint": "One figure per party: what a customer owes you, or what you owe a supplier. It appears in their ledger and balance, not against individual bills.",
+      "party": "Party",
+      "chooseParty": "Choose a party",
+      "searchParty": "Search parties",
+      "noParties": "No customers or suppliers yet. Add them under Parties first.",
+      "side": "Side",
+      "receivable": "Owes us",
+      "payable": "We owe",
+      "amount": "Amount (₹)"
+    },
+    "money": {
+      "title": "Cash and bank",
+      "hint": "What is in the drawer and the bank at the end of the day before you start. Overdrafts are not supported here.",
+      "account": "Account",
+      "amount": "Amount (₹)"
+    },
+    "stock": {
+      "title": "Opening stock",
+      "hint": "Quantity in the godown and what each unit cost you. Quantities are in the item's base unit (bags, kg).",
+      "item": "Item",
+      "chooseItem": "Choose an item",
+      "searchItem": "Search items",
+      "noItems": "No stock items yet. Add them under Items first.",
+      "godown": "Godown",
+      "qty": "Quantity",
+      "rate": "Cost per unit (₹)",
+      "csvTitle": "Or import a CSV file",
+      "csvHint": "First row: item, godown, qty, rate. Item and godown names must match exactly what is in the app. Plain numbers only, no commas inside numbers. Nothing is added unless every row is right.",
+      "csvChoose": "Choose CSV file",
+      "csvImport": "Import",
+      "csvReading": "Reading the file…",
+      "imported": "{count, plural, one {# line added.} other {# lines added.}}"
+    },
+    "lines": {
+      "title": "What will be posted",
+      "empty": "Nothing entered yet.",
+      "what": "What",
+      "detail": "Detail",
+      "amount": "Value",
+      "receivable": "{name} owes us",
+      "payable": "We owe {name}",
+      "stockDetail": "{qty} {uom} at {rate} · {godown}"
+    },
+    "summary": {
+      "receivable": "Owed to us",
+      "payable": "We owe",
+      "money": "Cash and bank",
+      "stock": "Stock",
+      "equity": "Opening capital",
+      "equityHint": "The balancing figure: what the business is worth on the first day."
+    },
+    "post": {
+      "title": "Post the opening balances",
+      "hint": "Use the last day before you start billing here, so the opening cash does not count as that day's cash in.",
+      "date": "Opening date",
+      "button": "Post opening balances",
+      "posting": "Posting…"
+    },
+    "posted": {
+      "title": "Opening balances posted as at {date}",
+      "body": "The opening figures are in the books. Any later change is a normal entry.",
+      "cancelTitle": "Made a mistake?",
+      "cancelHint": "You can cancel the posting only until the first bill or voucher is posted. Your figures come back as a draft so you can correct them.",
+      "reason": "Reason",
+      "cancelBtn": "Cancel the posting",
+      "cancelling": "Cancelling…"
+    },
+    "checklist": {
+      "title": "Go-live checklist",
+      "hint": "The system checks these itself. Fix anything marked Needs attention before the first real bill.",
+      "ready": "Ready",
+      "todo": "Needs attention",
+      "organisation": "Business name, GSTIN and address are filled in (Organisation tab)",
+      "owners": "At least two owners can sign in",
+      "periods": "This month and next month are open for posting",
+      "opening_posted": "Opening balances are posted",
+      "ledger_balanced": "Total debits equal total credits",
+      "inventory_ties": "Inventory in the books matches the stock in the godown",
+      "manualTitle": "Do these by hand",
+      "manualHint": "The app cannot check these.",
+      "manual": {
+        "otp": "Sign in from a real phone: the login code email arrives from your own domain.",
+        "totp": "Each owner has set up the authenticator app.",
+        "backup": "The nightly backup has run once and you have practised restoring it.",
+        "book": "The paper invoice book is labelled DNM/26-27/ so it never clashes with app numbers (DN/).",
+        "demo": "No demo or test data is in this database.",
+        "tally": "Tally or the old book is kept read-only for reference."
+      }
+    },
+    "csv": {
+      "empty": "The file has no rows.",
+      "header": "Line {line}: the first row must name the columns item, godown, qty and rate.",
+      "columns": "Line {line}: the number of columns does not match the first row.",
+      "blank": "Line {line}: the item or godown is empty.",
+      "qty": "Line {line}: the quantity must be a number above zero with at most 3 decimals.",
+      "rate": "Line {line}: the cost must be a number above zero with at most 4 decimals.",
+      "too_many": "Line {line}: at most 500 rows can be imported at once.",
+      "repeated": "Line {line}: this item and godown appear twice in the file.",
+      "unknown_item": "Line {line}: no active stock item with that name.",
+      "unknown_godown": "Line {line}: no godown with that name.",
+      "ambiguous_item": "Line {line}: more than one item has that name. Rename one of them first.",
+      "ambiguous_godown": "Line {line}: more than one godown has that name."
     }
   }
 }

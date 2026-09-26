@@ -62,7 +62,8 @@ export function OrganizationForm({ initial }: { initial: OrganizationFormInput }
           </Field>
           <Field id="o-fy" label={t('fyStart')} error={err(errors.fyStartMonth?.message)}>
             <select id="o-fy" {...register('fyStartMonth')}>
-              {months.map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}
+              {/* Owner decision 2026-09-21: the financial year always starts in April (the database enforces it). */}
+              <option value="4">{months[3]}</option>
             </select>
           </Field>
         </div>

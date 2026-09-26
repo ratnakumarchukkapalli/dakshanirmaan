@@ -139,3 +139,41 @@ Restoring into a *hosted* project follows the tested local path but has not been
 **Sentry (error reports).** Needs a free Sentry account and one project; Sentry then shows a *DSN* (a URL that only lets the app send errors, it opens nothing). Set it as `SENTRY_DSN` in the app's environment and ask for the Sentry wiring (server and client, with GSTIN and phone numbers scrubbed). Note `NEXT_PUBLIC_SENTRY_DSN` would fail the secret scan on purpose; the client-side setup has to go through the app's own settings rather than a `NEXT_PUBLIC_` variable, or the scan's allow-list must be changed deliberately.
 
 **Manual approval for database pushes, Vercel preview safety, log alerts.** Part of go-live (change 17); see `openspec/specs/security-deployment/spec.md`.
+
+---
+
+## 8. Go-live day (change 17)
+
+Do these in order. The app's **Settings → Go-live** screen shows the first block as green/amber chips; the rest only you can check.
+
+**Before the opening entry**
+- [ ] Hosted Auth: email code sign-in on, sign-ups off, authenticator (TOTP) on; Resend SMTP set up on `dakshanirmaantraders.in` (DKIM/SPF/DMARC) and `supabase/templates/magic_link.html` pasted — without this nobody can sign in.
+- [ ] The owner account made with `npm run create-admin`; the other owners added under Settings → Users; each owner has set up the authenticator app. At least two owners.
+- [ ] Settings → Organisation: legal name, GSTIN, address filled in (they are locked once invoices exist).
+- [ ] Real masters in: parties, items (HSN, GST rate, units), godowns. `supabase/demo/demo-data.sql` was **never** loaded into this database.
+- [ ] Backup workflow has run once and the restore drill (2.3) passed.
+
+**Opening entry** (Settings → Go-live)
+- [ ] Pick the **last day before you start billing in the app** as the opening date.
+- [ ] Enter each customer's due and each supplier's due (one figure per party), cash and bank balances, and the stock (by hand or CSV: `item,godown,qty,rate`; names exactly as in the app).
+- [ ] Check the totals against Tally / the paper book: owed to us, we owe, cash and bank, stock value. **Opening capital** is the balancing figure.
+- [ ] Post. If a figure is wrong, **Cancel the posting** (possible only until the first bill or voucher is posted), correct the draft, post again.
+- [ ] Reports → Trial balance balances; Stock report equals the godown count; Ageing shows the dues as "other".
+
+**Day one**
+- [ ] The paper invoice book (used if the app is down) is labelled `DNM/26-27/` so its numbers never clash with `DN/`.
+- [ ] A real phone gets the login code email from the family domain, and TOTP asks for the code.
+- [ ] Do not post test bills or receipts in the real books (a posted document can only be reversed, never removed); rehearse in a second hosted project.
+- [ ] Keep Tally (or the old book) read-only for reference for the first month.
+
+---
+
+## 9. Monthly GST (by the 11th and the 20th)
+
+Reports → **GST returns** (owner only). Pick the month.
+- [ ] **Clean warnings.** The GSTR-1 card must show no red warning (missing HSN, unit not in the GST list, an export, no business GSTIN). Fix the item or organisation, then reload.
+- [ ] **Books agree.** The "Check against the books" rows under GSTR-3B are zero (a bill cancelled in a later month, or a credit note not yet in the ledger, are the usual reasons for a difference — understand it before filing).
+- [ ] **GSTR-1.** Download the JSON, upload it on the portal (Returns → GSTR-1 → Prepare offline → Upload), let the portal validate, enter your turnover figures there (the file carries 0), review, file. The first month: compare the portal's totals with the section table on the screen.
+- [ ] **GSTR-3B.** Key the rows from the table (or the Excel) into the form. The screen does not work out the cash payable after using credits.
+- [ ] **Lock the month.** Settings → Period locks → Lock, once the return is filed. Unlocking later needs a reason and shows in the Audit trail.
+- [ ] From February: Settings → Period locks → **Create** the next financial year.

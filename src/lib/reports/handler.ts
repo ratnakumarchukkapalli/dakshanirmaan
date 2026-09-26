@@ -4,11 +4,15 @@ import { NextResponse } from 'next/server';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
 import { formatDate, todayIn } from '@/lib/format';
+import { loadBalanceSheet, loadGstr3b, loadPnl, loadTrialBalance } from '@/lib/books-data';
+import { fyRange, fyStartYear } from '@/lib/fy';
+import { periodOrDefault } from '@/lib/gstr1-file';
 import { loadAgeing, loadCashBook, loadDayBookAll, loadStockReport, parseDayBookType } from '@/lib/reports-data';
-import { parseRange } from '@/lib/reports-math';
+import { parseRange, validIso } from '@/lib/reports-math';
 import { cleanSearchText } from '@/lib/search';
 import { createClient } from '@/lib/supabase/server';
 import en from '@/messages/en.json';
+import { buildBalanceSheetWorkbook, buildGstr3bWorkbook, buildPnlWorkbook, buildTrialBalanceWorkbook } from './xlsx-books';
 import { buildAgeingWorkbook, buildCashBookWorkbook, buildDayBookWorkbook, buildStockWorkbook, reportFilename, type Translate } from './xlsx';
 
 // GET /api/reports/[name]/xlsx — the Excel version of a report, with the same filters, the same
@@ -16,7 +20,9 @@ import { buildAgeingWorkbook, buildCashBookWorkbook, buildDayBookWorkbook, build
 // authenticator step); the cash & bank book is owner-only. Row-level security still decides what a
 // session can read. Workbooks are always in English (like the statements).
 
-export const REPORT_NAMES = ['aging', 'stock', 'day-book', 'cash-bank'] as const;
+export const REPORT_NAMES = ['aging', 'stock', 'day-book', 'cash-bank', 'trial-balance', 'pnl', 'balance-sheet', 'gstr3b'] as const;
+/** Reports only an owner past the authenticator step may download (the books and the GST returns). */
+const OWNER_ONLY: readonly string[] = ['cash-bank', 'trial-balance', 'pnl', 'balance-sheet', 'gstr3b'];
 export type ReportName = (typeof REPORT_NAMES)[number];
 
 const text = (status: number, body: string) =>
@@ -29,7 +35,7 @@ export async function reportXlsxResponse(name: string, params: URLSearchParams):
   const member = await getCurrentMember();
   if (!member || (member.role === 'admin' && member.aal !== 'aal2')) return text(401, 'Sign in to download reports.');
   const isAdmin = isVerifiedAdmin(member);
-  if (name === 'cash-bank' && !isAdmin) return text(403, 'Only an owner can download the cash and bank book.');
+  if (OWNER_ONLY.includes(name) && !isAdmin) return text(403, 'Only an owner can download this report.');
 
   const supabase = await createClient();
   const orgRes = await supabase.from('organization').select('legal_name, timezone').maybeSingle();
@@ -57,6 +63,27 @@ export async function reportXlsxResponse(name: string, params: URLSearchParams):
       const rows = await loadDayBookAll(supabase, { ...range, type: parseDayBookType(params.get('type') ?? undefined) });
       buf = await buildDayBookWorkbook(rows, range, org, t, t('title'));
       file = reportFilename('DayBook', `${range.from}_${range.to}`);
+    } else if (name === 'trial-balance') {
+      const t = scoped('statements');
+      const asAt = validIso(params.get('date')) ?? today;
+      buf = await buildTrialBalanceWorkbook(await loadTrialBalance(supabase, asAt), asAt, org, t, t('tbTitle'));
+      file = reportFilename('TrialBalance', asAt);
+    } else if (name === 'pnl') {
+      const t = scoped('statements');
+      const fy = fyRange(fyStartYear(today));
+      const range = parseRange(params.get('from') ?? fy.from, params.get('to') ?? undefined, today);
+      buf = await buildPnlWorkbook(await loadPnl(supabase, range.from, range.to), range, org, t, t('pnlTitle'));
+      file = reportFilename('ProfitLoss', `${range.from}_${range.to}`);
+    } else if (name === 'balance-sheet') {
+      const t = scoped('statements');
+      const asAt = validIso(params.get('date')) ?? today;
+      buf = await buildBalanceSheetWorkbook(await loadBalanceSheet(supabase, asAt), asAt, org, t, t('bsTitle'));
+      file = reportFilename('BalanceSheet', asAt);
+    } else if (name === 'gstr3b') {
+      const t = scoped('gst');
+      const period = periodOrDefault(params.get('period'), today);
+      buf = await buildGstr3bWorkbook(await loadGstr3b(supabase, period), period, org, t, t('gstr3bTitle'));
+      file = reportFilename('GSTR3B', period);
     } else {
       const t = scoped('cashBook');
       const range = parseRange(params.get('from') ?? undefined, params.get('to') ?? undefined, today);

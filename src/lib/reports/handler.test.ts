@@ -12,6 +12,16 @@ const loadCashBook = vi.fn();
 const loadStockReport = vi.fn();
 const loadDayBookAll = vi.fn();
 const loadAgeing = vi.fn();
+const loadTrialBalance = vi.fn();
+const loadPnl = vi.fn();
+const loadBalanceSheet = vi.fn();
+const loadGstr3b = vi.fn();
+vi.mock('@/lib/books-data', () => ({
+  loadTrialBalance: (...a: unknown[]) => loadTrialBalance(...a),
+  loadPnl: (...a: unknown[]) => loadPnl(...a),
+  loadBalanceSheet: (...a: unknown[]) => loadBalanceSheet(...a),
+  loadGstr3b: (...a: unknown[]) => loadGstr3b(...a),
+}));
 vi.mock('@/lib/reports-data', () => ({
   loadCashBook: (...a: unknown[]) => loadCashBook(...a),
   loadStockReport: (...a: unknown[]) => loadStockReport(...a),
@@ -26,7 +36,7 @@ const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 beforeEach(() => {
   member = null;
-  for (const f of [loadCashBook, loadStockReport, loadDayBookAll, loadAgeing]) f.mockReset();
+  for (const f of [loadCashBook, loadStockReport, loadDayBookAll, loadAgeing, loadTrialBalance, loadPnl, loadBalanceSheet, loadGstr3b]) f.mockReset();
 });
 
 async function call(name: string, qs = '') {
@@ -37,7 +47,7 @@ async function call(name: string, qs = '') {
 describe('report Excel route', () => {
   it('404 for an unknown report, before anything is read', async () => {
     member = admin;
-    expect((await call('trial-balance')).status).toBe(404);
+    expect((await call('gstr1')).status).toBe(404);
     expect((await call('../secrets')).status).toBe(404);
   });
 
@@ -53,6 +63,40 @@ describe('report Excel route', () => {
     const res = await call('cash-bank');
     expect(res.status).toBe(403);
     expect(loadCashBook).not.toHaveBeenCalled();
+  });
+
+  it('the books and the GST summary are owner-only: 403 for a counter and never queried', async () => {
+    member = counter;
+    for (const name of ['trial-balance', 'pnl', 'balance-sheet', 'gstr3b']) expect((await call(name)).status).toBe(403);
+    for (const f of [loadTrialBalance, loadPnl, loadBalanceSheet, loadGstr3b]) expect(f).not.toHaveBeenCalled();
+    member = { ...admin, aal: 'aal1' };
+    for (const name of ['trial-balance', 'pnl', 'balance-sheet', 'gstr3b']) expect((await call(name)).status).toBe(401);
+  });
+
+  it('an owner downloads the trial balance, profit and loss, balance sheet and GSTR-3B with the screen\'s filters', async () => {
+    member = admin;
+    loadTrialBalance.mockResolvedValue({ rows: [{ code: '1110', name: 'Cash', type: 'asset', debit: '100.00', credit: '0.00' }], totalDebit: '100.00', totalCredit: '0.00', balanced: false });
+    let res = await call('trial-balance', 'date=2026-09-30');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('DN-TrialBalance-2026-09-30.xlsx');
+    expect(loadTrialBalance.mock.calls[0]![1]).toBe('2026-09-30');
+
+    loadPnl.mockResolvedValue({ income: [], expenses: [], totalIncome: '0.00', totalExpenses: '0.00', net: '0.00' });
+    res = await call('pnl', 'from=2026-04-01&to=2026-09-30');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('DN-ProfitLoss-2026-04-01_2026-09-30.xlsx');
+    expect(loadPnl.mock.calls[0]!.slice(1)).toEqual(['2026-04-01', '2026-09-30']);
+
+    loadBalanceSheet.mockResolvedValue({ assets: [], liabilities: [], equity: [], totalAssets: '0.00', totalLiabilities: '0.00', totalEquity: '0.00', totalLiabilitiesEquity: '0.00', balanced: true });
+    res = await call('balance-sheet', 'date=2026-09-30');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('DN-BalanceSheet-2026-09-30.xlsx');
+
+    loadGstr3b.mockResolvedValue([{ key: '3.1a', taxable: '100.00', igst: '0.00', cgst: '9.00', sgst: '9.00' }, { key: '3.2:36', taxable: '5.00', igst: '1.00', cgst: '0.00', sgst: '0.00' }]);
+    res = await call('gstr3b', 'period=2026-08');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Disposition')).toContain('DN-GSTR3B-2026-08.xlsx');
+    expect(loadGstr3b.mock.calls[0]![1]).toBe('2026-08');
   });
 
   it('a counter gets the stock workbook without cost: the loader is told isAdmin = false', async () => {

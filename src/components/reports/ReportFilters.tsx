@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { DateField } from '@/components/ui/DateField';
 
+interface SelectSpec { name: string; label: string; value: string; options: { value: string; label: string }[] }
+
 interface Props {
   /** Date filters: each is submitted as an ISO value under `name`. */
   dates: { name: string; label: string; value: string }[];
-  /** Optional single choice (day book: entry type). */
-  select?: { name: string; label: string; value: string; options: { value: string; label: string }[] };
+  /** Optional choice(s): the day book's entry type; the audit trail's what and who. */
+  select?: SelectSpec | SelectSpec[];
   /** Other URL state kept as-is (a selected account, a godown…). */
   keep?: Record<string, string | undefined>;
   datePlaceholder: string;
@@ -31,16 +33,16 @@ export function ReportFilters({ dates, select, keep = {}, datePlaceholder, submi
           <input type="hidden" name={d.name} value={values[d.name] ?? ''} />
         </div>
       ))}
-      {select && (
-        <div className="field">
-          <label htmlFor={`f-${select.name}`}>{select.label}</label>
-          <select id={`f-${select.name}`} name={select.name} defaultValue={select.value}>
-            {select.options.map((o) => (
+      {(Array.isArray(select) ? select : select ? [select] : []).map((sel) => (
+        <div key={sel.name} className="field">
+          <label htmlFor={`f-${sel.name}`}>{sel.label}</label>
+          <select id={`f-${sel.name}`} name={sel.name} defaultValue={sel.value}>
+            {sel.options.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </div>
-      )}
+      ))}
       <button type="submit" className="btn ghost">{submitLabel}</button>
     </form>
   );

@@ -10,17 +10,17 @@ import { formatDate } from '@/lib/format';
 
 export type Translate = ((key: string, values?: Record<string, string | number>) => string) & { has: (key: string) => boolean };
 
-const MONEY = '#,##0.00';
+export const MONEY = '#,##0.00';
 const RATE = '#,##0.0000';
 const QTY = '#,##0.000';
-const DATE = 'dd-mm-yyyy';
-const isoDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+export const DATE = 'dd-mm-yyyy';
+export const isoDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 // A decimal string is written as the number Excel will hold; the string itself is exact.
-const num = (v: string) => Number(v);
+export const num = (v: string) => Number(v);
 
-interface Sheet { wb: ExcelJS.Workbook; ws: ExcelJS.Worksheet }
+export interface Sheet { wb: ExcelJS.Workbook; ws: ExcelJS.Worksheet }
 
-function start(orgName: string, title: string, sub: string[]): Sheet {
+export function start(orgName: string, title: string, sub: string[]): Sheet {
   const wb = new ExcelJS.Workbook();
   wb.creator = orgName;
   const ws = wb.addWorksheet(title.slice(0, 31));
@@ -31,9 +31,9 @@ function start(orgName: string, title: string, sub: string[]): Sheet {
   return { wb, ws };
 }
 
-const finish = async ({ wb }: Sheet) => Buffer.from(await wb.xlsx.writeBuffer());
+export const finish = async ({ wb }: Sheet) => Buffer.from(await wb.xlsx.writeBuffer());
 
-function headerRow(ws: ExcelJS.Worksheet, labels: string[]) {
+export function headerRow(ws: ExcelJS.Worksheet, labels: string[]) {
   const row = ws.addRow(labels);
   row.font = { bold: true };
   ws.views = [{ state: 'frozen', ySplit: row.number }];

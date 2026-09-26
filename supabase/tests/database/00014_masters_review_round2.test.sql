@@ -88,8 +88,9 @@ select throws_ok($$update organization set fy_start_month = 0$$, '23514', null, 
 -- ============================================================
 -- 3. organization_guard: locked by ANY entry or issued number
 -- ============================================================
-select lives_ok($$update organization set fy_start_month = 5$$, 'with an empty book the FY start can still be set');
-update organization set fy_start_month = 4;
+-- (Change 17: the FY start is now always April — CHECK fy_start_month = 4 — so the "can still be set" probe uses the state.)
+select lives_ok($$update organization set state_code = '36'$$, 'with an empty book the state can still be set');
+update organization set state_code = '37';
 
 update doc_sequences set next_no = 2 where id = (select id from doc_sequences order by series limit 1);
 select throws_ok(
@@ -100,8 +101,8 @@ select throws_ok(
   'P0001', 'DN_VALIDATION:org_state_locked', '...and so is the state');
 update doc_sequences set next_no = 1;
 
-select lives_ok($$update organization set fy_start_month = 5$$, 'setup: numbers back to 1, the lock is released');
-update organization set fy_start_month = 4;
+select lives_ok($$update organization set state_code = '36'$$, 'setup: numbers back to 1, the lock is released');
+update organization set state_code = '37';
 
 insert into journal_entries (id, entry_date, source_type, status)
 values ('e4000000-0000-0000-0000-000000000001', '2026-06-01', 'manual', 'posted');
