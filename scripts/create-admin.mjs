@@ -4,11 +4,12 @@
 //   NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SECRET_KEY=... \
 //     npm run create-admin -- owner@example.com "Owner Name"
 //
-// The password comes from the ADMIN_PASSWORD environment variable (at least 12 characters); without it a
-// random one is made and printed once. Never pass it on the command line (it would sit in shell history).
+// The password comes from the ADMIN_PASSWORD environment variable (at least 12 characters); at a terminal
+// without it you are asked for one (hidden, twice); otherwise a random one is made and printed once. Never pass it on the command line (it would sit in shell history).
 // Refuses to run when an active admin already exists, unless --force. No email is sent: the person signs in
 // with the email and password, then sets up their authenticator app.
 import { randomBytes } from 'node:crypto';
+import readline from 'node:readline';
 import { createClient } from '@supabase/supabase-js';
 
 const args = process.argv.slice(2).filter((a) => a !== '--force');
@@ -28,7 +29,31 @@ if (!url || !key) {
   process.exit(2);
 }
 
+/** Reads a line from the terminal without echoing it (stars instead). */
+function askHidden(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+    process.stdout.write(question);
+    rl.stdoutMuted = true;
+    rl._writeToOutput = (text) => rl.output.write(rl.stdoutMuted ? '*'.repeat(text.replace(/[\r\n]/g, '').length) : text);
+    rl.question('', (answer) => {
+      rl.close();
+      process.stdout.write('\n');
+      resolve(answer);
+    });
+  });
+}
+
 let password = process.env.ADMIN_PASSWORD;
+if (!password && process.stdin.isTTY) {
+  // At a terminal with no ADMIN_PASSWORD: ask for it, twice, without showing it.
+  password = await askHidden('Password for the new owner (12-72 characters): ');
+  const again = await askHidden('Type it again: ');
+  if (password !== again) {
+    console.error('The two passwords are different. Nothing was created.');
+    process.exit(2);
+  }
+}
 const generated = !password;
 if (generated) password = randomBytes(15).toString('base64url');
 if (password.length < 12 || password.length > 72) {
