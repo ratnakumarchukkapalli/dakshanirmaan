@@ -51,7 +51,12 @@ export default async function GstPage({ searchParams }: { searchParams: Promise<
   const blocked = g1 ? blockingWarnings(g1) : [];
   const recon = g3.filter((r) => r.key.startsWith('recon_'));
   const agrees = recon.every((r) => signOf(r.igst) === 0 && signOf(r.cgst) === 0 && signOf(r.sgst) === 0);
-  const label = (key: string) => (key.startsWith('3.2:') ? `${t('rows.3.2')} ${key.slice(4)}` : t.has(`rows.${key}`) ? t(`rows.${key}`) : key);
+  // Message keys cannot contain dots, so the return's row numbers (3.1a) are looked up as 3_1a.
+  const label = (key: string) => {
+    if (key.startsWith('3.2:')) return `${t('rows.3_2')} ${key.slice(4)}`;
+    const id = key.replace('.', '_');
+    return t.has(`rows.${id}`) ? t(`rows.${id}`) : key;
+  };
   const noBills = g1 !== null && g1.totals.invoices === 0 && g1.totals.notes === 0;
 
   return (

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 interface Props {
@@ -12,15 +13,19 @@ interface Props {
   hero?: boolean;
   /** Colours the sub line (overdue = bad). The text always says what it means. */
   subTone?: 'good' | 'warn' | 'bad';
+  /** Makes the whole tile a link to the screen behind the figure. */
+  href?: string;
 }
 
 /** A single summary number in a `.tiles` row (payments list, ageing, stock and staff tiles). */
-export function StatTile({ label, value, sub, tone, small, hero, subTone }: Props) {
-  return (
-    <div className={hero ? 'tile hero' : 'tile'}>
+export function StatTile({ label, value, sub, tone, small, hero, subTone, href }: Props) {
+  const className = ['tile', hero ? 'hero' : '', href ? 'tile-link' : ''].filter(Boolean).join(' ');
+  const body = (
+    <>
       <div className="lbl">{label}</div>
       <div className={['val num', tone, small ? 'small' : ''].filter(Boolean).join(' ')}>{value}</div>
       {sub !== undefined && sub !== null && <div className={['sub', subTone].filter(Boolean).join(' ')}>{sub}</div>}
-    </div>
+    </>
   );
+  return href ? <Link href={href} className={className}>{body}</Link> : <div className={className}>{body}</div>;
 }

@@ -84,6 +84,7 @@ export default async function DashboardPage() {
         {sales.ok ? (
           <StatTile
             hero
+            href="/sales"
             label={t('tile.today')}
             value={inr(sales.data.days[sales.data.days.length - 1]!.total)}
             sub={t('tile.todaySub', { count: sales.data.days[sales.data.days.length - 1]!.invoices, drafts: sales.data.drafts })}
@@ -94,6 +95,7 @@ export default async function DashboardPage() {
 
         {balances.ok ? (
           <StatTile
+            href="/reports/aging"
             label={t('tile.collect')}
             value={inr(balances.data.toCollect)}
             sub={
@@ -110,6 +112,7 @@ export default async function DashboardPage() {
 
         {isAdmin && (balances.ok ? (
           <StatTile
+            href="/payments"
             label={t('tile.pay')}
             value={inr(balances.data.toPay)}
             sub={t('tile.paySub', { count: balances.data.suppliersOwed ?? 0 })}
@@ -120,6 +123,7 @@ export default async function DashboardPage() {
 
         {cashBank && (cashBank.ok ? (
           <StatTile
+            href="/reports/cash-bank"
             label={t('tile.cash')}
             value={inr(cashBank.data.total)}
             sub={cashBank.data.cash !== null ? t('tile.cashDrawer', { amount: inr(cashBank.data.cash) }) : undefined}
@@ -130,13 +134,14 @@ export default async function DashboardPage() {
         ))}
 
         {stockValue && (stockValue.ok ? (
-          <StatTile label={t('tile.stock')} value={inr(stockValue.data.onHand)} sub={t('tile.stockSub', { amount: inr(stockValue.data.inTransit) })} />
+          <StatTile href="/reports/stock" label={t('tile.stock')} value={inr(stockValue.data.onHand)} sub={t('tile.stockSub', { amount: inr(stockValue.data.inTransit) })} />
         ) : (
           <ErrorTile label={t('tile.stock')} message={errorMessage} />
         ))}
 
         {attention.ok ? (
           <StatTile
+            href="/stock"
             label={t('tile.low')}
             value={t('tile.lowValue', { count: attention.data.lowStock.count })}
             sub={

@@ -60,7 +60,8 @@
     "password": "Password"
   },
   "a11y": {
-    "skip": "Skip to main content"
+    "skip": "Skip to main content",
+    "loading": "Loading"
   },
   "mfa": {
     "titleEnroll": "Set up your authenticator app",
@@ -1381,11 +1382,11 @@
       "empty": "No posted bills in this month.",
       "summaryOnly": "A summary to key into the GSTR-3B form. It does not work out the tax payable after using credits.",
       "rows": {
-        "3.1": "3.1",
-        "3.1a": "3.1(a) Outward taxable supplies",
-        "3.1c": "3.1(c) Nil-rated and exempt supplies",
-        "3.1d": "3.1(d) Inward supplies on reverse charge",
-        "3.2": "3.2 Inter-state to unregistered buyers, place of supply",
+        "3_1": "3.1",
+        "3_1a": "3.1(a) Outward taxable supplies",
+        "3_1c": "3.1(c) Nil-rated and exempt supplies",
+        "3_1d": "3.1(d) Inward supplies on reverse charge",
+        "3_2": "3.2 Inter-state to unregistered buyers, place of supply",
         "4A3": "4(A)(3) ITC on reverse charge",
         "4A5": "4(A)(5) All other ITC",
         "4D": "4(D) Ineligible ITC",
