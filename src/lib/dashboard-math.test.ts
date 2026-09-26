@@ -71,7 +71,7 @@ describe('attention', () => {
     expect(attentionHref('stale_challan', id)).toBe('/sales?status=challan');
     expect(attentionHref('challan_possible_duplicate', id)).toBe('/sales?status=challan');
     expect(attentionHref('transfer_in_transit', id)).toBe('/stock');
-    expect(attentionHref('day_close_difference', id)).toBe('/reports');
+    expect(attentionHref('day_close_difference', id)).toBe('/reports/day-close');
     expect(attentionHref('gst_due', null)).toBe('/reports');
     expect(attentionHref('create_fy_periods', null)).toBe('/settings');
   });

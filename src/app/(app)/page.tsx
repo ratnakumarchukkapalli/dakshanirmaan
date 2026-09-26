@@ -19,8 +19,7 @@ const QUICK = [
   { key: 'invoice', href: '/sales/new', glyph: '+' },
   { key: 'receipt', href: '/payments/new', glyph: '₹' },
   { key: 'challan', href: '/sales/challans/new', glyph: '⇥' },
-  // The day-close screen is change 15; until it exists this lands on Reports.
-  { key: 'dayclose', href: '/reports', glyph: '☾' },
+  { key: 'dayclose', href: '/reports/day-close', glyph: '☾' },
 ] as const;
 
 /** A tile whose query failed: a visible error, never an empty tile. */

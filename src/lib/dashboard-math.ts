@@ -110,7 +110,7 @@ export function attentionHref(kind: string, subjectId: string | null): string | 
     case 'stale_challan':
     case 'challan_possible_duplicate': return '/sales?status=challan';
     case 'transfer_in_transit': return '/stock';
-    case 'day_close_difference': return '/reports';
+    case 'day_close_difference': return '/reports/day-close';
     case 'gst_due': return '/reports';
     case 'create_fy_periods': return '/settings';
     default: return null;

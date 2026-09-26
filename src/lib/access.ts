@@ -25,6 +25,9 @@ const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/');
 const isSettingsPath = (p: string) => p === '/settings' || p.startsWith('/settings/');
 // Salaries and wages are owner-only (owner decision): the staff screens are not for a counter session.
 const isStaffPath = (p: string) => p === '/staff' || p.startsWith('/staff/');
+// The cash & bank book is owner-only (bank balances and payroll cash are not counter data). Only the
+// screen is turned away here; its Excel route answers 403 itself, so a download never redirects.
+const isCashBookPath = (p: string) => p === '/reports/cash-bank' || p.startsWith('/reports/cash-bank/');
 
 export function decideAccess({ pathname, search = '', member }: { pathname: string; search?: string; member: Member }): AccessDecision {
   if (isPublicPath(pathname) || isSignedInvoiceLink(pathname, search)) return { action: 'allow' };
@@ -37,6 +40,6 @@ export function decideAccess({ pathname, search = '', member }: { pathname: stri
   }
 
   if (isLoginPath(pathname)) return { action: 'redirect', to: '/' };
-  if (member.role === 'user' && (isSettingsPath(pathname) || isStaffPath(pathname))) return { action: 'redirect', to: '/' };
+  if (member.role === 'user' && (isSettingsPath(pathname) || isStaffPath(pathname) || isCashBookPath(pathname))) return { action: 'redirect', to: '/' };
   return { action: 'allow' };
 }

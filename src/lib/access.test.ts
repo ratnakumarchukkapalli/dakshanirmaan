@@ -31,6 +31,14 @@ describe('counter user', () => {
     expect(go('/parties', counter)).toEqual(allow);
     expect(go('/stock', counter)).toEqual(allow);
     expect(go('/staff', counter)).toEqual(redirect('/'));
+    // Reports are for everyone, except the cash & bank book (owner-only); the others stay open.
+    expect(go('/reports', counter)).toEqual(allow);
+    expect(go('/reports/day-close', counter)).toEqual(allow);
+    expect(go('/reports/aging', counter)).toEqual(allow);
+    expect(go('/reports/cash-bank', counter)).toEqual(redirect('/'));
+    expect(go('/reports/cash-bank-lookalike', counter)).toEqual(allow);
+    // Its Excel route decides for itself (403), so a download is never a redirect.
+    expect(go('/api/reports/cash-bank/xlsx', counter)).toEqual(allow);
     expect(go('/staff/3f2b1c1e-0000-4000-8000-000000000000', counter)).toEqual(redirect('/'));
     expect(go('/staffing', counter)).toEqual(allow);
     expect(go('/settings', counter)).toEqual(redirect('/'));

@@ -1,4 +1,4 @@
-# Where we are (updated 2026-09-25)
+# Where we are (updated 2026-09-26)
 
 One page. If this and a chat disagree, fix this file.
 
@@ -10,7 +10,7 @@ below are done.
 ## Done
 01 foundation-schema · 02 integrity-triggers · 03 posting-sales · 04 posting-purchase-payment ·
 05 posting-challan-transfer-adjust-dayclose · 06 read-views · 07 app-shell · 08 auth-users ·
-09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui (built + live-verified 2026-09-25, UNCOMMITTED; review owed).
+09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 (built + live-verified 2026-09-26, UNCOMMITTED; review owed).
 Local demo data exists (`supabase/demo/demo-data.sql`) and can be reloaded any time; it is not
 the goal, just a convenience for testing screens as they're built.
 
@@ -37,17 +37,24 @@ readable via API until change 19. `exceljs` -> uuid audit advisory (moderate) de
 ## Change 14 status (2026-09-26)
 Committed a4dad1e, pushed to GitHub + hosted 2026-09-26. Migration `20260927100000_dashboard_views.sql` (v_sales_daily,
 v_sales_daily_category, admin-gated v_money_balances);  Gates: 1336 pgTAP, 458 vitest,
-tsc/lint/build clean. **Review owed:** Sonnet reviewer (screens) + narrow Opus look at the new views'
-admin gates. Owner questions: counter sees To pay / cash drawer? (default no); sales incl. GST?
+tsc/lint/build clean. Reviewed by Opus 2026-09-26 (APPROVE; nits fixed in change 15's commit). Owner questions: counter sees To pay / cash drawer? (default no); sales incl. GST?
 (default yes); Telugu attention sentences (needs structured v_attention); chart 7 vs 30 days.
-Day-close quick action points at /reports until change 15 builds the screen.
+Day-close quick action now points at /reports/day-close (change 15).
+
+## Change 15 status (2026-09-26)
+Built, Opus-reviewed together with 14 (14 APPROVE, 15 APPROVE AFTER FIXES, all fixed: counter closes days in order,
+`post_day_close` refuses a stale expected figure, stock residue rows), committed and pushed to GitHub + hosted.
+Migration `20260927110000_reports_p1.sql` (`day_close_preview`, admin-gated `v_money_ledger`, `post_day_close` with
+`p_expected_seen` + counter in-order guard). Gates: 1456 pgTAP, 501 vitest, tsc/lint/build clean. Screens: `/reports` cards,
+day close (close + owner-only reopen), day book, ageing (+ AR chip), stock (+ inventory chip), cash & bank book (owner only),
+Excel for the last four. Notes: `openspec/changes/15-reports-p1/implementation-notes.md`.
+Owner questions: payables ageing wanted? stock as at a past date? day-close by denomination? should an owner be allowed to
+close a day out of order in the app (DB allows it; the screen asks to reopen the later day first)?
 
 ## Next session
-Start **15 reports-p1** (Sonnet, daksh-ui + daksh-api). Then review 14 and 15 together and commit.
-Nothing is unpushed.
+Start **16 ops** (Sonnet, daksh-api). Nothing is unpushed.
 
 ## Left (Phase 1), build in this order — one change per session
-15 reports-p1 ·
 16 ops · 17 cutover · 18 self-audit-and-gst · 19 aal2-enforcement.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
 Change 19 must land before 17 (cutover) for real go-live, but can be built whenever in this list

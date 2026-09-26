@@ -121,3 +121,8 @@ Visible focus states on all interactive elements (2px accent outline); ledger ro
 #### Scenario: language toggle
 - WHEN the user switches to Telugu
 - THEN navigation, dashboard tiles, and screen titles render from the `te` message file, numbers stay en-IN, and the choice survives reload
+
+## Implementation clarifications (change 15, reports)
+- Built reports: `reports/` card grid, `day-close`, `day-book`, `aging` (receivables), `stock`, `cash-bank` (owner only: the proxy, the page, the view and the Excel route each refuse a counter). Filters live in the URL (`?date=`, `?from=&to=`, `?type=`, `?page=`, `?q=`, `?wh=`, `?account=`); date inputs are typed DD-MM-YYYY (client `ReportFilters`, a plain GET form) and travel as ISO. Client components: `DayCloseForm` (counted cash), `ReopenDay`, `ReportFilters`.
+- Every report table is a `LedgerTable` in a card; a failed query renders a visible error card. The day close shows the stored row once a date is closed and `day_close_preview` before; the "difference" shown while typing is a display-only preview, the stored one is the database's.
+- Owner-only reconciliation chips: ageing (Σ receivables = AR control account, entries with no party appear as the gap) and stock (Inventory account = stock ledger value incl. goods in transit; the in-transit amount is stated because no godown row holds it).
