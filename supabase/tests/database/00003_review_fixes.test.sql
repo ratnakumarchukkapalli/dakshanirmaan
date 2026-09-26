@@ -64,7 +64,7 @@ insert into app_users (user_id, role, name, is_active) values
   ('33333333-3333-3333-3333-333333333333', 'user', 'Review Fix Member', true);
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 
 delete from sales_invoices where id = (select id from _inv);
 

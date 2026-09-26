@@ -13,7 +13,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(67);
+select plan(68);
 
 insert into auth.users (id, email) values
   ('33333333-3333-3333-3333-333333333333', 'admin@example.test'),
@@ -112,10 +112,13 @@ select lives_ok($$update parties set name = 'Wage Employee', phone = null, month
 select is((select daily_wage from employee_pay_rates() where party_id = 'a0000000-0000-0000-0000-000000000002'),
   650.00::numeric, 'the new daily wage is stored');
 
--- Owner without a second factor: unchanged from before this migration (aal2 in the DB is change 19).
+-- Owner without a second factor: the database treats them as no-one (change 19), so the edit reaches no row.
 set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal1"}';
 select lives_ok($$update parties set monthly_salary = 18000 where id = 'a0000000-0000-0000-0000-000000000001'$$,
-  'aal1 owner: pay edit behaves as before (known gap, change 19)');
+  'aal1 owner: pay edit runs without error');
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
+select is((select monthly_salary from employee_pay_rates() where party_id = 'a0000000-0000-0000-0000-000000000001'),
+  19000.00::numeric, 'aal1 owner: the salary was not changed (change 19)');
 
 -- ============================================================
 -- 2. Postings: a counter posts its documents, the owner posts payroll and cancels one wage
@@ -249,8 +252,8 @@ select is((select count(*)::int from audit_log where after->>'voucher_type' in (
 select is((select count(*)::int from hidden_payroll_entry_ids()), 0, 'owner: nothing is hidden from an owner');
 
 set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal1"}';
-select is((select count(*)::int from journal_entries where id in (select id from _payroll)), 4,
-  'aal1 owner: unchanged, sees payroll entries (known gap, change 19)');
+select is((select count(*)::int from journal_entries where id in (select id from _payroll)), 0,
+  'aal1 owner: sees no payroll entries (change 19)');
 
 set local request.jwt.claims to '{"sub":"55555555-5555-5555-5555-555555555555","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from journal_entries), 0, 'non-member: no entry');

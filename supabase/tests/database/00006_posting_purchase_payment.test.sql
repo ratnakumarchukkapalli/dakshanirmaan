@@ -177,7 +177,7 @@ select invoice_id, 1, pitem, 'Purchase Cement 50kg', '2523', 'bag', 100, 300, 0,
 from _pi1, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pi1_posted as
 select post_purchase_invoice((select invoice_id from _pi1)) as entry_id;
 reset role;
@@ -277,7 +277,7 @@ select invoice_id, 1, pitem, 'Purchase Cement 50kg', '2523', 'bag', 100, 320, 0,
 from _pi2, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pi2_posted as
 select post_purchase_invoice((select invoice_id from _pi2)) as entry_id;
 reset role;
@@ -316,7 +316,7 @@ select invoice_id, 1, nitem, 'Non-ITC Item', '0000', 'pcs', 10, 100, 0, 18
 from _pi_noitc, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pi_noitc_posted as
 select post_purchase_invoice((select invoice_id from _pi_noitc)) as entry_id;
 reset role;
@@ -371,7 +371,7 @@ select invoice_id, 1, iitem, 'Interstate Item', '0000', 'pcs', 10, 100, 0, 18
 from _pi_inter, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pi_inter_posted as
 select post_purchase_invoice((select invoice_id from _pi_inter)) as entry_id;
 reset role;
@@ -419,7 +419,7 @@ select invoice_id, 1, ritem, 'Round Off Purchase Item', '0000', 'pcs', 1, 100.60
 from _pi_round, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pi_round_posted as
 select post_purchase_invoice((select invoice_id from _pi_round)) as entry_id;
 reset role;
@@ -466,7 +466,7 @@ from _pi_service, _items;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_purchase_invoice((select invoice_id from _pi_service));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -480,7 +480,7 @@ select matches(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_purchase_invoice((select invoice_id from _pi_service));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -494,7 +494,7 @@ select matches(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_purchase_invoice((select invoice_id from _pi1));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -525,7 +525,7 @@ insert into sales_invoice_lines
 select invoice_id, 1, sitem, 'Sale Item', '0000', 'pcs', 100, 200, 0, 18 from _si1, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_sales_invoice(%L)', (select invoice_id from _si1)),
   'fixture sales invoice posts (grand total Rs 23,600)'
@@ -545,7 +545,7 @@ select id as payment_id from pay;
 grant select on _rcpt1 to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 select payment_id, 'sales_invoice', (select invoice_id from _si1), 23600 from _rcpt1;
 reset role;
@@ -554,7 +554,7 @@ set local request.jwt.claims to '';
 
 -- A receipt is one of the two things a counter user may post.
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 create temp table _rcpt1_posted as
 select post_payment((select payment_id from _rcpt1)) as entry_id;
 reset role;
@@ -592,7 +592,7 @@ select is(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_payment((select payment_id from _rcpt1));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -620,7 +620,7 @@ select id as payment_id from pay;
 grant select on _rcpt_disc to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _rcpt_disc_posted as
 select post_payment((select payment_id from _rcpt_disc)) as entry_id;
 reset role;
@@ -662,7 +662,7 @@ select id as payment_id from pay;
 grant select on _pay_disc to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 select payment_id, 'purchase_invoice', (select invoice_id from _pi1), 34400 from _pay_disc;
 reset role;
@@ -671,7 +671,7 @@ set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_payment((select payment_id from _pay_disc));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -684,7 +684,7 @@ select matches(
 );
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pay_disc_posted as
 select post_payment((select payment_id from _pay_disc)) as entry_id;
 reset role;
@@ -741,7 +741,7 @@ insert into sales_invoice_lines
 select invoice_id, 1, sitem, 'Sale Item', '0000', 'pcs', 10, 200, 0, 18 from _si_cap, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_sales_invoice(%L)', (select invoice_id from _si_cap)),
   'cap-test sales invoice posts (grand total Rs 2,360)'
@@ -764,7 +764,7 @@ grant select on _cap_payment to authenticated;
 -- superuser would have hidden the very hole the review found — a policy-filtered read makes a
 -- cap silently pass. If the trigger ever loses SECURITY DEFINER again, these go red.
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select set_config('pgtap_test.raised_msg', '', false);
 do $$ begin
   insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
@@ -857,7 +857,7 @@ select inv_b, 1, bitem, 'Bounce Scenario Item', '0000', 'pcs', 100, 200, 0, 18
 from _bounce_invoices, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_sales_invoice(%L)', (select inv_a from _bounce_invoices)),
   'bounce scenario: first invoice posts (Rs 11,800)'
@@ -883,7 +883,7 @@ select id as payment_id from pay;
 grant select on _chq to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 select payment_id, 'sales_invoice', (select inv_a from _bounce_invoices), 11800 from _chq;
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
@@ -893,7 +893,7 @@ set local request.jwt.claims to '';
 
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _chq_posted as
 select post_payment((select payment_id from _chq)) as entry_id;
 reset role;
@@ -920,7 +920,7 @@ select is(
 );
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _chq_deposit as
 select deposit_cheque((select payment_id from _chq)) as entry_id;
 reset role;
@@ -953,7 +953,7 @@ select is(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform deposit_cheque((select payment_id from _chq));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -967,7 +967,7 @@ select matches(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform bounce_cheque((select payment_id from _chq), 'insufficient funds');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -985,7 +985,7 @@ from journal_lines
 where account_id = (select ar from _accounts) and party_id = (select customer_id from _parties);
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _chq_bounced as
 select bounce_cheque((select payment_id from _chq), 'insufficient funds') as entry_id;
 reset role;
@@ -1065,7 +1065,7 @@ select is(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform bounce_cheque((select payment_id from _chq), 'again');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1093,7 +1093,7 @@ select id as payment_id from pay;
 grant select on _chq2 to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', (select payment_id from _chq2)),
   'a second cheque receipt posts');
 reset role;
@@ -1101,7 +1101,7 @@ set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform mark_cheque_cleared((select payment_id from _chq2));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1117,7 +1117,7 @@ select matches(
 -- plain 'user' session, which is the person who actually walks the cheque to the bank. Only
 -- bounce_cheque stays admin — asserted above.
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select deposit_cheque(%L)', (select payment_id from _chq2)),
   'a user-role session can deposit a cheque (cheque banking is counter work)');
 select lives_ok(format('select mark_cheque_cleared(%L)', (select payment_id from _chq2)),
@@ -1149,7 +1149,7 @@ select id as payment_id from pay;
 grant select on _chq_out to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _chq_out_posted as
 select post_payment((select payment_id from _chq_out)) as entry_id;
 reset role;
@@ -1183,7 +1183,7 @@ insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narr
 select voucher_id, 1, (select godown_rent from _accounts), 8000, 'Godown rent July' from _ev_rent;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _ev_rent_posted as
 select post_expense_voucher((select voucher_id from _ev_rent)) as entry_id;
 reset role;
@@ -1227,7 +1227,7 @@ insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narr
 select voucher_id, 1, (select emp_advance from _accounts), 5000, 'Advance' from _ev_adv;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 create temp table _ev_adv_posted as
 select post_expense_voucher((select voucher_id from _ev_adv)) as entry_id;
 reset role;
@@ -1266,7 +1266,7 @@ select voucher_id, 1, (select emp_advance from _accounts), 6000 from _ev_adv_big
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_expense_voucher((select voucher_id from _ev_adv_big));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1279,7 +1279,7 @@ select matches(
 );
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_expense_voucher(%L)', (select voucher_id from _ev_adv_big)),
   'the same Rs 6,000 advance posts for an admin'
@@ -1300,7 +1300,7 @@ insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narr
 select voucher_id, 1, (select salaries from _accounts), 20000, 'Salary July 2026' from _ev_salary;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _ev_salary_posted as
 select post_expense_voucher((select voucher_id from _ev_salary)) as entry_id;
 reset role;
@@ -1383,7 +1383,7 @@ select voucher_id, 1, (select salaries from _accounts), 20000, 'Salary June 2026
 from _ev_salary_june;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_expense_voucher(%L)', (select voucher_id from _ev_salary_june)),
   'a salary voucher for an earlier month posts'
@@ -1409,7 +1409,7 @@ select voucher_id, 1, (select godown_rent from _accounts), 100, 'not a salary' f
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_expense_voucher((select voucher_id from _ev_rent_period));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1434,7 +1434,7 @@ insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narr
 select voucher_id, 1, (select loading from _accounts), 1800, '3 days @ 600' from _ev_wages;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _ev_wages_posted as
 select post_expense_voucher((select voucher_id from _ev_wages)) as entry_id;
 reset role;
@@ -1479,7 +1479,7 @@ insert into expense_voucher_lines (voucher_id, line_no, account_id, amount, narr
 select voucher_id, 1, (select loading from _accounts), 500, 'Casual hamali' from _ev_hamali;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _ev_hamali_posted as
 select post_expense_voucher((select voucher_id from _ev_hamali)) as entry_id;
 reset role;
@@ -1518,7 +1518,7 @@ select voucher_id, 1, (select freight_in from _accounts), 2000, 'Lorry freight, 
 from _ev_rcm;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _ev_rcm_posted as
 select post_expense_voucher((select voucher_id from _ev_rcm)) as entry_id;
 reset role;
@@ -1577,7 +1577,7 @@ select is(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('purchase_invoice', (select invoice_id from _pi1), 'test');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1623,7 +1623,7 @@ insert into sales_invoice_lines
 select invoice_id, 1, citem, 'Sold-On Item', '0000', 'pcs', 60, 200, 0, 18 from _si_sold, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_purchase_invoice(%L)', (select invoice_id from _pi_sold)),
   'the sold-on purchase posts (100 units in)');
 select lives_ok(format('select post_sales_invoice(%L)', (select invoice_id from _si_sold)),
@@ -1633,7 +1633,7 @@ set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('purchase_invoice', (select invoice_id from _pi_sold), 'test');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1666,7 +1666,7 @@ insert into purchase_invoice_lines
 select invoice_id, 1, ditem, 'Clean Cancel Item', '0000', 'pcs', 50, 100, 0, 18 from _pi_clean, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_purchase_invoice(%L)', (select invoice_id from _pi_clean)),
   'the clean-cancel purchase posts');
 reset role;
@@ -1677,7 +1677,7 @@ select journal_entry_id as entry_id from purchase_invoices
 where id = (select invoice_id from _pi_clean);
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _pi_clean_cancelled as
 select cancel_document('purchase_invoice', (select invoice_id from _pi_clean), 'wrong supplier bill')
   as entry_id;
@@ -1721,7 +1721,7 @@ select is(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('purchase_invoice', (select invoice_id from _pi_clean), 'again');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1735,7 +1735,7 @@ select matches(
 
 -- Cancelling a receipt re-opens what it settled.
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _rcpt1_cancelled as
 select cancel_document('payment', (select payment_id from _rcpt1), 'entered twice') as entry_id;
 reset role;
@@ -1766,7 +1766,7 @@ select is(
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('payment', (select payment_id from _chq2), 'test');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -1779,7 +1779,7 @@ select matches(
 );
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _ev_rent_cancelled as
 select cancel_document('expense_voucher', (select voucher_id from _ev_rent), 'duplicate') as entry_id;
 reset role;
@@ -1908,7 +1908,7 @@ select invoice_id, 1, item_id, 'Weighted Average Trap', '0000', 'pcs', 10, 200, 
 from _b2_purchase, _b2_item;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_purchase_invoice(%L)', (select invoice_id from _b2_purchase)),
   'B2 fixture: the purchase posts (10 @ 200 on top of 10 @ 100)');
 reset role;
@@ -1937,7 +1937,7 @@ select invoice_id, 1, item_id, 'Weighted Average Trap', '0000', 'pcs', 5, 300, 0
 from _b2_sale, _b2_item;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_sales_invoice(%L)', (select invoice_id from _b2_sale)),
   'B2 fixture: 5 units are sold at the blended average');
 reset role;
@@ -1945,7 +1945,7 @@ set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('purchase_invoice', (select invoice_id from _b2_purchase), 'wrong bill');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -2017,7 +2017,7 @@ select invoice_id, 1, item_id, 'Value Goes Negative', '0000', 'pcs', 10, 300, 0,
 from _b2b_sale, _b2b_item;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_purchase_invoice(%L)', (select invoice_id from _b2b_purchase)),
   'B2 escalated fixture: purchase of 10 @ 200 on top of 10 @ 10');
 select lives_ok(format('select post_sales_invoice(%L)', (select invoice_id from _b2b_sale)),
@@ -2027,7 +2027,7 @@ set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('purchase_invoice', (select invoice_id from _b2b_purchase), 'wrong bill');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -2069,7 +2069,7 @@ from _nocost_sale, _nocost_item;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_sales_invoice((select invoice_id from _nocost_sale));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -2102,7 +2102,7 @@ grant select on _m3_payment to authenticated;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
   select payment_id, 'sales_invoice', (select invoice_id from _si_cap), 100 from _m3_payment;
@@ -2128,7 +2128,7 @@ grant select on _m4_payment to authenticated;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_payment((select payment_id from _m4_payment));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2152,7 +2152,7 @@ grant select on _m4_cheque to authenticated;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_payment((select payment_id from _m4_cheque));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2176,7 +2176,7 @@ select voucher_id, 1, (select godown_rent from _accounts), 100, 'paid from COGS?
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_expense_voucher((select voucher_id from _m4_voucher));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2191,7 +2191,7 @@ select matches(
 -- employee's advance ledger negative. Cancel the salary first.
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('expense_voucher', (select voucher_id from _ev_adv), 'entered twice');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -2204,7 +2204,7 @@ select matches(
 );
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select cancel_document(%L, %L, %L)', 'expense_voucher',
          (select voucher_id from _ev_salary), 'salary re-run'),
@@ -2221,7 +2221,7 @@ set local request.jwt.claims to '';
 -- M6: a cancelled payment can never be allocated.
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
   select payment_id, 'sales_invoice', (select invoice_id from _si_cap), 10 from _rcpt1;
@@ -2251,7 +2251,7 @@ insert into sales_invoice_lines
 select invoice_id, 1, sitem, 'Sale Item', '0000', 'pcs', 10, 100, 0, 18 from _m7_invoice, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_sales_invoice(%L)', (select invoice_id from _m7_invoice)),
   'M7 fixture: an invoice of Rs 1,180 posts');
 reset role;
@@ -2276,7 +2276,7 @@ select id as payment_id from pay;
 grant select on _m7_draft_b to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   $$ insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
      select payment_id, 'sales_invoice', (select invoice_id from _m7_invoice), 1180
@@ -2291,7 +2291,7 @@ reset role;
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', (select payment_id from _m7_draft_a)),
   'M7: the first draft posts');
 reset role;
@@ -2299,7 +2299,7 @@ set local request.jwt.claims to '';
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_payment((select payment_id from _m7_draft_b));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2353,7 +2353,7 @@ insert into sales_invoice_lines
 select inv_w, 1, sitem, 'Sale Item', '0000', 'pcs', 10, 100, 0, 18 from _n1_invoices, _items;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_sales_invoice(%L)', (select inv_x from _n1_invoices)),
   'N1 fixture: invoice X of Rs 1,180 posts');
 select lives_ok(format('select post_sales_invoice(%L)', (select inv_y from _n1_invoices)),
@@ -2373,7 +2373,7 @@ select id as payment_id from pay;
 grant select on _n1_receipt to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   $$ insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
      select payment_id, 'sales_invoice', (select inv_x from _n1_invoices), 1180
@@ -2414,7 +2414,7 @@ reset role;
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', (select payment_id from _n1_receipt)),
   'N1: a receipt allocated across two different invoices posts');
 reset role;
@@ -2451,7 +2451,7 @@ from _m8_purchase, _items;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_purchase_invoice((select invoice_id from _m8_purchase));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2484,7 +2484,7 @@ from _m9_voucher;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_expense_voucher((select voucher_id from _m9_voucher));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2510,7 +2510,7 @@ from _m10_voucher, _parties;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_expense_voucher((select voucher_id from _m10_voucher));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2543,7 +2543,7 @@ from _m11_voucher, _m11_party;
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_expense_voucher((select voucher_id from _m11_voucher));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2566,7 +2566,7 @@ select voucher_id, 1, (select salaries from _accounts), 5000, 'whose salary?' fr
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_expense_voucher((select voucher_id from _m12_voucher));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;

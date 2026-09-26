@@ -10,7 +10,7 @@ below are done.
 ## Done
 01 foundation-schema · 02 integrity-triggers · 03 posting-sales · 04 posting-purchase-payment ·
 05 posting-challan-transfer-adjust-dayclose · 06 read-views · 07 app-shell · 08 auth-users ·
-09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 (built + live-verified 2026-09-26, UNCOMMITTED; review owed).
+09 masters · 10a sales-billing-ui · 10b invoice-documents · 11 challans-ui · 12 payments-ui · 13 parties-stock-staff-ui · 14 dashboard · 15 reports-p1 · 16 ops · 19 aal2-enforcement (built 2026-09-26, UNCOMMITTED; review owed).
 Local demo data exists (`supabase/demo/demo-data.sql`) and can be reloaded any time; it is not
 the goal, just a convenience for testing screens as they're built.
 
@@ -51,14 +51,31 @@ Excel for the last four. Notes: `openspec/changes/15-reports-p1/implementation-n
 Owner questions: payables ageing wanted? stock as at a past date? day-close by denomination? should an owner be allowed to
 close a day out of order in the app (DB allows it; the screen asks to reopen the later day first)?
 
+## Change 19 status (2026-09-26)
+Built, **UNCOMMITTED, not pushed**, review owed (fresh-context Opus with `daksh-review`; ask Ratna first). Migration
+`20260928100000_aal2_enforcement.sql`: `current_app_role()` is NULL for an admin below `aal2`, `is_active_member()` goes through it,
+the 15 remaining direct `app_users` role lookups now call it. Gates: 1567 pgTAP (new `00012`; 201 test sessions got `"aal":"aal2"`),
+build clean; real-session REST proof (step-1 owner: `DN_FORBIDDEN` + empty reads) and an 18/18 Playwright login-flow walk.
+Notes: `openspec/changes/19-aal2-enforcement/implementation-notes.md`. **Before pushing to hosted: confirm TOTP works on the hosted
+Free plan (change 08 gap 5) — if it does not, this migration locks every owner out.**
+Not in 19's brief, so not built: owner decisions 1 (stock cost hidden from counter) and 4 (master-edit audit trail) below, which
+say "build with 19" — needs a decision on where they go before 17.
+
 ## Next session
-Change 16 ops is BUILT and Sonnet-reviewed (fixes applied), committed and pushed 2026-09-26: CI (green on GitHub's first run) + backup workflow (needs its secrets), bundle scan, smoke, dump/restore
-drill (passed locally), `RUNBOOK.md`; Sentry and the Drive upload are deliberately left out (Ratna, 2026-09-26). Gates: 1456 pgTAP,
-527 vitest, tsc/lint/build clean, `npm audit` 0. Notes: `openspec/changes/16-ops/implementation-notes.md`. To finish: set the GitHub secrets `AGE_PUBLIC_KEY` + `DATABASE_URL` (RUNBOOK 2.1), run Backup once + the drill.
-Then **19 aal2-enforcement** (Opus, fresh session), then 17, then 18.
+Plan agreed with Ratna 2026-09-26: finish Phase 1 fully — **19 aal2-enforcement** (Opus, BUILT — review + commit owed, see above; brief in `openspec/changes/19-aal2-enforcement/proposal.md`; `daksh-schema` + `daksh-posting`), then **17 cutover**, then **18 self-audit-and-gst** (Sonnet each; 18 starts with the GSTR-1 schema research task) — and only then a guided **Vercel deploy** (Ratna uses the existing hosted Supabase project `daksha-nirmaan`). One session edits the codebase at a time.
+At deploy time decide: that project holds the REAL books, so a fake-data demo should go in a second hosted project (Free allows two per org); `demo-data.sql` must never be loaded into the real one. Also needed then: hosted Auth settings (email OTP, signups off, TOTP), the owner account via create-admin, Resend SMTP, Vercel env vars (RUNBOOK section 3 lists the secrets).
+Change 16 is done and pushed; change 19 is uncommitted.
+
+## PENDING (Ratna, deferred 2026-09-26) — turn the nightly backup on
+Until this is done **nothing is backed up** (the Backup workflow runs daily but prints a warning and stops). Steps, in `RUNBOOK.md` 2.1:
+1. `age-keygen -o family-age-key.txt`; keep the file in two safe places; never in GitHub.
+2. GitHub → Settings → Secrets and variables → Actions: add `AGE_PUBLIC_KEY` (the `age1…` line) and `DATABASE_URL` (Supabase → Connect → Session pooler URI with the password; letters/digits-only password).
+3. Actions → Backup → Run workflow; download the artifact (a zip), then run the restore drill once (RUNBOOK 2.3). The hosted dump is untried until this happens.
+Also open: 7 Dependabot pull requests (eslint 10, typescript 7, @types/node 26, actions/checkout 7 are major bumps; do not merge blindly).
+Must be done before go-live (change 17) at the latest.
 
 ## Left (Phase 1), build in this order — one change per session
-16 ops (built, see above) · 19 aal2-enforcement · 17 cutover · 18 self-audit-and-gst.
+19 aal2-enforcement (built, review + commit owed) · 17 cutover · 18 self-audit-and-gst.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
 Change 19 must land before 17 (cutover) for real go-live, but can be built whenever in this list
 — it does not block the other UI changes.

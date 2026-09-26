@@ -189,7 +189,7 @@ values (pg_temp.i('adj1'), 1, pg_temp.i('cem'), 'View Cement 50kg', -5);
 -- ============================================================
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_purchase_invoice(pg_temp.i('pb1'));
@@ -245,13 +245,13 @@ select pg_temp.draft_pay('cq3', 'payment', '2026-07-09', 'sup', 'cheque', 1180, 
 select pg_temp.draft_pay('rdraft', 'receipt', '2026-08-27', 'c1', 'cash', 10000, 0, 'a_cash', null, 'sales_invoice', 'si2', 10000);
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select post_payment(pg_temp.i('r1'));   -- the counter user takes the first receipt
 reset role;
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_payment(pg_temp.i('r2'));
@@ -288,13 +288,13 @@ select pg_temp.draft_voucher('ev3', '2026-07-12', 'advance', 'emp', 'a_cash', 'a
 select pg_temp.draft_voucher('ev4', '2026-07-31', 'salary',  'emp', 'a_bank', 'a_salaries', 20000, '2026-07-01', 4000);
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select post_expense_voucher(pg_temp.i('ev2'));
 reset role;
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_expense_voucher(pg_temp.i('ev1'));
@@ -314,7 +314,7 @@ update _t set counted = (
   where jl.account_id = pg_temp.i('a_cash') and je.entry_date <= (select yesterday from _t));
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_day_close((select yesterday from _t), (select counted from _t), 'view fixture');
 reset role;
 set local request.jwt.claims to '';
@@ -329,7 +329,7 @@ select is((select count(*)::int from journal_entries), (select count(*)::int fro
 
 -- From here on, read as the admin (claims only: postgres bypasses RLS, current_app_role() still
 -- resolves from the JWT) unless a test says otherwise.
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 
 -- ============================================================
 -- Trial balance, P&L, balance sheet
@@ -667,10 +667,10 @@ select is((select book_balance from v_bank_recon),
 create temp table _diff_before as select difference, book_balance, book_balance_today from v_bank_recon;
 select pg_temp.draft_voucher('ev6', '2026-09-05', 'expense', null, 'a_bank', 'a_rent', 100, null, null);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_expense_voucher(pg_temp.i('ev6'));
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select difference from v_bank_recon), (select difference from _diff_before),
   'bank recon: a posting dated after period_to does not change the difference');
 select is((select book_balance from v_bank_recon), (select book_balance from _diff_before),
@@ -767,10 +767,10 @@ select is((select count(*)::int from v_attention where kind = 'challan_possible_
 
 select pg_temp.draft_challan('ch3', '2026-06-12', 20);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_delivery_challan(pg_temp.i('ch3'));
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select array_agg(subject_id) from v_attention where kind = 'challan_possible_duplicate'),
   array[pg_temp.i('ch1')],
   'duplicate challan: a later challan for the same party, item and quantity flags the un-invoiced one');
@@ -826,10 +826,10 @@ with e as (
 insert into _ids select 'emp2', id from e;
 select pg_temp.draft_voucher('ev5', '2026-08-01', 'salary', 'emp2', 'a_cash', 'a_salaries', 5000, '2026-08-01', null);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_expense_voucher(pg_temp.i('ev5'));
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from v_employee_ledger where party_id = pg_temp.i('emp2')), 2,
   'employee ledger: a salary with no advance has just its two salary_payable rows');
 select is((select count(*)::int from v_employee_ledger
@@ -859,7 +859,7 @@ create temp table _acc (principal text, view_name text, n bigint, err text);
 grant all on _acc to authenticated, anon;
 
 -- Cannot use pg_temp.i() here: it is a helper for the postgres session only.
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 set local role authenticated;
 do $$
 declare r record; v_n bigint;
@@ -875,7 +875,7 @@ begin
 end $$;
 reset role;
 
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 set local role authenticated;
 do $$
 declare r record; v_n bigint;
@@ -892,7 +892,7 @@ end $$;
 reset role;
 
 -- An authenticated session with no app_users row at all.
-set local request.jwt.claims to '{"sub":"99999999-9999-9999-9999-999999999999","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"99999999-9999-9999-9999-999999999999","role":"authenticated","aal":"aal2"}';
 set local role authenticated;
 do $$
 declare r record; v_n bigint;
@@ -942,7 +942,7 @@ select is((select count(*)::int from _acc where principal = 'anon' and err ~ 'pe
 
 -- user-role attention feed has no admin-only kinds
 
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from v_attention where kind in ('gst_due', 'create_fy_periods')), 0,
   'attention: admin-only kinds never reach a user-role session');
 select cmp_ok((select count(*)::int from v_attention where kind = 'overdue_party'), '>', 0,
@@ -963,7 +963,7 @@ select is((select count(*)::int from pg_class where relname in ('bank_statements
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   insert into bank_statements (account_id, period_from, period_to)
   values ((select id from _ids where name = 'a_bank'), '2026-09-01', '2026-09-30');
@@ -974,7 +974,7 @@ select matches(current_setting('pgtap_test.raised_msg', true), 'row-level securi
 
 select set_config('pgtap_test.raised_msg', 'none', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   insert into bank_statements (account_id, period_from, period_to)
   values ((select id from _ids where name = 'a_bank'), '2026-05-01', '2026-05-31');

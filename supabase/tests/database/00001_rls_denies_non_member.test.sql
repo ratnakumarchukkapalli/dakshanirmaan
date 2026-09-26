@@ -21,7 +21,7 @@ insert into app_users (user_id, role, name, is_active) values
 
 -- Non-member: valid JWT shape, but no app_users row for this sub.
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated","aal":"aal2"}';
 
 select is(
   (select count(*)::int from accounts),
@@ -30,7 +30,7 @@ select is(
 );
 
 -- Active member: same table, real membership.
-set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated","aal":"aal2"}';
 
 select ok(
   (select count(*) from accounts) > 0,

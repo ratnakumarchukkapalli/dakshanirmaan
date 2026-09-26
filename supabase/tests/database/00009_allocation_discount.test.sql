@@ -79,7 +79,7 @@ select pg_temp.draft_sale('sc1', 'cc');
 select pg_temp.draft_sale('sq1', 'cq');
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_purchase_invoice(pg_temp.i('pb'));
@@ -116,7 +116,7 @@ select lives_ok(
   'a receipt of 900 + 100 discount may allocate 1,000 (amount + discount) to one invoice');
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', pg_temp.i('r1')),
   'and it posts (a discount is admin-only, so this is an admin session)');
 reset role;
@@ -130,7 +130,7 @@ select is((select credit from journal_lines jl join payments p on p.journal_entr
            where p.id = pg_temp.i('r1') and jl.party_id = pg_temp.i('ca')),
   1000.00::numeric, 'AR is credited with 900 + 100, exactly what the allocation settles');
 
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from v_open_sales_invoices where invoice_id = pg_temp.i('sa1')), 0,
   'the invoice is closed: it is no longer an open invoice');
 select is((select open_total from v_party_aging where party_id = pg_temp.i('ca')), 1000.00::numeric,
@@ -193,7 +193,7 @@ values (pg_temp.i('r4'), 'sales_invoice', pg_temp.i('sa2'), 1000);
 update payments set discount = 0 where id = pg_temp.i('r4');
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_payment(pg_temp.i('r4'));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -212,10 +212,10 @@ select pg_temp.draft_receipt('r5', 'cb', 900, 100);
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 values (pg_temp.i('r5'), 'sales_invoice', pg_temp.i('sb1'), 900);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_payment(pg_temp.i('r5'));
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select array[open_total, unallocated, unapplied_discount, ar_balance, other_ar]
            from v_party_aging where party_id = pg_temp.i('cb')),
   array[100.00, 0.00, 100.00, 0.00, 0.00]::numeric[],
@@ -248,7 +248,7 @@ select lives_ok(
   'payments: 4,500 + 500 discount received may allocate the full 5,000 bill');
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', (select payment_id from _pay)),
   'payments: the outgoing payment posts');
 reset role;
@@ -267,19 +267,19 @@ select pg_temp.draft_receipt('rc', 'cc', 900, 100);
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 values (pg_temp.i('rc'), 'sales_invoice', pg_temp.i('sc1'), 1000);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_payment(pg_temp.i('rc'));
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from v_open_sales_invoices where invoice_id = pg_temp.i('sc1')), 0,
   'discounted receipt: the invoice is closed while the receipt stands');
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select cancel_document('payment', pg_temp.i('rc'), 'discount receipt cancelled');
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from payment_allocations where payment_id = pg_temp.i('rc')), 0,
   'cancelling a discounted receipt: its allocations are gone');
 select is((select open_amount from v_open_sales_invoices where invoice_id = pg_temp.i('sc1')), 1000.00::numeric,
@@ -299,19 +299,19 @@ insert into _ids select 'rq', id from payments where instrument_no = 'CHQ-D1';
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 values (pg_temp.i('rq'), 'sales_invoice', pg_temp.i('sq1'), 1000);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select post_payment(pg_temp.i('rq'));
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from v_open_sales_invoices where invoice_id = pg_temp.i('sq1')), 0,
   'discounted cheque: the invoice is closed while the cheque stands');
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select bounce_cheque(pg_temp.i('rq'), 'bounced');
 reset role;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select is((select count(*)::int from payment_allocations where payment_id = pg_temp.i('rq')), 0,
   'bouncing a discounted cheque: its allocations are gone');
 select is((select open_amount from v_open_sales_invoices where invoice_id = pg_temp.i('sq1')), 1000.00::numeric,
@@ -327,7 +327,7 @@ set local request.jwt.claims to '';
 -- ============================================================
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('insert into payments (direction, payment_date, party_id, mode, amount, discount, account_id, status)
           values (''receipt'', ''2026-06-30'', %L, ''cash'', 901, 100, %L, ''draft'')',
@@ -345,7 +345,7 @@ insert into _ids select 'ru_plain', id from payments where amount = 902 and stat
 
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_payment(pg_temp.i('ru_disc'));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -361,14 +361,14 @@ select is((select count(*)::int from journal_entries
   0, 'no journal entry exists for it');
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', pg_temp.i('ru_disc')),
   'an admin posts that very receipt fine');
 reset role;
 set local request.jwt.claims to '';
 
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', pg_temp.i('ru_plain')),
   'a user still posts a receipt with discount 0');
 reset role;
@@ -380,7 +380,7 @@ values ('payment', '2026-06-30', pg_temp.i('sup'), 'neft', 1000, 100, pg_temp.i(
 insert into _ids select 'pu_disc', id from payments where direction = 'payment' and amount = 1000 and status = 'draft';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform post_payment(pg_temp.i('pu_disc'));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
@@ -391,7 +391,7 @@ select matches(current_setting('pgtap_test.raised_msg', true), 'DN_FORBIDDEN',
 select is((select status::text from payments where id = pg_temp.i('pu_disc')), 'draft',
   'and the payment is still a draft');
 set local role authenticated;
-set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_payment(%L)', pg_temp.i('pu_disc')),
   'an admin posts the payment with a discount received');
 reset role;

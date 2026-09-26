@@ -99,7 +99,7 @@ from _invoice, _items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _posted as
 select post_sales_invoice((select invoice_id from _invoice)) as entry_id;
 reset role;
@@ -241,7 +241,7 @@ where id = (select invoice_id from _invoice);
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _cancelled as
 select cancel_document(
   'sales_invoice', (select invoice_id from _invoice), 'test: wrong quantity billed'
@@ -358,7 +358,7 @@ from _round_up_invoice, _round_items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 create temp table _round_up_posted as
 select post_sales_invoice((select invoice_id from _round_up_invoice)) as entry_id;
 reset role;
@@ -399,7 +399,7 @@ from _round_down_invoice, _round_items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _round_down_posted as
 select post_sales_invoice((select invoice_id from _round_down_invoice)) as entry_id;
 reset role;
@@ -451,7 +451,7 @@ from _interstate_invoice, _items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _interstate_posted as
 select post_sales_invoice((select invoice_id from _interstate_invoice)) as entry_id;
 reset role;
@@ -503,7 +503,7 @@ from _freight_invoice, _freight_item;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _freight_posted as
 select post_sales_invoice((select invoice_id from _freight_invoice)) as entry_id;
 reset role;
@@ -566,7 +566,7 @@ from _credit_ok_invoice, _credit_item;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_sales_invoice(%L)', (select invoice_id from _credit_ok_invoice)),
   'an invoice within the party credit limit posts normally'
@@ -594,7 +594,7 @@ from _credit_over_invoice, _credit_item;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _credit_over_invoice));
@@ -613,7 +613,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _credit_over_invoice), true);
@@ -631,7 +631,7 @@ select matches(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_sales_invoice(%L, true)', (select invoice_id from _credit_over_invoice)),
   'an admin session with p_override_credit=true can post past the limit'
@@ -683,7 +683,7 @@ from _alloc_payment;
 -- fixture feeds is unchanged; only the fixture had to become a real receipt.
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_payment(%L)', (select payment_id from _alloc_payment)),
   'the allocated receipt posts (its allocation now blocks the invoice cancellation)'
@@ -694,7 +694,7 @@ set local request.jwt.claims to '';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform cancel_document('sales_invoice', (select invoice_id from _round_up_invoice), 'test');
@@ -751,7 +751,7 @@ from _neg_invoice_admin, _neg_item_admin;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_sales_invoice(%L)', (select invoice_id from _neg_invoice_admin)),
   'admin can oversell when organization.allow_negative_stock is true'
@@ -795,7 +795,7 @@ from _neg_invoice_user, _neg_item_user;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _neg_invoice_user));
@@ -869,7 +869,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform cancel_document('sales_invoice', (select invoice_id from _round_down_invoice), 'x');
@@ -893,7 +893,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _invoice));
@@ -940,7 +940,7 @@ from _short_invoice, _short_item;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _short_invoice));
@@ -988,7 +988,7 @@ grant select on _empty_invoice to authenticated;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _empty_invoice));
@@ -1030,7 +1030,7 @@ from _inactive_party_invoice, _round_items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _inactive_party_invoice));
@@ -1050,7 +1050,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _round_up_invoice));

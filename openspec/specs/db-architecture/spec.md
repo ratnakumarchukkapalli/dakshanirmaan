@@ -133,6 +133,7 @@ Views SHALL be plain SQL over base tables — no materialization in v1.
 - Public signup SHALL be **disabled** in Supabase Auth; accounts are provisioned by the admin only. An authenticated session without an active `app_users` row gets nothing (RLS checks membership, not just `auth.uid()`).
 - RLS enabled on every table, deny-by-default. Active members: SELECT on business tables (P&L/BS views admin-only). INSERT/UPDATE on draft documents: both roles. Posting functions re-check role internally per the matrix above.
 - Posting functions are `SECURITY DEFINER`; direct INSERT on `journal_entries/journal_lines/stock_movements` is granted to **no role** — service role via functions only.
+- **Role helpers (change 19).** `current_app_role()` is the single source of the caller's role: the active `app_users.role` for `auth.uid()`, except that an `admin` whose session is not `aal2` (JWT claim `aal`) gets **NULL** — no business access at all, not a downgrade to `user`. `is_active_member()` = `current_app_role() IS NOT NULL`. Every RLS policy, every `security_invoker` view and every posting function's role check goes through these two; functions SHALL NOT read `app_users.role` directly (`v_role := current_app_role()`). The `user` role ignores the claim. Exception kept on purpose: `app_users` policy `select_own_or_admin` lets a caller read their own row (`user_id = auth.uid()`) at any level, because the sign-in proxy and `/login/mfa` need it.
 
 ## Requirement: Seed data
 
@@ -243,7 +244,7 @@ Lists paginate by keyset (`(date, id)` cursors), 50 rows per page. Views stay pl
 Resolutions for gaps found while auditing changes 03–18 against this spec. Each is binding; the change named owns the migration.
 
 ### Actor and grants (all `post_*`/`cancel_*`, change 03 onward)
-Actor = `auth.uid()`; `RAISE 'DN_FORBIDDEN'` when null or not an active `app_users` row with the required role. Functions are `SECURITY DEFINER`, `SET search_path = public, pg_temp`, `REVOKE EXECUTE FROM public, anon`, `GRANT EXECUTE TO authenticated`. `audit_log.actor` = that uid.
+Actor = `auth.uid()`; `RAISE 'DN_FORBIDDEN'` when null or when `current_app_role()` is not the required role (NULL for a non-member or an admin not at `aal2`). Functions are `SECURITY DEFINER`, `SET search_path = public, pg_temp`, `REVOKE EXECUTE FROM public, anon`, `GRANT EXECUTE TO authenticated`. `audit_log.actor` = that uid.
 
 ### Numbering (change 03)
 `next_doc_no(p_series text, p_date date) RETURNS text`: `fy_label` derived from the date with April start (`'2026-27'`); if no `doc_sequences` row exists for (series, fy_label) it is created with `prefix = series || '/' || 'YY-YY' || '/'` and `next_no = 1`; row locked with `FOR UPDATE`; result = `prefix || lpad(next_no, 4, '0')` (e.g. `DN/26-27/0347`); `next_no` incremented in the same statement. Never called at draft time.

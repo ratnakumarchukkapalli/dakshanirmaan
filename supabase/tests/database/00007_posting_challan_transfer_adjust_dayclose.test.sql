@@ -117,7 +117,7 @@ from _challan, _items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _challan_entry as
 select post_delivery_challan((select challan_id from _challan)) as entry_id;
 reset role;
@@ -212,7 +212,7 @@ from _invoice, _items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _invoice_entry as
 select post_sales_invoice((select invoice_id from _invoice)) as entry_id;
 reset role;
@@ -352,7 +352,7 @@ from _challan2, _items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_delivery_challan(%L)', (select challan_id from _challan2)),
   'a second challan posts (50 bags)'
@@ -380,7 +380,7 @@ from _invoice_bad_qty, _items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _invoice_bad_qty));
@@ -431,7 +431,7 @@ from _invoice_bad_item, _items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _invoice_bad_item));
@@ -454,7 +454,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform cancel_document('delivery_challan', (select challan_id from _challan), 'test');
@@ -478,7 +478,7 @@ select is(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select cancel_document(%L, %L, %L)', 'sales_invoice',
          (select invoice_id from _invoice), 'customer returned the load'),
@@ -502,7 +502,7 @@ select is(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select cancel_document(%L, %L, %L)', 'delivery_challan',
          (select challan_id from _challan), 'load came back'),
@@ -533,7 +533,7 @@ select is(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_delivery_challan((select challan_id from _challan));
@@ -569,7 +569,7 @@ select transfer_id, 1, tr_item, 'Transfer Cement 50kg', 'bag', 200 from _transfe
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_stock_transfer(%L)', (select transfer_id from _transfer)),
   'an admin session can post a stock transfer'
@@ -615,7 +615,7 @@ select is(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select receive_stock_transfer(%L)', (select transfer_id from _transfer)),
   'the destination godown receives the transfer'
@@ -675,7 +675,7 @@ select is(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform receive_stock_transfer((select transfer_id from _transfer));
@@ -694,7 +694,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform cancel_document('stock_transfer', (select transfer_id from _transfer), 'x');
@@ -713,7 +713,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_transfer((select transfer_id from _transfer));
@@ -744,7 +744,7 @@ select transfer_id, 1, tr_item, 'Transfer Cement 50kg', 'bag', 10 from _transfer
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select cancel_document(%L, %L, %L)', 'stock_transfer',
          (select transfer_id from _transfer_draft), 'lorry never left'),
@@ -781,7 +781,7 @@ select transfer_id, 1, tr_item, 'Transfer Cement 50kg', 'bag', 30 from _transfer
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_stock_transfer(%L)', (select transfer_id from _transfer_transit)),
   'a third transfer goes in_transit'
@@ -828,7 +828,7 @@ select transfer_id, 1, tr_item, 'Transfer Cement 50kg', 'bag', 5 from _transfer_
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_transfer((select transfer_id from _transfer_to_transit));
@@ -860,7 +860,7 @@ select transfer_id, 1, tr_item, 'Transfer Cement 50kg', 'bag', 5000 from _transf
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_transfer((select transfer_id from _transfer_short));
@@ -879,7 +879,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_transfer((select transfer_id from _transfer_short));
@@ -932,7 +932,7 @@ select adjustment_id, 1, adj_item, 'Adjust Cement 50kg', -10 from _adj_down, _it
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _adj_down_entry as
 select post_stock_adjustment((select adjustment_id from _adj_down)) as entry_id;
 reset role;
@@ -995,7 +995,7 @@ select adjustment_id, 1, adj_item, 'Adjust Cement 50kg', 5, 260 from _adj_up, _i
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _adj_up_entry as
 select post_stock_adjustment((select adjustment_id from _adj_up)) as entry_id;
 reset role;
@@ -1046,7 +1046,7 @@ select adjustment_id, 1, adj_item, 'Adjust Cement 50kg', -2, 999 from _adj_bad_r
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_adjustment((select adjustment_id from _adj_bad_rate));
@@ -1065,7 +1065,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_adjustment((select adjustment_id from _adj_bad_rate));
@@ -1096,7 +1096,7 @@ select adjustment_id, 1, adj_item, 'Adjust Cement 50kg', -1000 from _adj_negativ
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_adjustment((select adjustment_id from _adj_negative));
@@ -1115,7 +1115,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_stock_adjustment((select adjustment_id from _adj_down));
@@ -1133,7 +1133,7 @@ select matches(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select cancel_document(%L, %L, %L)', 'stock_adjustment',
          (select adjustment_id from _adj_up), 'miscounted'),
@@ -1171,7 +1171,7 @@ select adjustment_id, 2, adj_item2, 'Adjust Sand cft', 3, 100 from _adj_mixed, _
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _adj_mixed_entry as
 select post_stock_adjustment((select adjustment_id from _adj_mixed)) as entry_id;
 reset role;
@@ -1238,7 +1238,7 @@ from _deposit;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_payment(%L)', (select payment_id from _receipt)),
   'cash receipt of Rs 5,000 posts on 15 Jul'
@@ -1257,7 +1257,7 @@ set local request.jwt.claims to '';
 -- Counted Rs 1,600 against an expected Rs 1,800: Rs 200 short.
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _close_short as
 select post_day_close('2026-07-15', 1600, 'counter short') as entry_id;
 reset role;
@@ -1337,7 +1337,7 @@ select is(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_day_close('2026-07-15', 1600, 'again');
@@ -1368,7 +1368,7 @@ grant select on _receipt2 to authenticated;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_payment(%L)', (select payment_id from _receipt2)),
   'a user-role session posts the 16 Jul receipt'
@@ -1422,7 +1422,7 @@ select is(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_day_close(
@@ -1442,7 +1442,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_day_close('2026-07-17', -5, 'negative');
@@ -1462,7 +1462,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform cancel_document('day_close',
@@ -1481,7 +1481,7 @@ select matches(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 create temp table _reopen as
 select cancel_document('day_close',
   (select id from day_closes where close_date = '2026-07-16'), 'recount') as entry_id;
@@ -1529,7 +1529,7 @@ select is(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   $$ select post_day_close('2026-07-16', 2650, 'recounted') $$,
   'after a reopen the same date can be closed again'
@@ -1649,7 +1649,7 @@ from _cash_invoice, _cs_item;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_sales_invoice((select invoice_id from _cash_invoice));
@@ -1671,7 +1671,7 @@ select matches(
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}';
+  '{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated","aal":"aal2"}';
 create temp table _cash_sale as
 select post_cash_sale((select invoice_id from _cash_invoice),
                       (select id from accounts where system_key = 'cash')) as entry_id;
@@ -1777,7 +1777,7 @@ from _cash_invoice_bad, _cs_item;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_cash_sale((select invoice_id from _cash_invoice_bad),
@@ -1824,7 +1824,7 @@ delete from doc_sequences where series = 'RCPT';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform post_cash_sale((select invoice_id from _cash_invoice_rollback),
@@ -1883,7 +1883,7 @@ select is(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$
 begin
   perform _post_sales_invoice((select invoice_id from _cash_invoice_rollback), true);
@@ -1947,7 +1947,7 @@ from _early_challan, _items;
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(
   format('select post_delivery_challan(%L)', (select challan_id from _early_challan)),
   'finding 7 fixture: a challan dated 15 Jun posts'
@@ -1975,7 +1975,7 @@ from _early_invoice, _items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_sales_invoice((select invoice_id from _early_invoice));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2016,7 +2016,7 @@ from _invoice_on_draft_challan, _items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_sales_invoice((select invoice_id from _invoice_on_draft_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2040,7 +2040,7 @@ grant select on _empty_challan to authenticated;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _empty_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2076,7 +2076,7 @@ from _supplier_challan, _items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _supplier_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2104,7 +2104,7 @@ from _transit_challan, _items;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _transit_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2141,7 +2141,7 @@ from _service_challan, _service_item;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _service_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2180,7 +2180,7 @@ from _free_challan, _free_item;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _free_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2216,7 +2216,7 @@ select adjustment_id, 1, item_id, 'Never Stocked Item', 5 from _zero_rate_adj, _
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_adjustment((select adjustment_id from _zero_rate_adj));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2242,7 +2242,7 @@ select adjustment_id, 1, item_id, 'Zero Cost Cement', -5 from _zero_value_adj, _
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_adjustment((select adjustment_id from _zero_value_adj));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2266,7 +2266,7 @@ grant select on _empty_transfer to authenticated;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_transfer((select transfer_id from _empty_transfer));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2288,7 +2288,7 @@ grant select on _empty_adj to authenticated;
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_adjustment((select adjustment_id from _empty_adj));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2302,7 +2302,7 @@ select matches(
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_day_close(null, 100, 'no date');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2319,7 +2319,7 @@ update accounts set system_key = null where system_key = 'goods_in_transit';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _empty_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2338,7 +2338,7 @@ update warehouses set is_transit = false where name = 'In Transit';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_transfer((select transfer_id from _transfer_short));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2394,7 +2394,7 @@ select adjustment_id, 1, adj_item, 'Adjust Cement 50kg', -1 from _locked_adj, _i
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_delivery_challan((select challan_id from _locked_challan));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2405,7 +2405,7 @@ select matches(current_setting('pgtap_test.raised_msg', true), 'DN_PERIOD_LOCKED
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_transfer((select transfer_id from _locked_transfer));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2416,7 +2416,7 @@ select matches(current_setting('pgtap_test.raised_msg', true), 'DN_PERIOD_LOCKED
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_stock_adjustment((select adjustment_id from _locked_adj));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2427,7 +2427,7 @@ select matches(current_setting('pgtap_test.raised_msg', true), 'DN_PERIOD_LOCKED
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform post_day_close('2026-05-10', 100, 'locked');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2453,7 +2453,7 @@ select transfer_id, 1, tr_item, 'Transfer Cement 50kg', 'bag', 5 from _locked_re
 
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select lives_ok(format('select post_stock_transfer(%L)', (select transfer_id from _locked_receive)),
   'period-lock fixture: a transfer goes in_transit before the month is locked');
 reset role;
@@ -2466,7 +2466,7 @@ where month = date_trunc('month',
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin perform receive_stock_transfer((select transfer_id from _locked_receive));
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
@@ -2483,7 +2483,7 @@ update fiscal_periods set is_locked = true where month = '2026-07-01';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   perform cancel_document('day_close',
     (select id from day_closes where close_date = '2026-07-15' and status = 'posted'), 'x');
@@ -2502,7 +2502,7 @@ update fiscal_periods set is_locked = false where month = '2026-07-01';
 select set_config('pgtap_test.raised_msg', '', false);
 set local role authenticated;
 set local request.jwt.claims to
-  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 do $$ begin
   insert into journal_entries (entry_date, narration, source_type)
   values ('2026-06-01', 'hand-written', 'manual');
