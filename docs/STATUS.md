@@ -101,7 +101,7 @@ Full list with owner/skill/spec-section/acceptance per change: `openspec/changes
 Vercel (Hobby) is linked to the private GitHub repo and deploys every push to `main`; stable address `https://dakshanirmaan.vercel.app` (Deployment Protection on, so only Ratna's Vercel login reaches it). Hosted Auth Site URL and Redirect URL are set to that address. Ratna signed in on it and it works. Commit 6284fc7 (dashboard tiles link to their screens, `loading.tsx` skeleton, dotted GST message keys renamed) is live. Hosted holds the REAL books: never load demo data there.
 
 ## Then Phase 2
-20 notes · 21 purchases-ui · 22 bank-recon · 24 quotes-rebates-interest · 25 exports-portability.
+20 notes · 21 purchases-ui · 22 bank-recon (high priority: HDFC, mostly UPI/bank) · **23 cash-deposit** (added 2026-09-26: no entry exists for depositing cash into the bank) · 24 quotes-rebates-interest · 25 exports-portability. Suggested order: 21, 23, 22, 20, then 24, 25.
 
 ## Owner decisions already made (2026-09-21, Ratna delegated to Claude, she can overrule)
 1. Stock cost hidden from counter staff — owner-only cost view, build with 19.
