@@ -33,8 +33,8 @@ export function isActive(pathname: string, href: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Screens a counter (`user`) role never sees; the proxy also turns them away (settings; staff = salaries, owner-only). */
-const ADMIN_ONLY: NavKey[] = ['settings', 'staff'];
+/** Screens a counter (`user`) role never sees; the proxy also turns them away (settings; staff = salaries; purchases = supplier bills, all owner-only). */
+const ADMIN_ONLY: NavKey[] = ['settings', 'staff', 'purchases'];
 
 export function visibleFor(role: 'admin' | 'user', keys: NavKey[]): NavKey[] {
   return role === 'admin' ? keys : keys.filter((k) => !ADMIN_ONLY.includes(k));

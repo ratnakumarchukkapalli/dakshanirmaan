@@ -1,5 +1,6 @@
 import 'server-only';
 import { getTranslations } from 'next-intl/server';
+import { redirect } from 'next/navigation';
 import { fail, type Failure } from '@/lib/action-result';
 import { getCurrentMember, type CurrentMember } from '@/lib/auth/current';
 
@@ -31,4 +32,15 @@ export async function requireAdminMember(): Promise<MemberGate> {
   const member = await getCurrentMember();
   if (member && isVerifiedAdmin(member)) return { member };
   return { denied: fail('forbidden', (await getTranslations('errors'))('forbidden')) };
+}
+
+/**
+ * The second lock on an owner-only screen (the proxy is the first): a verified owner passes, anyone
+ * else is sent to the dashboard. Called at the top of every page, not only a layout, because a
+ * layout is not re-run when the person moves between its pages.
+ */
+export async function requireOwnerPage(): Promise<CurrentMember> {
+  const member = await getCurrentMember();
+  if (!member || !isVerifiedAdmin(member)) redirect('/');
+  return member;
 }

@@ -26,7 +26,7 @@ describe('signed out (no session, not a member, or session too old)', () => {
 });
 
 describe('counter user', () => {
-  it('reaches every screen except settings and staff (salaries are owner-only)', () => {
+  it('reaches every screen except settings, staff and purchases (owner-only)', () => {
     expect(go('/', counter)).toEqual(allow);
     expect(go('/parties', counter)).toEqual(allow);
     expect(go('/stock', counter)).toEqual(allow);
@@ -41,6 +41,11 @@ describe('counter user', () => {
     expect(go('/api/reports/cash-bank/xlsx', counter)).toEqual(allow);
     expect(go('/staff/3f2b1c1e-0000-4000-8000-000000000000', counter)).toEqual(redirect('/'));
     expect(go('/staffing', counter)).toEqual(allow);
+    // Supplier bills: the list, a draft, the posted view and the new-bill form are all owner-only.
+    expect(go('/purchases', counter)).toEqual(redirect('/'));
+    expect(go('/purchases/new', counter)).toEqual(redirect('/'));
+    expect(go('/purchases/3f2b1c1e-0000-4000-8000-000000000000/view', counter)).toEqual(redirect('/'));
+    expect(go('/purchases-lookalike', counter)).toEqual(allow);
     expect(go('/settings', counter)).toEqual(redirect('/'));
     expect(go('/settings/users', counter)).toEqual(redirect('/'));
   });
