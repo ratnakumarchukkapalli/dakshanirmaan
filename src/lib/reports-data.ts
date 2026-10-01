@@ -109,7 +109,7 @@ export const DAY_BOOK_EXPORT_CAP = 20000;
 
 export const DAY_BOOK_TYPES = [
   'sales_invoice', 'purchase_invoice', 'payment', 'expense_voucher', 'delivery_challan',
-  'stock_adjustment', 'day_close', 'credit_note', 'debit_note', 'opening', 'manual',
+  'stock_adjustment', 'day_close', 'credit_note', 'debit_note', 'cash_deposit', 'opening', 'manual',
 ] as const;
 export type DayBookType = (typeof DAY_BOOK_TYPES)[number];
 export const parseDayBookType = (raw: string | undefined): DayBookType | null =>

@@ -212,6 +212,9 @@
       "later_close_exists": "A later day is already closed. An owner must reopen that day first.",
       "close_date_old": "Only an owner can close a day older than yesterday.",
       "reopen_later_first": "A later day is closed too. Reopen the latest closed day first.",
+      "day_closed": "That day is already closed. An owner must reopen it first, or use a later date.",
+      "reference_too_long": "The slip reference is too long (60 characters at most).",
+      "note_too_long": "The note is too long (500 characters at most).",
       "opening_batch_not_draft": "The opening balances are already posted, so they cannot be changed. Cancel the posting first.",
       "party_inactive": "One of the parties is disabled. Enable it or remove that line.",
       "party_type": "A customer can only owe you money and a supplier can only be owed money. Check the side of each party.",
@@ -441,7 +444,8 @@
         "stock_adjustments": "Stock adjustment",
         "stock_transfers": "Stock transfer",
         "day_closes": "Day close",
-        "opening_batches": "Opening balances"
+        "opening_batches": "Opening balances",
+        "cash_deposits": "Cash deposit"
       }
     }
   },
@@ -547,7 +551,8 @@
       "delivery_challan": "Delivery challan",
       "stock_transfer": "Stock transfer",
       "quotation": "Quotation",
-      "day_close": "Day close"
+      "day_close": "Day close",
+      "cash_deposit": "Cash deposit"
     }
   },
   "items": {
@@ -1072,6 +1077,32 @@
     "confirmPostBody": "{party}: {amount}. A voucher number is given now and the books are updated.",
     "confirmPost": "Post"
   },
+  "cashDeposit": {
+    "button": "Deposit cash to bank",
+    "title": "Deposit cash to bank",
+    "intro": "Cash taken from the drawer to the bank. The books move the money from Cash to the bank ledger.",
+    "dateLabel": "Date",
+    "amountLabel": "Amount",
+    "refLabel": "Bank slip / reference",
+    "refHint": "From the paying-in slip (optional).",
+    "noteLabel": "Note (optional)",
+    "submit": "Record deposit",
+    "saving": "Saving…",
+    "onHand": "The books show {amount} of cash on hand.",
+    "overWarn": "That is more than the {amount} the books show in the drawer. You can still record it, because the drawer may hold cash that is not entered yet, but the day-close figure will then show a negative balance.",
+    "listTitle": "Cash deposits",
+    "listEmpty": "No cash has been deposited yet.",
+    "colDate": "Date",
+    "colAmount": "Amount",
+    "colRef": "Slip / reference",
+    "statusCancelled": "Cancelled",
+    "cancelBtn": "Cancel",
+    "cancelTitle": "Cancel this deposit?",
+    "cancelBody": "A reversing entry is posted on the deposit's own day and the cash is back in the drawer. It is kept in the audit trail. Not possible while that day is closed.",
+    "cancelReason": "Reason",
+    "cancelConfirm": "Cancel deposit",
+    "negativeDrawer": "The books say the drawer should hold less than nothing ({amount}). Cash received may not be entered yet, or a deposit was recorded for more than the books hold."
+  },
   "statement": {
     "truncated": "This ledger is too long to export completely (over 20,000 lines), so no statement was produced rather than one with a wrong closing balance. Choose a shorter period.",
     "title": "Account statement",
@@ -1192,7 +1223,8 @@
       "delivery_challan": "Delivery challan",
       "stock_transfer": "Stock transfer",
       "quotation": "Quotation",
-      "day_close": "Day close"
+      "day_close": "Day close",
+      "cash_deposit": "Cash deposit"
     }
   },
   "staff": {
@@ -1449,7 +1481,8 @@
         "credit_note": "Credit note",
         "debit_note": "Debit note",
         "opening": "Opening balance",
-        "manual": "Manual entry"
+        "manual": "Manual entry",
+        "cash_deposit": "Cash deposit"
       },
       "colDate": "Date",
       "colEntry": "Entry",
@@ -1713,7 +1746,8 @@
         "book": "The paper invoice book is labelled DNM/26-27/ so it never clashes with app numbers (DN/).",
         "demo": "No demo or test data is in this database.",
         "tally": "Tally or the old book is kept read-only for reference."
-      }
+      },
+      "bank_set_up": "The UPI ID is set and the bank ledger carries the bank's name (HDFC Bank)"
     },
     "csv": {
       "empty": "The file has no rows.",

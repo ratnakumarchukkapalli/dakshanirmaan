@@ -284,7 +284,7 @@ function PostedCard({ data, pending, run }: FormProps) {
   );
 }
 
-const CHECKS = ['organisation', 'owners', 'periods', 'opening_posted', 'ledger_balanced', 'inventory_ties'] as const;
+const CHECKS = ['organisation', 'owners', 'periods', 'opening_posted', 'ledger_balanced', 'inventory_ties', 'bank_set_up'] as const;
 const MANUAL = ['otp', 'totp', 'backup', 'book', 'demo', 'tally'] as const;
 
 function Checklist({ data }: { data: CutoverData }) {

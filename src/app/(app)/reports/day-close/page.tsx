@@ -1,4 +1,6 @@
 import { getTranslations } from 'next-intl/server';
+import { CashDepositList } from '@/components/cash/CashDepositList';
+import { DepositCashButton } from '@/components/cash/DepositCashButton';
 import { DayCloseForm } from '@/components/reports/DayCloseForm';
 import { ReopenDay } from '@/components/reports/ReopenDay';
 import { ReportFilters } from '@/components/reports/ReportFilters';
@@ -9,6 +11,7 @@ import { LedgerTable } from '@/components/ui/LedgerTable';
 import { StatTile } from '@/components/ui/StatTile';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
+import { loadCashDeposits } from '@/lib/cash-deposits-data';
 import { signOf } from '@/lib/decimal';
 import { formatDate, inr2, todayIn } from '@/lib/format';
 import { loadDayClose, type DayCloseRow } from '@/lib/reports-data';
@@ -20,12 +23,13 @@ import { createClient } from '@/lib/supabase/server';
 // a day; only an owner reopens one. The figures are `day_close_preview` (open day) or the stored row.
 export default async function DayClosePage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const sp = await searchParams;
-  const [t, tr, member, ctx, supabase] = await Promise.all([
-    getTranslations('reports.dayClose'), getTranslations('reports'), getCurrentMember(), getShellContext(), createClient(),
+  const [t, tr, tc, member, ctx, supabase] = await Promise.all([
+    getTranslations('reports.dayClose'), getTranslations('reports'), getTranslations('cashDeposit'), getCurrentMember(), getShellContext(), createClient(),
   ]);
   const isAdmin = isVerifiedAdmin(member);
   const today = todayIn(ctx.timeZone);
   const date = parseCloseDate(sp.date, today);
+  const deposits = await loadCashDeposits(supabase, { date, limit: 20 });
 
   let screen: Awaited<ReturnType<typeof loadDayClose>> | null = null;
   try {
@@ -78,6 +82,9 @@ export default async function DayClosePage({ searchParams }: { searchParams: Pro
             </Card>
           ) : (
             <>
+              {signOf(screen.preview.expected) === -1 && (
+                <p className="alert warn" role="status">{tc('negativeDrawer', { amount: inr2(screen.preview.expected) })}</p>
+              )}
               <div className="tiles">
                 <StatTile label={t('opening')} value={inr2(screen.preview.openingCash)} small />
                 <StatTile label={t('cashIn')} value={inr2(screen.preview.cashIn)} small />
@@ -95,6 +102,12 @@ export default async function DayClosePage({ searchParams }: { searchParams: Pro
               </Card>
             </>
           )}
+
+          <CashDepositList
+            rows={deposits}
+            isAdmin={isAdmin}
+            action={screen.live ? undefined : <DepositCashButton today={today} defaultDate={date} cashOnHand={screen.preview.expected} />}
+          />
 
           <Card>
             <div className="cardtitle">{t('recentTitle')}</div>

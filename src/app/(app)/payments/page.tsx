@@ -1,5 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
+import { CashDepositList } from '@/components/cash/CashDepositList';
+import { DepositCashButton } from '@/components/cash/DepositCashButton';
 import { PaymentRowActions } from '@/components/payments/PaymentRowActions';
 import { RowLink } from '@/components/sales/RowLink';
 import { Card } from '@/components/ui/Card';
@@ -9,9 +11,11 @@ import { Segmented } from '@/components/ui/Segmented';
 import { StatTile } from '@/components/ui/StatTile';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
-import { formatDate, inr, inr2 } from '@/lib/format';
+import { loadCashDeposits, loadCashOnHand } from '@/lib/cash-deposits-data';
+import { formatDate, inr, inr2, todayIn } from '@/lib/format';
 import { CHEQUE_LABEL, loadPaymentsList } from '@/lib/payments-data';
 import { cleanSearchText } from '@/lib/search';
+import { getShellContext } from '@/lib/shell-context';
 import { createClient } from '@/lib/supabase/server';
 
 type Segment = 'all' | 'receipt' | 'payment' | 'draft';
@@ -22,8 +26,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const segment: Segment = sp.status === 'receipt' || sp.status === 'payment' || sp.status === 'draft' ? sp.status : 'all';
   const q = cleanSearchText(sp.q);
 
-  const [t, ts, member, supabase] = await Promise.all([getTranslations('payments'), getTranslations('sales'), getCurrentMember(), createClient()]);
+  const [t, ts, member, supabase, ctx] = await Promise.all([getTranslations('payments'), getTranslations('sales'), getCurrentMember(), createClient(), getShellContext()]);
   const isAdmin = isVerifiedAdmin(member);
+  const today = todayIn(ctx.timeZone);
+  const [deposits, cashOnHand] = await Promise.all([loadCashDeposits(supabase, { limit: 10 }), loadCashOnHand(supabase, today)]);
 
   const { rows, tiles } = await loadPaymentsList(supabase, {
     direction: segment === 'receipt' || segment === 'payment' ? segment : undefined,
@@ -45,6 +51,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <h1>{t('title')}</h1>
         <span className="sub">{t('subtitle')}</span>
         <span className="headbtns">
+          <DepositCashButton today={today} cashOnHand={cashOnHand} />
           <Link href="/payments/new" className="btn primary">+ {t('newReceipt')}</Link>
         </span>
       </div>
@@ -124,6 +131,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           </div>
         )}
       </Card>
+
+      <CashDepositList rows={deposits} isAdmin={isAdmin} />
     </div>
   );
 }
