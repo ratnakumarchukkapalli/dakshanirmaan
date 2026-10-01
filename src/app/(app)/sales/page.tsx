@@ -5,20 +5,23 @@ import { Card } from '@/components/ui/Card';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Segmented } from '@/components/ui/Segmented';
+import { NoteList } from '@/components/notes/NoteList';
 import { RowLink } from '@/components/sales/RowLink';
+import { getCurrentMember } from '@/lib/auth/current';
+import { isVerifiedAdmin } from '@/lib/auth/require';
 import { formatDate, inr2 } from '@/lib/format';
 import { cleanSearchText, containsPattern, quoteFilterValue } from '@/lib/search';
 import { createClient } from '@/lib/supabase/server';
 
-type Segment = 'all' | 'invoice' | 'challan' | 'draft';
+type Segment = 'all' | 'invoice' | 'challan' | 'note' | 'draft';
 const LIMIT = 200;
 
 export default async function SalesPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
   const sp = await searchParams;
-  const segment: Segment = sp.status === 'invoice' || sp.status === 'challan' || sp.status === 'draft' ? sp.status : 'all';
+  const segment: Segment = sp.status === 'invoice' || sp.status === 'challan' || sp.status === 'note' || sp.status === 'draft' ? sp.status : 'all';
   const q = cleanSearchText(sp.q);
 
-  const [t, supabase] = await Promise.all([getTranslations('sales'), createClient()]);
+  const [t, tn, supabase, member] = await Promise.all([getTranslations('sales'), getTranslations('notes.credit'), createClient(), getCurrentMember()]);
 
   const href = (s: Segment) => {
     const params = new URLSearchParams();
@@ -34,7 +37,9 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   };
 
   let table: ReactNode;
-  if (segment === 'challan') {
+  if (segment === 'note') {
+    table = <NoteList kind="credit" q={q} isOwner={isVerifiedAdmin(member)} />;
+  } else if (segment === 'challan') {
     // `delivery_challans` has two FKs to `parties` (party_id, driver_party_id); the embed needs
     // the explicit constraint name or PostgREST refuses the ambiguous embed outright.
     let cq = supabase
@@ -174,6 +179,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
             { key: 'all', label: t('all'), href: href('all') },
             { key: 'invoice', label: t('invoices'), href: href('invoice') },
             { key: 'challan', label: t('challans'), href: href('challan') },
+            { key: 'note', label: tn('segment'), href: href('note') },
             { key: 'draft', label: t('drafts'), href: href('draft') },
           ]}
         />

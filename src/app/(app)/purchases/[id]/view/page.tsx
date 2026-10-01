@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { NotesCard } from '@/components/notes/NotesCard';
 import { CancelBill } from '@/components/purchases/CancelBill';
 import { TotalsRows } from '@/components/sales/TotalsPanel';
 import { Card } from '@/components/ui/Card';
@@ -10,6 +11,7 @@ import { requireOwnerPage } from '@/lib/auth/require';
 import { rows } from '@/lib/db';
 import { addDecimal, decimalText } from '@/lib/decimal';
 import { formatDate, inr2, inrRate } from '@/lib/format';
+import { loadInvoiceNotes } from '@/lib/notes-data';
 import { stateName } from '@/lib/gst';
 import { trimZeros } from '@/lib/units';
 import { isUuid } from '@/lib/uuid';
@@ -26,7 +28,7 @@ export default async function BillViewPage({ params, searchParams }: { params: P
   const { id } = await params;
   const { done } = await searchParams;
   if (!isUuid(id)) notFound();
-  const [t, supabase] = await Promise.all([getTranslations('purchases'), createClient()]);
+  const [t, tn, supabase] = await Promise.all([getTranslations('purchases'), getTranslations('notes.debit'), createClient()]);
 
   const [headRes, linesRes, entriesRes, stockRes, allocRes] = await Promise.all([
     supabase.from('purchase_invoices').select('*, party:parties(name, gstin, state_code)').eq('id', id).maybeSingle(),
@@ -46,6 +48,8 @@ export default async function BillViewPage({ params, searchParams }: { params: P
   const bill = headRes.data;
   if (!bill) notFound();
   if (bill.status === 'draft') redirect(`/purchases/${id}`);
+  const notes = await loadInvoiceNotes(supabase, 'debit', id);
+  const hasPostedNotes = notes.some((n) => n.status === 'posted');
 
   const lines = rows<{
     line_no: number; item_name: string; hsn_code: string; uom: string; qty: number; alt_qty: number | null; rate: number;
@@ -63,7 +67,7 @@ export default async function BillViewPage({ params, searchParams }: { params: P
   const number = bill.invoice_no as string;
 
   // The page itself is owner-only (requireOwnerPage), so the role needs no second test here.
-  const canCancel = bill.status === 'posted' && payments.length === 0;
+  const canCancel = bill.status === 'posted' && payments.length === 0 && !hasPostedNotes;
   const chip: { tone: ChipTone; label: string } = cancelled ? { tone: 'bad', label: t('statusCancelled') } : { tone: 'good', label: t('statusPosted') };
   const modeLabel = (m: string) => (({ cash: t('modeCash'), upi: t('modeUpi'), bank: t('modeBank'), neft: t('modeNeft'), cheque: t('modeCheque') }) as Record<string, string>)[m] ?? m;
 
@@ -84,6 +88,7 @@ export default async function BillViewPage({ params, searchParams }: { params: P
         <p role="status" className="alert bad">{t('cancelledBanner', { date: reversal ? formatDate(reversal.entry_date) : '—' })}</p>
       )}
       {!cancelled && payments.length > 0 && <p className="alert warn">{t('cancelBlockedPaid')}</p>}
+      {!cancelled && hasPostedNotes && <p className="alert warn">{tn('cancelBlocked')}</p>}
 
       <div className="grid2">
         <Card>
@@ -119,6 +124,8 @@ export default async function BillViewPage({ params, searchParams }: { params: P
           )}
         </Card>
       </div>
+
+      <NotesCard kind="debit" invoiceId={id} notes={notes} canWrite canMake={bill.status === 'posted'} />
 
       <Card>
         <div className="cardtitle"><span>{t('items')}</span></div>

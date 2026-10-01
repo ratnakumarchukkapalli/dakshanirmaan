@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { NotesCard } from '@/components/notes/NotesCard';
 import { CancelInvoice } from '@/components/sales/CancelInvoice';
 import { EwbPanel } from '@/components/sales/EwbPanel';
 import { InvoiceActions } from '@/components/sales/InvoiceActions';
@@ -12,6 +13,7 @@ import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
 import { addDecimal, compareDecimal, decimalText } from '@/lib/decimal';
 import { validUntilDate, type EwbValues } from '@/lib/ewb';
+import { loadInvoiceNotes } from '@/lib/notes-data';
 import { formatDate, inr, inr2, inrRate } from '@/lib/format';
 import { EWAY_BILL_THRESHOLD, stateName } from '@/lib/gst';
 import { shareConfigured } from '@/lib/share-link';
@@ -34,7 +36,7 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
   const { id } = await params;
   const { done } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [t, supabase, member] = await Promise.all([getTranslations('sales'), createClient(), getCurrentMember()]);
+  const [t, tn, supabase, member] = await Promise.all([getTranslations('sales'), getTranslations('notes.credit'), createClient(), getCurrentMember()]);
 
   const [{ data: inv }, { data: lines }, { data: entries }, { data: stock }, { data: allocs }, { data: org }] = await Promise.all([
     supabase.from('sales_invoices').select('*, party:parties(name, gstin, is_walk_in)').eq('id', id).maybeSingle(),
@@ -53,6 +55,8 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
   ]);
   if (!inv) notFound();
   if (inv.status === 'draft') redirect(`/sales/${id}`);
+  const notes = await loadInvoiceNotes(supabase, 'credit', id);
+  const hasPostedNotes = notes.some((n) => n.status === 'posted');
 
   const party = inv.party as { name: string; gstin: string | null; is_walk_in: boolean } | null;
   const cancelled = inv.status === 'cancelled';
@@ -69,7 +73,7 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
   };
   const needsEwb = !inv.ewb_no && compareDecimal(decimalText(inv.grand_total, 2), EWAY_BILL_THRESHOLD, 2) === 1;
 
-  const canCancel = isVerifiedAdmin(member) && inv.status === 'posted' && payments.length === 0;
+  const canCancel = isVerifiedAdmin(member) && inv.status === 'posted' && payments.length === 0 && !hasPostedNotes;
   const chip: { tone: ChipTone; label: string } = cancelled ? { tone: 'bad', label: t('statusCancelled') } : { tone: 'good', label: t('statusPosted') };
   const modeLabel = (m: string) => (({ cash: t('modeCash'), upi: t('modeUpi'), bank: t('modeBank'), neft: t('modeNeft'), cheque: t('modeCheque') }) as Record<string, string>)[m] ?? m;
 
@@ -91,6 +95,7 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
         <p role="status" className="alert bad">{t('cancelledBanner', { date: reversal ? formatDate(reversal.entry_date) : '—' })}</p>
       )}
       {!cancelled && payments.length > 0 && <p className="alert warn">{t('cancelBlockedPaid')}</p>}
+      {!cancelled && hasPostedNotes && <p className="alert warn">{tn('cancelBlocked')}</p>}
 
       <div className="grid2">
         <Card>
@@ -124,6 +129,8 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
           )}
         </Card>
       </div>
+
+      <NotesCard kind="credit" invoiceId={id} notes={notes} canWrite={isVerifiedAdmin(member)} canMake={inv.status === 'posted'} />
 
       <EwbPanel
         key={JSON.stringify(ewb)} id={id} values={ewb} editable={!cancelled} needsEwb={needsEwb} thresholdLabel={inr(EWAY_BILL_THRESHOLD)}

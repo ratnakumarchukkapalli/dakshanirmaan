@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
+import { NoteList } from '@/components/notes/NoteList';
 import { RowLink } from '@/components/sales/RowLink';
 import { Card } from '@/components/ui/Card';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
@@ -12,17 +13,17 @@ import { loadPurchaseTiles } from '@/lib/purchases-data';
 import { cleanSearchText, containsPattern, quoteFilterValue } from '@/lib/search';
 import { createClient } from '@/lib/supabase/server';
 
-type Segment = 'all' | 'posted' | 'draft';
+type Segment = 'all' | 'posted' | 'note' | 'draft';
 const LIMIT = 200;
 
 // Owner-only screen (the proxy turns a counter session away; the database refuses one anyway).
 export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
   await requireOwnerPage();
   const sp = await searchParams;
-  const segment: Segment = sp.status === 'posted' || sp.status === 'draft' ? sp.status : 'all';
+  const segment: Segment = sp.status === 'posted' || sp.status === 'note' || sp.status === 'draft' ? sp.status : 'all';
   const q = cleanSearchText(sp.q);
 
-  const [t, supabase] = await Promise.all([getTranslations('purchases'), createClient()]);
+  const [t, tn, supabase] = await Promise.all([getTranslations('purchases'), getTranslations('notes.debit'), createClient()]);
   const tiles = await loadPurchaseTiles(supabase);
 
   const href = (s: Segment) => {
@@ -54,7 +55,8 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
     const ids = (matches ?? []).map((p) => p.id as string);
     query = query.or([`invoice_no.ilike.${pattern}`, `supplier_bill_no.ilike.${pattern}`, ...(ids.length ? [`party_id.in.(${ids.join(',')})`] : [])].join(','));
   }
-  const { data: rows, error } = await query;
+  // The notes segment lists debit notes instead of bills, so the bill query is skipped for it.
+  const { data: rows, error } = segment === 'note' ? { data: [], error: null } : await query;
   if (error) throw new Error(`purchase list: ${error.message}`);
 
   return (
@@ -80,6 +82,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
           options={[
             { key: 'all', label: t('all'), href: href('all') },
             { key: 'posted', label: t('bills'), href: href('posted') },
+            { key: 'note', label: tn('segment'), href: href('note') },
             { key: 'draft', label: t('drafts'), href: href('draft') },
           ]}
         />
@@ -87,7 +90,9 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
       </div>
 
       <Card>
-        {(rows ?? []).length === 0 ? (
+        {segment === 'note' ? (
+          <NoteList kind="debit" q={q} isOwner />
+        ) : (rows ?? []).length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>{q || segment !== 'all' ? t('emptyFiltered') : t('empty')}</p>
         ) : (
           <div className="tablewrap">
