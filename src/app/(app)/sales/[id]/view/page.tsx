@@ -58,6 +58,8 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
   const notes = await loadInvoiceNotes(supabase, 'credit', id);
   const hasPostedNotes = notes.some((n) => n.status === 'posted');
 
+  // Cost comes back NULL for a counter session (change 28); the database decides, the page only lays out.
+  const showCost = (stock ?? []).some((m) => m.rate !== null);
   const party = inv.party as { name: string; gstin: string | null; is_walk_in: boolean } | null;
   const cancelled = inv.status === 'cancelled';
   const journal = ((entries ?? []) as unknown as JournalEntry[]).map((e) => ({ ...e, lines: [...e.lines].sort((a, b) => a.line_no - b.line_no) }));
@@ -206,7 +208,7 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
           <div className="tablewrap">
             <table>
               <thead>
-                <tr><th>{t('item')}</th><th>{t('godown')}</th><th className="r">{t('qty')}</th><th className="r">{t('costRate')}</th><th className="r">{t('costValue')}</th></tr>
+                <tr><th>{t('item')}</th><th>{t('godown')}</th><th className="r">{t('qty')}</th>{showCost && <><th className="r">{t('costRate')}</th><th className="r">{t('costValue')}</th></>}</tr>
               </thead>
               <tbody>
                 {(stock ?? []).map((m) => (
@@ -214,8 +216,7 @@ export default async function InvoiceViewPage({ params, searchParams }: { params
                     <td>{m.item_name}{m.is_reversal && <> <Chip tone="muted">{t('reversalTag')}</Chip></>}</td>
                     <td>{m.warehouse_name}</td>
                     <td className="r num">{Number(m.qty) > 0 ? '+' : ''}{trimZeros(decimalText(m.qty, 3))}</td>
-                    <td className="r num">{inrRate(m.rate)}</td>
-                    <td className="r num">{inr2(m.value)}</td>
+                    {showCost && <><td className="r num">{inrRate(m.rate)}</td><td className="r num">{inr2(m.value)}</td></>}
                   </tr>
                 ))}
               </tbody>

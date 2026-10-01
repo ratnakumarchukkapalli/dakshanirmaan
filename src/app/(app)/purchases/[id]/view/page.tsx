@@ -65,7 +65,9 @@ export default async function BillViewPage({ params, searchParams }: { params: P
     line_no: number; item_name: string; hsn_code: string; uom: string; qty: number; alt_qty: number | null; rate: number;
     discount_pct: number; taxable_value: number; gst_rate: number; cgst_amt: number; sgst_amt: number; igst_amt: number;
   }>(linesRes, 'bill lines');
-  const stock = rows<{ movement_id: string; warehouse_name: string; item_name: string; qty: number; rate: number; value: number; is_reversal: boolean }>(stockRes, 'stock effect');
+  const stock = rows<{ movement_id: string; warehouse_name: string; item_name: string; qty: number; rate: number | null; value: number | null; is_reversal: boolean }>(stockRes, 'stock effect');
+  // Cost comes back NULL for a counter session (change 28); the database decides, the page only lays out.
+  const showCost = stock.some((m) => m.rate !== null);
   const supplier = bill.party as { name: string; gstin: string | null; state_code: string } | null;
   const cancelled = bill.status === 'cancelled';
   const journal = rows<JournalEntry>(entriesRes, 'journal').map((e) => ({ ...e, lines: [...e.lines].sort((a, b) => a.line_no - b.line_no) }));
@@ -212,7 +214,7 @@ export default async function BillViewPage({ params, searchParams }: { params: P
           <div className="tablewrap">
             <table>
               <thead>
-                <tr><th>{t('item')}</th><th>{t('godown')}</th><th className="r">{t('qty')}</th><th className="r">{t('costRate')}</th><th className="r">{t('costValue')}</th></tr>
+                <tr><th>{t('item')}</th><th>{t('godown')}</th><th className="r">{t('qty')}</th>{showCost && <><th className="r">{t('costRate')}</th><th className="r">{t('costValue')}</th></>}</tr>
               </thead>
               <tbody>
                 {stock.map((m) => (
@@ -220,8 +222,7 @@ export default async function BillViewPage({ params, searchParams }: { params: P
                     <td>{m.item_name}{m.is_reversal && <> <Chip tone="muted">{t('reversalTag')}</Chip></>}</td>
                     <td>{m.warehouse_name}</td>
                     <td className="r num">{Number(m.qty) > 0 ? '+' : ''}{trimZeros(decimalText(m.qty, 3))}</td>
-                    <td className="r num">{inrRate(m.rate)}</td>
-                    <td className="r num">{inr2(m.value)}</td>
+                    {showCost && <><td className="r num">{inrRate(m.rate)}</td><td className="r num">{inr2(m.value)}</td></>}
                   </tr>
                 ))}
               </tbody>
