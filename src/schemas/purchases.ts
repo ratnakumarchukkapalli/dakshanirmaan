@@ -59,3 +59,20 @@ export const cancelBillSchema = z.object({
 
 export type SaveDraftBillInput = z.input<typeof saveDraftBillSchema>;
 export type BillLineInput = z.input<typeof billLineSchema>;
+
+/**
+ * Freight on a posted bill, paid to a transport company that charges GST on reverse charge (a goods transport agency).
+ * It is its own voucher, not a line on the bill. The amount is the freight charged, before tax; the database works out
+ * the 5% (2.5 + 2.5) and refuses a transporter outside our own state.
+ */
+export const addFreightSchema = z.object({
+  /** Client-generated per modal open: the voucher is inserted with it, so a retry cannot post a second one. */
+  id: z.uuid('request_invalid'),
+  billId: z.uuid('id_invalid'),
+  voucherDate: isoDateField,
+  transporterId: z.uuid('supplier_required'),
+  amount: boundedDecimal(14, 2, 'money_invalid').refine(positive, 'money_positive'),
+  payAccountId: z.uuid('account_required'),
+  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').optional()),
+});
+export type AddFreightInput = z.input<typeof addFreightSchema>;

@@ -3,7 +3,7 @@
 Run 2026-09-26 against the **local** Supabase stack only (`127.0.0.1:54321`). Nothing was run against the hosted project.
 Nothing was fixed, committed or pushed. No file under `src/`, `supabase/migrations/` or `supabase/tests/` was touched (`git status` is clean).
 
-> **Closed 2026-09-26 (local, uncommitted):** F1-F5 and L1 are fixed by migration `20261001100000_attack_test_fixes.sql` and pgTAP `00026`; see `docs/STATUS.md`. The default ACL that hands new functions to `anon` (through PUBLIC) is guarded by a catalog test, not changed. Hosted is untouched.
+> **Closed 2026-09-26 (local, uncommitted):** F1-F5 and L1 are fixed by migration `20261001100000_attack_test_fixes.sql` and pgTAP `00026`; see `docs/STATUS.md`. **F2 was only half closed by change 27** (a counter user could still add or edit a delivery site's `state_code` and steer the split through it); **closed 2026-10-01 by change 27b** (migration `20261004100000_purchase_attachments_and_address_guard.sql`, pgTAP `00030`, harness rows tamper B1d/B1e and the `party_addresses` `state_code` rows in `matrix.mjs`). The default ACL that hands new functions to `anon` (through PUBLIC) is guarded by a catalog test, not changed. Hosted is untouched.
 
 ## Verdict
 
@@ -16,7 +16,7 @@ What did **not** behave as specified — six findings, none critical:
 | # | Severity | Finding | Who |
 |---|---|---|---|
 | F1 | medium | A counter user can add, change and delete payment allocations on a **posted** receipt | `user` |
-| F2 | medium | `place_of_supply` on a draft is client-writable and decides the GST split (CGST+SGST vs IGST); it even accepts a non-existent state code | `user` |
+| F2 | medium | `place_of_supply` on a draft is client-writable and decides the GST split (CGST+SGST vs IGST); it even accepts a non-existent state code — **closed by 27 + 27b** | `user` |
 | F3 | low | `created_by` on a draft can be set to another person (owner) | `user` |
 | F4 | low | `gstin_checksum_ok()` is executable by signed-out callers | `anon` |
 | F5 | low | `hidden_payroll_entry_ids()` / `hidden_payroll_voucher_ids()` answer an aal1 admin and a deactivated user; `set_my_locale()` writes for an aal1 admin | `admin_aal1`, `user_off` |
@@ -53,6 +53,8 @@ The RLS policies only require `payments.status <> 'cancelled'`, so posted receip
 **Why medium, not critical:** the ledger is untouched (trial balance stayed 0.00) and party balances do not change; what moves is *which invoice a receipt is applied to*, so ageing, statements and interest can show a paid invoice as open. The change is audited (7 `allocate`/`reallocate`/`unallocate` rows in `audit_log` with the counter user as actor). On a literal reading of your scale ("data modification") you may prefer to call it critical.
 
 ### F2 — medium — `place_of_supply` on a draft steers the tax split
+
+> **Closed by change 27 + 27b.** 27: `post_sales_invoice` derives the place of supply (delivery site's state when it is one of the party's own sites, else the party's state). 27b: only an owner (admin at aal2) may add a site outside the party's state or change a site's state (`party_addresses_guard`, `DN_VALIDATION:admin_only_field`), so a counter user has no address route to IGST either.
 
 | Identity | Object | Op | Exact request | Actual response | Spec line |
 |---|---|---|---|---|---|

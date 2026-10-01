@@ -30,7 +30,8 @@ export function buildCsp({ nonce, supabaseUrl, isDev }: CspOptions): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? ` 'unsafe-eval'` : ''}`,
     // Tailwind and React inline style attributes; accepted in the security spec.
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data:`,
+    // The Supabase origin is for bill photos: private files, opened only through a short-lived signed address.
+    `img-src ${['\'self\'', 'data:', ...supabaseSources(supabaseUrl).slice(0, 1)].join(' ')}`,
     `font-src 'self'`,
     `connect-src ${['\'self\'', ...supabaseSources(supabaseUrl)].join(' ')}`,
     `manifest-src 'self'`,

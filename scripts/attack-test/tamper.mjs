@@ -178,6 +178,28 @@ const posted = (id) => rows(`select invoice_no, status, place_of_supply, taxable
   const prh = await post(dh); const rh = posted(dh);
   await t('B1c', 'inter-state customer (Hyderabad, 36) forced to intra-state (37): CGST+SGST instead of IGST', 'db-architecture: IGST on inter-state supply', () => ({ req: `PATCH sales_invoices?id=eq.${dh} {"place_of_supply":"37"}; post`, actual: `patch ${short(ph)} rows=${ph.json?.length ?? 0}; post ${short(prh)}; posted pos=${rh?.place_of_supply} cgst=${rh?.cgst_total} sgst=${rh?.sgst_total} igst=${rh?.igst_total}`, bad: prh.status < 300 && Number(rh?.igst_total) === 0 }));
 }
+{
+  // B1d/B1e (change 27b): steer the tax head through a delivery SITE's state instead of place_of_supply.
+  // Kishore is an in-state (37) customer. Neither route may get IGST onto his invoice.
+  const ship36 = { label: 'ATTACK site', state_code: '36', address: { line1: 'x' } };
+  const ins = await U('POST', 'party_addresses', { party_id: C.kishore, label: 'ATTACK-36-' + Date.now(), address: { line1: 'x' }, state_code: '36' });
+  const d1 = fx.mkSales({ party: C.kishore });
+  sql(`update sales_invoices set shipping_address = '${JSON.stringify(ship36)}'::jsonb where id = '${d1}'`); // the draft names the 36 site
+  const pr1 = await post(d1); const r1 = posted(d1);
+  await t('B1d', 'counter INSERTs an out-of-state (36) delivery site for an in-state customer, then posts a draft shipped there', 'db-architecture Masters write policies (27b): adding an out-of-state site is owner-only; IGST only for a real inter-state supply',
+    () => ({ req: `POST party_addresses {party_id:<Kishore>, state_code:"36"}; draft with shipping_address.state_code 36; post_sales_invoice`, actual: `insert ${short(ins)} rows=${ins.json?.length ?? 0}; post ${short(pr1)}; status=${r1?.status} igst=${r1?.igst_total}`,
+      bad: (ins.status < 300 && (ins.json?.length ?? 0) > 0) || Number(r1?.igst_total ?? 0) > 0 }));
+  // an existing same-state site of Kishore (setup, as the database owner), then the counter flips its state
+  const site = one(`insert into party_addresses (party_id, label, address, state_code) values ('${C.kishore}', 'ATTACK-37-${Date.now()}', '{"line1":"x"}', '37') returning id`);
+  const pa = await U('PATCH', `party_addresses?id=eq.${site}`, { state_code: '36' });
+  const siteState = one(`select state_code from party_addresses where id = '${site}'`);
+  const d2 = fx.mkSales({ party: C.kishore });
+  sql(`update sales_invoices set shipping_address = '${JSON.stringify(ship36)}'::jsonb where id = '${d2}'`);
+  const pr2 = await post(d2); const r2 = posted(d2);
+  await t('B1e', "counter PATCHes an existing site's state_code 37 -> 36, then posts a draft shipped there", "db-architecture Masters write policies (27b): changing a site's state is owner-only",
+    () => ({ req: `PATCH party_addresses?id=eq.${site} {"state_code":"36"}; draft shipped to 36; post_sales_invoice`, actual: `patch ${short(pa)} rows=${pa.json?.length ?? 0}; site state now ${siteState}; post ${short(pr2)}; status=${r2?.status} igst=${r2?.igst_total}`,
+      bad: siteState !== '37' || Number(r2?.igst_total ?? 0) > 0 }));
+}
 // -------------------------------------------------------------------------------------------------
 // C. Concurrency: duplicate posts and numbering
 // -------------------------------------------------------------------------------------------------

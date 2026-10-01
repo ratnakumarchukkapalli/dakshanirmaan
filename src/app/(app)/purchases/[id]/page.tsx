@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { BillForm } from '@/components/purchases/BillForm';
 import { requireOwnerPage } from '@/lib/auth/require';
 import { decimalText } from '@/lib/decimal';
+import { loadAttachments } from '@/lib/attachments-data';
 import { loadBillFormContext } from '@/lib/purchases-data';
 import type { BillFormInitial } from '@/lib/purchases-types';
 import { rateText, trimZeros } from '@/lib/units';
@@ -26,7 +27,10 @@ export default async function DraftBillPage({ params }: { params: Promise<{ id: 
   if (!head) notFound();
   if (head.status !== 'draft') redirect(`/purchases/${id}/view`);
 
-  const ctx = await loadBillFormContext(supabase, { partyId: head.party_id, itemIds: lines.map((l) => l.item_id as string) });
+  const [ctx, photos] = await Promise.all([
+    loadBillFormContext(supabase, { partyId: head.party_id, itemIds: lines.map((l) => l.item_id as string) }),
+    loadAttachments(supabase, id),
+  ]);
 
   const initial: BillFormInitial = {
     id: head.id,
@@ -46,5 +50,5 @@ export default async function DraftBillPage({ params }: { params: Promise<{ id: 
       })),
     },
   };
-  return <BillForm ctx={ctx} initial={initial} />;
+  return <BillForm ctx={ctx} initial={initial} photos={photos} />;
 }

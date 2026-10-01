@@ -42,7 +42,8 @@ const pages = ['/', '/sales', '/parties', '/payments', '/stock', '/purchases', '
   '/reports/cash-bank', '/reports/pnl', '/reports/balance-sheet', '/reports/trial-balance', '/reports/gst',
   '/settings', '/settings/users', '/settings/period-locks', '/settings/audit-trail', '/settings/cutover', '/settings/organisation', '/settings/items', '/settings/chart-of-accounts',
   '/staff', `/staff/${ramana}`];
-const USER_BLOCKED = (p) => p === '/settings' || p.startsWith('/settings/') || p === '/staff' || p.startsWith('/staff/') || p === '/reports/cash-bank';
+const USER_BLOCKED = (p) => p === '/settings' || p.startsWith('/settings/') || p === '/staff' || p.startsWith('/staff/') || p === '/reports/cash-bank'
+  || p === '/purchases' || p.startsWith('/purchases/'); // change 21a: purchases are owner-only
 const ownerBody = {};
 for (const p of pages) {
   for (const identity of IDENT) {
@@ -134,7 +135,11 @@ const summarize = (o) => (o.status === 307 ? `307 -> ${new URL(o.loc, APP).pathn
 // which actions must be refused to a counter user (owner-only in the api spec), by exported name
 const OWNER_ONLY = new Set(['inviteUser', 'disableUser', 'enableUser', 'resetUserPassword', 'addOpeningPartyLine', 'addOpeningMoneyLine', 'addOpeningStockLine', 'removeOpeningLine', 'importOpeningStock', 'postOpening', 'cancelOpening',
   'reopenDay', 'createItem', 'updateItem', 'deactivateItem', 'reactivateItem', 'updateOrganization', 'bounceCheque', 'cancelPayment', 'cancelInvoice', 'setPeriodLock', 'createFiscalYear',
-  'recordAdvance', 'recordSalary', 'recordWages', 'createEmployee', 'updateEmployee', 'recordAdjustment', 'recordTransfer', 'receiveTransfer', 'startTotpEnrollment', 'verifyTotp', 'deactivateParty', 'reactivateParty']);
+  'recordAdvance', 'recordSalary', 'recordWages', 'createEmployee', 'updateEmployee', 'recordAdjustment', 'recordTransfer', 'receiveTransfer', 'startTotpEnrollment', 'verifyTotp', 'deactivateParty', 'reactivateParty',
+  // change 21a (purchases) and change 20 (credit/debit notes) are owner-only end to end
+  'saveDraftBill', 'deleteDraftBill', 'postBill', 'cancelBill', 'saveDraftNote', 'deleteDraftNote', 'postNote', 'cancelNote',
+  // change 21b (bill photos, reverse-charge freight)
+  'createAttachmentUpload', 'recordAttachment', 'deleteAttachment', 'addBillFreight']);
 const summary = [];
 const SKIP = new Set(['signOut']); // revokes the session server-side: would kill the identities under test
 const refusedRes = (r) => r.status === 307 || r.code === 'forbidden' || [400, 401, 403, 404, 405].includes(r.status);

@@ -34,6 +34,9 @@ const fresh = () => ({
   revalidated: [] as string[],
   respond: ((): Answer => ({ data: [{ id: 'row-1' }], error: null, count: 0 })) as (call: Call) => Answer,
   adminAuth: {} as Record<string, (...args: unknown[]) => unknown>,
+  storageCalls: [] as { bucket: string; fn: string; args: unknown[] }[],
+  /** Answer per Storage method (createSignedUploadUrl, createSignedUrl, download, remove, list); default is an empty success. */
+  storage: {} as Record<string, (...args: unknown[]) => unknown>,
 });
 export const state = fresh();
 
@@ -80,6 +83,14 @@ export const supabaseMock = {
       const c: Call = { rpc: fn, op: 'rpc', payload: args, filters: [] };
       state.calls.push(c);
       return builder(c);
+    },
+    storage: {
+      from: (bucket: string) => new Proxy({}, {
+        get: (_t, fn: string) => async (...args: unknown[]) => {
+          state.storageCalls.push({ bucket, fn, args });
+          return state.storage[fn]?.(...args) ?? { data: null, error: null };
+        },
+      }),
     },
   }),
 };

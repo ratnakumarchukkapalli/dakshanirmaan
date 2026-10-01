@@ -2,6 +2,7 @@ import 'server-only';
 import { completeRows, one, rows } from '@/lib/db';
 import { addDecimal, decimalText, negateDecimal } from '@/lib/decimal';
 import { todayIn } from '@/lib/format';
+import type { FreightAccount, FreightChoice, FreightVoucher } from '@/components/purchases/FreightCard';
 import type { BillFormContext, BillItem, BillSupplier } from '@/lib/purchases-types';
 import type { createClient } from '@/lib/supabase/server';
 
@@ -77,5 +78,45 @@ export async function loadPurchaseTiles(supabase: Supabase): Promise<PurchaseTil
     payable: sum(open.map((r) => r.open_amount)),
     itc: closing(['input_cgst', 'input_sgst', 'input_igst']),
     rcmPayable: negateDecimal(closing(['rcm_payable'])),
+  };
+}
+
+export interface BillFreight {
+  vouchers: FreightVoucher[];
+  /** Active suppliers in our own state (reverse-charge freight is intra-state only). */
+  transporters: FreightChoice[];
+  accounts: FreightAccount[];
+}
+
+/** The freight vouchers linked to a bill (with the journal lines each posted), and what the "add freight" form picks from. */
+export async function loadBillFreight(supabase: Supabase, billId: string, orgState: string, withChoices: boolean): Promise<BillFreight> {
+  const [vouchersRes, partiesRes, accountsRes] = await Promise.all([
+    supabase.from('expense_vouchers')
+      .select('id, voucher_no, voucher_date, status, party:parties(name), lines:expense_voucher_lines(amount), entry:journal_entries(lines:journal_lines(line_no, debit, credit, account:accounts(name)))')
+      .eq('purchase_invoice_id', billId).order('voucher_date').order('created_at'),
+    withChoices
+      ? supabase.from('parties').select('id, name').in('type', ['supplier', 'both']).eq('is_active', true).eq('state_code', orgState).order('name')
+      : Promise.resolve({ data: [], error: null }),
+    withChoices
+      ? supabase.from('accounts').select('id, name, system_key').eq('is_money', true).eq('is_group', false).order('code')
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  type V = {
+    id: string; voucher_no: string | null; voucher_date: string; status: string; party: { name: string } | null; lines: { amount: number }[];
+    entry: { lines: { line_no: number; debit: number; credit: number; account: { name: string } | null }[] } | null;
+  };
+  const vouchers = rows<V>(vouchersRes, 'freight vouchers')
+    // A draft never lingers (a failed post removes it); anything without a number is not a record to show.
+    .filter((v) => v.voucher_no !== null)
+    .map((v) => ({
+      id: v.id, voucherNo: v.voucher_no as string, date: v.voucher_date, status: v.status, transporter: v.party?.name ?? '—',
+      amount: v.lines.reduce<string>((s, l) => addDecimal(s, dec(l.amount, 2), 2) ?? s, '0.00'),
+      entry: [...(v.entry?.lines ?? [])].sort((a, b) => a.line_no - b.line_no)
+        .map((l) => ({ account: l.account?.name ?? '—', debit: dec(l.debit, 2), credit: dec(l.credit, 2) })),
+    }));
+  return {
+    vouchers,
+    transporters: rows<{ id: string; name: string }>(partiesRes, 'transporters').map((p) => ({ id: p.id, name: p.name })),
+    accounts: rows<{ id: string; name: string; system_key: string | null }>(accountsRes, 'money accounts').map((a) => ({ id: a.id, name: a.name, systemKey: a.system_key })),
   };
 }

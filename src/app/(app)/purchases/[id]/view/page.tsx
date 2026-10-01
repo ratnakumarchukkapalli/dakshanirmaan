@@ -2,16 +2,20 @@ import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { NotesCard } from '@/components/notes/NotesCard';
+import { BillPhotos } from '@/components/purchases/BillPhotos';
 import { CancelBill } from '@/components/purchases/CancelBill';
+import { FreightCard } from '@/components/purchases/FreightCard';
 import { TotalsRows } from '@/components/sales/TotalsPanel';
 import { Card } from '@/components/ui/Card';
 import { Chip, type ChipTone } from '@/components/ui/Chip';
 import { KeyValue } from '@/components/ui/KeyValue';
+import { loadAttachments } from '@/lib/attachments-data';
 import { requireOwnerPage } from '@/lib/auth/require';
 import { rows } from '@/lib/db';
 import { addDecimal, decimalText } from '@/lib/decimal';
-import { formatDate, inr2, inrRate } from '@/lib/format';
+import { formatDate, inr2, inrRate, todayIn } from '@/lib/format';
 import { loadInvoiceNotes } from '@/lib/notes-data';
+import { loadBillFreight } from '@/lib/purchases-data';
 import { stateName } from '@/lib/gst';
 import { trimZeros } from '@/lib/units';
 import { isUuid } from '@/lib/uuid';
@@ -48,7 +52,13 @@ export default async function BillViewPage({ params, searchParams }: { params: P
   const bill = headRes.data;
   if (!bill) notFound();
   if (bill.status === 'draft') redirect(`/purchases/${id}`);
-  const notes = await loadInvoiceNotes(supabase, 'debit', id);
+  const orgRes = await supabase.from('organization').select('state_code, timezone').maybeSingle();
+  if (orgRes.error || !orgRes.data) throw new Error(`organisation: ${orgRes.error?.message ?? 'not found'}`);
+  const [notes, photos, freight] = await Promise.all([
+    loadInvoiceNotes(supabase, 'debit', id),
+    loadAttachments(supabase, id),
+    loadBillFreight(supabase, id, orgRes.data.state_code as string, bill.status === 'posted'),
+  ]);
   const hasPostedNotes = notes.some((n) => n.status === 'posted');
 
   const lines = rows<{
@@ -124,6 +134,13 @@ export default async function BillViewPage({ params, searchParams }: { params: P
           )}
         </Card>
       </div>
+
+      <BillPhotos billId={id} photos={photos} canRemove={false} canAdd={!cancelled} />
+
+      <FreightCard
+        billId={id} today={todayIn((orgRes.data.timezone as string | null) ?? 'Asia/Kolkata')} vouchers={freight.vouchers}
+        transporters={freight.transporters} accounts={freight.accounts} canAdd={bill.status === 'posted'}
+      />
 
       <NotesCard kind="debit" invoiceId={id} notes={notes} canWrite canMake={bill.status === 'posted'} />
 

@@ -6,6 +6,7 @@ import { dbFailure, zodFailure } from '@/lib/action-errors';
 import { fail, ok, type ActionResult, type Failure } from '@/lib/action-result';
 import { requireAdmin, requireMember } from '@/lib/auth/require';
 import { todayIn } from '@/lib/format';
+import { derivePlaceOfSupply } from '@/lib/place-of-supply';
 import { createClient } from '@/lib/supabase/server';
 import {
   cancelInvoiceSchema, invoiceIdSchema, postCashSaleSchema, postInvoiceSchema, recordEwbSchema, saveDraftSchema,
@@ -102,7 +103,7 @@ export async function saveDraftInvoice(input: unknown): Promise<ActionResult<{ i
     party_id: v.partyId,
     // Derived, never taken from the form: the delivery state, else the customer's own. post_sales_invoice
     // derives it again from the database's own addresses, so this is only what the draft shows.
-    place_of_supply: shipping?.state_code ?? (party.state_code as string),
+    place_of_supply: derivePlaceOfSupply(rows.map((a) => ({ id: a.id, stateCode: a.state_code, isBilling: a.is_default })), v.siteId, party.state_code as string) as string,
     billing_address: snapshot(billing),
     shipping_address: snapshot(shipping),
     vehicle_no: v.vehicleNo ?? null,

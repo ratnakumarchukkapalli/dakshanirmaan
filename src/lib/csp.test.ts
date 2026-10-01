@@ -17,6 +17,10 @@ describe('buildCsp', () => {
   it('allows only self and the Supabase project (http + websocket) for connections', () => {
     expect(prod).toContain(`connect-src 'self' https://x.supabase.co wss://x.supabase.co`);
   });
+  it('lets images load from self, data: and the Supabase project (signed bill photos) and nowhere else', () => {
+    expect(prod).toContain(`img-src 'self' data: https://x.supabase.co;`);
+    expect(buildCsp({ nonce: 'a', isDev: false })).toContain(`img-src 'self' data:;`);
+  });
   it('only allows eval and plain-http Supabase in development', () => {
     const dev = buildCsp({ nonce: 'abc', supabaseUrl: 'http://127.0.0.1:54321', isDev: true });
     expect(dev).toContain(`'unsafe-eval'`);

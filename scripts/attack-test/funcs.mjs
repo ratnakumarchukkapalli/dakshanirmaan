@@ -201,7 +201,9 @@ for (const f of ['post_sales_invoice', 'post_payment', 'cancel_document', 'go_li
   }
   await check({ identity: 'user', fn: 'post_day_close', variant: 'in-order close 2026-09-24 (allowed)', args: await dc('user', '2026-09-24'), expected: 'open' });
   await check({ identity: 'user', fn: 'post_day_close', variant: 'OUT OF ORDER: 2026-09-22 after 2026-09-24 exists', args: await dc('user', '2026-09-22'), expected: 'closed', okAlt: /later_close_exists/ });
-  await check({ identity: 'user', fn: 'post_day_close', variant: 'future date 2026-09-27', args: await dc('user', '2026-09-27'), expected: 'closed', okAlt: /future_date/ });
+  // tomorrow in the shop's time zone (a fixed date went stale once the calendar passed it)
+  const tomorrow = one(`select ((now() at time zone 'Asia/Kolkata')::date + 1)::text`);
+  await check({ identity: 'user', fn: 'post_day_close', variant: `future date ${tomorrow} (tomorrow)`, args: await dc('user', tomorrow), expected: 'closed', okAlt: /future_date/ });
   await check({ identity: 'user', fn: 'post_day_close', variant: 'far future 2099-12-31', args: { p_date: '2099-12-31', p_counted: 0, p_note: 'x', p_expected_seen: 0 }, expected: 'closed', okAlt: /future_date|PERIOD_LOCKED/ });
   await check({ identity: 'user', fn: 'post_day_close', variant: 'same day twice', args: await dc('user', '2026-09-24'), expected: 'closed', okAlt: /already_closed/ });
   const closeId = one(`select id from day_closes where close_date='2026-09-24' and status<>'cancelled'`);

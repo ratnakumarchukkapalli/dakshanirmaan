@@ -29,10 +29,13 @@ async function probe(identity, method, path, body, extra = {}) {
 
 // ---- expectations -------------------------------------------------------------------------------
 const ADMIN_ONLY_READ = new Set(['bank_statements', 'bank_statement_lines', 'opening_batches', 'opening_lines',
-  'v_pnl', 'v_balance_sheet', 'v_trial_balance', 'v_money_balances', 'v_money_ledger', 'v_bank_recon', 'v_employees']);
+  'v_pnl', 'v_balance_sheet', 'v_trial_balance', 'v_money_balances', 'v_money_ledger', 'v_bank_recon', 'v_employees', 'attachments']);
+// draft tables a counter `user` may NOT write (21b: purchases are owner-only end to end)
+// (change 20: credit/debit note drafts are owner-only too; the matrix had not caught up)
+const OWNER_ONLY_WRITES = new Set(['purchase_invoices', 'purchase_invoice_lines', 'credit_notes', 'credit_note_lines', 'debit_notes', 'debit_note_lines']);
 // what a counter `user` may write, by table: 'draft' = rows whose header is still draft
-const USER_WRITES = new Set(['sales_invoices', 'purchase_invoices', 'credit_notes', 'debit_notes', 'delivery_challans', 'expense_vouchers', 'payments',
-  'stock_adjustments', 'stock_transfers', 'sales_invoice_lines', 'purchase_invoice_lines', 'credit_note_lines', 'debit_note_lines',
+const USER_WRITES = new Set(['sales_invoices', 'delivery_challans', 'expense_vouchers', 'payments',
+  'stock_adjustments', 'stock_transfers', 'sales_invoice_lines',
   'delivery_challan_lines', 'expense_voucher_lines', 'stock_adjustment_lines', 'stock_transfer_lines', 'payment_allocations', 'parties', 'party_addresses']);
 
 const fails = [];
@@ -145,7 +148,7 @@ console.log(`SELECT phase done: ${ran} checks, ${fails.length} non-pass so far`)
 async function writeOps(table, cfg) {
   const isLine = cfg.kind === 'line';
   for (const identity of ALL) {
-    const userOk = identity === 'user' || identity === 'admin_aal2';
+    const userOk = identity === 'admin_aal2' || (identity === 'user' && !OWNER_ONLY_WRITES.has(table));
     const exp = (phase) => (userOk && phase === 'draft' ? 'allow' : 'refuse');
     // INSERT into a draft parent / draft status
     {
@@ -275,6 +278,14 @@ const nobody = () => 'refuse';
   await runCase({ table: 'party_addresses', op: 'INSERT', body: () => ({ party_id: C.kishore, label: 'ATTACK-' + uniq(), address: { line1: 'x' }, state_code: '37' }), expectFor: only('admin_aal2', 'user') });
   await runCase({ table: 'party_addresses', op: 'UPDATE', variant: 'label', body: { label: 'ATTACK' }, mkRow: mkAddr, expectFor: only('admin_aal2', 'user') });
   await runCase({ table: 'party_addresses', op: 'UPDATE', variant: 'move to another party', body: { party_id: C.ramesh }, mkRow: mkAddr, expectFor: nobody });
+  // change 27b: a site's state decides CGST+SGST vs IGST, so out-of-state sites are the owner's call.
+  // A throwaway in-state party each time: the owner control row must not give a real demo customer (Kishore,
+  // used by tamper B1d/B1e) a genuine out-of-state site.
+  const mkParty37 = () => one(`insert into parties (name, type, state_code) values ('ATTACK-FX-${uniq()}', 'customer', '37') returning id`);
+  await runCase({ table: 'party_addresses', op: 'INSERT', variant: 'state_code 36 for an in-state (37) customer', body: () => ({ party_id: mkParty37(), label: 'ATTACK-36-' + uniq(), address: { line1: 'x' }, state_code: '36' }), expectFor: only('admin_aal2') });
+  await runCase({ table: 'party_addresses', op: 'INSERT', variant: 'state_code 99 for an in-state (37) customer', body: () => ({ party_id: mkParty37(), label: 'ATTACK-99-' + uniq(), address: { line1: 'x' }, state_code: '99' }), expectFor: only('admin_aal2') });
+  await runCase({ table: 'party_addresses', op: 'UPDATE', variant: 'state_code 37 -> 36', body: { state_code: '36' }, mkRow: mkAddr, expectFor: only('admin_aal2') });
+  await runCase({ table: 'party_addresses', op: 'UPDATE', variant: 'label + unchanged state_code 37', body: { label: 'ATTACK-SAME', state_code: '37' }, mkRow: mkAddr, expectFor: only('admin_aal2', 'user') });
   await runCase({ table: 'party_addresses', op: 'DELETE', mkRow: mkAddr, expectFor: nobody });
 }
 // -- items / accounts / warehouses / organization / fiscal_periods / doc_sequences
@@ -369,6 +380,97 @@ const nobody = () => 'refuse';
   await runCase({ table: 'app_users', op: 'UPDATE', variant: 'own name (self-service)', body: { name: 'ATTACK' }, mkRow: () => null, pathFn: (_r, identity) => `app_users?user_id=eq.${me(identity) || '00000000-0000-0000-0000-000000000000'}`, expectFor: nobody });
   await runCase({ table: 'app_users', op: 'INSERT', variant: 'new admin row for own uid', body: (identity) => ({ user_id: me(identity) || crypto.randomUUID(), role: 'admin', name: 'ATTACK', is_active: true }), expectFor: nobody });
   await runCase({ table: 'app_users', op: 'DELETE', mkRow: () => null, pathFn: () => `app_users?user_id=eq.${IDS.admin_aal2.userId}`, expectFor: nobody });
+}
+// -- attachments + Storage bucket `docs` (change 21b): owner-only end to end.
+// Storage answers RLS refusals with 400/403/404 bodies of its own, so every row here is judged by its EFFECT,
+// read back from the database as the database owner: did the object / row appear, disappear or change?
+{
+  const S = (identity, method, p, body, headers = {}) => http(method, `/storage/v1/${p}`, { token: tok(identity), body, headers });
+  const objExists = (path) => one(`select count(*) from storage.objects where bucket_id='docs' and name='${path}'`) === '1';
+  const newPath = (bill, ext = 'png') => `purchase_invoice/${bill}/${crypto.randomUUID()}.${ext}`;
+  const upload = (identity, path, { mime = 'image/png', data = 'PNG-ATTACK-FIXTURE', upsert = false, method = 'POST' } = {}) =>
+    S(identity, method, `object/docs/${path}`, data, { 'Content-Type': mime, 'x-upsert': String(upsert) });
+  const ownerUpload = async (bill) => {
+    const path = newPath(bill);
+    const r = await upload('admin_aal2', path);
+    if (r.status >= 300 || !objExists(path)) throw new Error('fixture owner upload failed: ' + r.status + ' ' + r.text);
+    return path;
+  };
+  const attRow = (bill, path) => one(`insert into attachments (entity, entity_id, storage_path, mime, bytes)
+    select 'purchase_invoice', '${bill}', name, 'image/png', (metadata->>'size')::int from storage.objects where bucket_id='docs' and name='${path}' returning id`);
+  const draftBill = () => fx.mkPurchase();
+  const postedBill = async () => {
+    const b = fx.mkPurchase();
+    const r = await fx.ownerRpc('post_purchase_invoice', { p_invoice_id: b });
+    if (r.status >= 300) throw new Error('fixture post_purchase_invoice failed: ' + r.text);
+    return b;
+  };
+  const sjudge = ({ identity, object, op, variant, req, res, effective, expected }) => {
+    const verdict = expected === 'allow' ? (effective ? 'PASS' : 'FAIL') : (effective ? 'FAIL' : 'PASS');
+    const rec = { identity, object, op, variant, req, status: res.status, code: errCode(res), msg: errMsg(res).slice(0, 200), rows: effective ? 1 : 0, expected, verdict };
+    record(rec);
+    if (identity === 'admin_aal2') { if (verdict !== 'PASS') { rec.control = true; ownerDeviations.push(rec); } return; }
+    ran++; if (verdict === 'PASS') passed++; else fails.push(rec);
+  };
+  const ownerOnly = only('admin_aal2');
+
+  // bucket config is the first gate for type and size
+  {
+    const b = rows(`select public, file_size_limit, allowed_mime_types from storage.buckets where id='docs'`)[0];
+    const ok = b && b.public === false && Number(b.file_size_limit) === 5242880 && JSON.stringify([...b.allowed_mime_types].sort()) === JSON.stringify(['application/pdf', 'image/jpeg', 'image/png']);
+    record({ identity: '-', object: 'storage.buckets docs', op: 'CONFIG', req: 'select from storage.buckets', expected: 'private, 5 MB, jpeg/png/pdf', verdict: ok ? 'PASS' : 'FAIL', msg: JSON.stringify(b) });
+    ran++; if (ok) passed++; else fails.push({ object: 'storage.buckets docs', verdict: 'FAIL', msg: JSON.stringify(b) });
+  }
+  const draft = draftBill();
+  const posted_ = await postedBill();
+  const seenPath = await ownerUpload(draft); const seenAtt = attRow(draft, seenPath);
+  const postedPath = await ownerUpload(posted_);
+  for (const identity of ALL) {
+    const exp = ownerOnly(identity);
+    // the attachments row itself (the SELECT phase above ran before any row existed)
+    { const out = await probe(identity, 'GET', `attachments?id=eq.${seenAtt}&select=*`);
+      sjudge({ identity, object: 'attachments', op: 'SELECT', variant: 'a known row', req: `GET /rest/v1/attachments?id=eq.${seenAtt}`, res: { status: out.status, json: null, text: out.msg }, effective: out.effective, expected: exp }); }
+    // upload a new photo to an existing draft bill
+    { const p = newPath(draft); const r = await upload(identity, p);
+      sjudge({ identity, object: 'storage docs', op: 'INSERT', variant: 'upload to purchase_invoice/<draft bill>/', req: `POST /storage/v1/object/docs/${p}`, res: r, effective: objExists(p), expected: exp }); }
+    // read: download, signed URL, list
+    { const r = await S(identity, 'GET', `object/authenticated/docs/${seenPath}`);
+      sjudge({ identity, object: 'storage docs', op: 'SELECT', variant: 'download a bill photo', req: `GET /storage/v1/object/authenticated/docs/${seenPath}`, res: r, effective: r.status === 200 && r.text.includes('PNG-ATTACK-FIXTURE'), expected: exp }); }
+    { const r = await S(identity, 'POST', `object/sign/docs/${seenPath}`, { expiresIn: 60 });
+      sjudge({ identity, object: 'storage docs', op: 'SELECT', variant: 'create a signed read URL', req: `POST /storage/v1/object/sign/docs/${seenPath}`, res: r, effective: r.status === 200 && !!(r.json?.signedURL || r.json?.signedUrl), expected: exp }); }
+    { const r = await S(identity, 'POST', 'object/list/docs', { prefix: `purchase_invoice/${draft}`, limit: 10 });
+      sjudge({ identity, object: 'storage docs', op: 'SELECT', variant: 'list a bill folder', req: `POST /storage/v1/object/list/docs {prefix}`, res: r, effective: Array.isArray(r.json) && r.json.length > 0, expected: exp }); }
+    // overwrite an existing photo (upsert) and PUT: nobody, owner included (no UPDATE policy)
+    { const before = one(`select coalesce(updated_at::text,'') || (metadata->>'size') from storage.objects where bucket_id='docs' and name='${seenPath}'`);
+      const r = await upload(identity, seenPath, { upsert: true, data: 'OVERWRITTEN-BY-ATTACK' });
+      const r2 = await upload(identity, seenPath, { method: 'PUT', data: 'OVERWRITTEN-BY-ATTACK-PUT' });
+      const after = one(`select coalesce(updated_at::text,'') || (metadata->>'size') from storage.objects where bucket_id='docs' and name='${seenPath}'`);
+      sjudge({ identity, object: 'storage docs', op: 'UPDATE', variant: 'overwrite a photo (x-upsert POST, PUT)', req: `POST(x-upsert)/PUT /storage/v1/object/docs/${seenPath}`, res: r2.status < 300 ? r2 : r, effective: before !== after, expected: 'refuse' }); }
+    // delete a draft bill's photo (fresh object each time)
+    { const p = await ownerUpload(draft); const r = await S(identity, 'DELETE', 'object/docs', { prefixes: [p] });
+      sjudge({ identity, object: 'storage docs', op: 'DELETE', variant: "delete a DRAFT bill's photo", req: `DELETE /storage/v1/object/docs {prefixes:[${p}]}`, res: r, effective: !objExists(p), expected: exp }); }
+    // delete a POSTED bill's photo: nobody (audit evidence)
+    { const r = await S(identity, 'DELETE', 'object/docs', { prefixes: [postedPath] });
+      sjudge({ identity, object: 'storage docs', op: 'DELETE', variant: "delete a POSTED bill's photo", req: `DELETE /storage/v1/object/docs {prefixes:[${postedPath}]}`, res: r, effective: !objExists(postedPath), expected: 'refuse' }); }
+    // paths the server never builds: other prefix, unknown bill, bad name/extension
+    for (const [v, p] of [['outside purchase_invoice/', `ATTACK/${crypto.randomUUID()}.png`], ['bill id that does not exist', newPath(crypto.randomUUID())],
+      ['client file name instead of <uuid>.<ext>', `purchase_invoice/${draft}/bill photo.png`], ['.html extension', `purchase_invoice/${draft}/${crypto.randomUUID()}.html`]]) {
+      const r = await upload(identity, p);
+      sjudge({ identity, object: 'storage docs', op: 'INSERT', variant: 'upload to ' + v, req: `POST /storage/v1/object/docs/${p}`, res: r, effective: objExists(p), expected: 'refuse' });
+    }
+  }
+  // type and size: refused by the bucket even for the owner
+  for (const [v, opts] of [['text/html content type', { mime: 'text/html', data: '<script>x</script>' }], ['6 MB file', { data: 'x'.repeat(6 * 1024 * 1024) }]]) {
+    const p = newPath(draft); const r = await upload('admin_aal2', p, opts);
+    const ok = !objExists(p);
+    record({ identity: 'admin_aal2', object: 'storage docs', op: 'INSERT', variant: 'owner uploads ' + v, req: `POST /storage/v1/object/docs/${p}`, status: r.status, msg: errMsg(r).slice(0, 200), expected: 'refuse', verdict: ok ? 'PASS' : 'FAIL' });
+    ran++; if (ok) passed++; else fails.push({ object: 'storage docs', variant: v, verdict: 'FAIL' });
+  }
+  // the attachments table through PostgREST
+  await runCase({ table: 'attachments', op: 'INSERT', variant: 'row for an uploaded photo of a draft bill', body: async () => { const p = await ownerUpload(draft); return { entity: 'purchase_invoice', entity_id: draft, storage_path: p, mime: 'image/png', bytes: 18 }; }, expectFor: ownerOnly });
+  await runCase({ table: 'attachments', op: 'UPDATE', variant: 'repoint storage_path / bytes', body: { bytes: 1 }, mkRow: async () => attRow(draft, await ownerUpload(draft)), expectFor: nobody });
+  await runCase({ table: 'attachments', op: 'DELETE', variant: "a DRAFT bill's attachment", mkRow: async () => attRow(draft, await ownerUpload(draft)), expectFor: ownerOnly });
+  await runCase({ table: 'attachments', op: 'DELETE', variant: "a POSTED bill's attachment (audit evidence)", mkRow: async () => { const b = fx.mkPurchase(); const p = await ownerUpload(b); const id = attRow(b, p); const r = await fx.ownerRpc('post_purchase_invoice', { p_invoice_id: b }); if (r.status >= 300) throw new Error(r.text); return id; }, expectFor: nobody });
 }
 // -- views: no write path at all
 for (const r of rels.filter((x) => x.kind === 'v')) {

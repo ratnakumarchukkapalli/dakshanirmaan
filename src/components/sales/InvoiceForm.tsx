@@ -19,6 +19,7 @@ import { addDecimal, compareDecimal } from '@/lib/decimal';
 import { formatDate, inr, inr2, inrRate } from '@/lib/format';
 import { EWAY_BILL_THRESHOLD, GST_STATES, stateName } from '@/lib/gst';
 import { previewTotals } from '@/lib/invoice-math';
+import { derivePlaceOfSupply } from '@/lib/place-of-supply';
 import type { FormAccount, FormParty, InvoiceFormContext, InvoiceFormInitial, InvoiceFormValues } from '@/lib/sales-types';
 import { altToBase, baseToAlt, rateText, trimZeros } from '@/lib/units';
 import { saveDraftSchema, TRANSPORT_MODES } from '@/schemas/sales';
@@ -71,9 +72,9 @@ export function InvoiceForm({ ctx, initial, isAdmin }: Props) {
   const siteId = watched.siteId ?? '';
   const lines = useMemo(() => watched.lines ?? [], [watched.lines]);
   const party: FormParty | undefined = partiesById.get(partyId);
-  // Place of supply is not typed in: it is the delivery site's state, else the customer's own.
-  const site = party?.sites.find((s) => s.id === siteId && !s.isBilling);
-  const place = site?.stateCode ?? party?.stateCode ?? ctx.orgState;
+  // Place of supply is not typed in: the delivery site's state, else the default address's, else the customer's own
+  // (the same rule the save action uses).
+  const place = derivePlaceOfSupply(party?.sites ?? [], siteId, party?.stateCode) ?? ctx.orgState;
   const intra = place === ctx.orgState;
 
   const totals = useMemo(

@@ -8,7 +8,7 @@ grep -q '^NEXT_PUBLIC_SUPABASE_URL=http://\(127.0.0.1\|localhost\):54321' .env.l
 A=scripts/attack-test
 
 supabase db reset
-supabase test db | tail -4                       # expect: Files=26, Tests=1829 (update if pgTAP grows), Result: PASS
+supabase test db | tail -4                       # expect: Files=30, Tests=2289 (update if pgTAP grows), Result: PASS
 set -a; . ./.env.local; set +a
 ADMIN_PASSWORD='DemoOwner-Local-1' npm run create-admin -- demo-owner@attack.test "Demo Owner"
 docker exec -i supabase_db_Daksh_Nirmaan psql -U postgres -v ON_ERROR_STOP=1 < supabase/demo/demo-data.sql | tail -3

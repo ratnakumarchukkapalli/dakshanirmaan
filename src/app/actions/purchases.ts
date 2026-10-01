@@ -4,10 +4,12 @@ import { getTranslations } from 'next-intl/server';
 import { revalidatePath } from 'next/cache';
 import { dbFailure, zodFailure } from '@/lib/action-errors';
 import { fail, ok, type ActionResult, type Failure } from '@/lib/action-result';
+import { removeBillAttachments } from '@/lib/attachments-data';
 import { requireAdminMember } from '@/lib/auth/require';
+import { afterIdCollision, claimDraftId, isUniqueViolation } from '@/lib/draft-claim';
 import { todayIn } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
-import { billIdSchema, cancelBillSchema, saveDraftBillSchema, SUPPLIER_BILL_NO_PATTERN } from '@/schemas/purchases';
+import { addFreightSchema, billIdSchema, cancelBillSchema, saveDraftBillSchema, SUPPLIER_BILL_NO_PATTERN } from '@/schemas/purchases';
 
 // Supplier bills. OWNER-ONLY, drafts included: the database lets only an owner post or cancel a
 // purchase, and supplier rates and input tax are not counter data, so the counter has no screen
@@ -204,6 +206,14 @@ export async function deleteDraftBill(input: unknown): Promise<ActionResult> {
   if (!parsed.success) return zodFailure(parsed.error);
 
   const supabase = await createClient();
+  // Only a draft is thrown away. Checked before anything is removed: the photos of a posted or cancelled bill are kept.
+  const { data: head, error: headError } = await supabase.from('purchase_invoices').select('id, status').eq('id', parsed.data.id).maybeSingle();
+  if (headError) return dbFailure(headError);
+  if (!head || head.status !== 'draft') return fail('not_draft', (await getTranslations('errors'))('not_draft'));
+  // The photos go first (rows, then files): the database will not delete a bill that still has any, and a
+  // cascade would leave the files behind in Storage.
+  const photoError = await removeBillAttachments(supabase, parsed.data.id);
+  if (photoError) return dbFailure(photoError);
   const { data, error } = await supabase
     .from('purchase_invoices').delete().eq('id', parsed.data.id).eq('status', 'draft').select('id');
   if (error) return dbFailure(error);
@@ -269,4 +279,76 @@ export async function cancelBill(input: unknown): Promise<ActionResult<{ id: str
 
   revalidateAfterPosting(id);
   return ok({ id });
+}
+
+/**
+ * Freight on reverse charge, tied to a posted bill. Creates a linked expense voucher (freight account, `rcm = true`,
+ * the transporter as party) and posts it with `post_expense_voucher`, which books the freight, the input tax and the
+ * reverse-charge tax payable. Nothing here works out the tax. The database refuses a transporter in another state
+ * (`rcm_interstate`) and a locked month; a failed post removes the draft so nothing is left half done.
+ */
+export async function addBillFreight(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const gate = await requireAdminMember();
+  if (gate.denied) return gate.denied;
+  const parsed = addFreightSchema.safeParse(input);
+  if (!parsed.success) return zodFailure(parsed.error);
+  const v = parsed.data;
+  const supabase = await createClient();
+
+  // A repeat of a call that already posted (lost response, double click): answer with the voucher it made.
+  const claim = await claimDraftId(supabase, 'expense_vouchers', v.id);
+  if (claim.kind === 'error') return dbFailure(claim.error);
+  if (claim.kind === 'recorded') return ok({ id: v.id });
+
+  const { data: bill, error: billError } = await supabase.from('purchase_invoices').select('id, status').eq('id', v.billId).maybeSingle();
+  if (billError) return dbFailure(billError);
+  if (!bill) return bad('no_such_bill');
+  if (bill.status !== 'posted') return fail('not_posted', (await getTranslations('errors'))('not_posted'));
+
+  const { data: org, error: orgError } = await supabase.from('organization').select('timezone, state_code').maybeSingle();
+  if (orgError) return dbFailure(orgError);
+  if (v.voucherDate > todayIn(org?.timezone ?? 'Asia/Kolkata')) return bad('doc_date_future');
+
+  const { data: party, error: partyError } = await supabase.from('parties').select('id, type, is_active, state_code').eq('id', v.transporterId).maybeSingle();
+  if (partyError) return dbFailure(partyError);
+  if (!party || !party.is_active || !['supplier', 'both'].includes(party.type as string)) return bad('invalid_supplier');
+  // The database holds the same rule; this is the friendly early answer.
+  if (party.state_code !== org?.state_code) return bad('rcm_interstate');
+
+  const { data: pay, error: payError } = await supabase.from('accounts').select('id, is_money').eq('id', v.payAccountId).maybeSingle();
+  if (payError) return dbFailure(payError);
+  if (!pay || !pay.is_money) return bad('invalid_account');
+
+  const { data: expense, error: accError } = await supabase.from('accounts').select('id, is_group').eq('system_key', 'freight_inward').maybeSingle();
+  if (accError) return dbFailure(accError);
+  if (!expense || expense.is_group) return bad('missing_account');
+
+  const { error } = await supabase.from('expense_vouchers').insert({
+    id: v.id, voucher_date: v.voucherDate, party_id: v.transporterId, status: 'draft', voucher_type: 'expense',
+    pay_account_id: v.payAccountId, purchase_invoice_id: v.billId, created_by: gate.member.userId,
+  });
+  if (error) return isUniqueViolation(error) ? afterIdCollision(supabase, 'expense_vouchers', v.id) : dbFailure(error);
+
+  const { error: lineError } = await supabase.from('expense_voucher_lines').insert({
+    voucher_id: v.id, line_no: 1, account_id: expense.id, amount: v.amount, narration: v.note ?? null, rcm: true,
+  });
+  if (lineError) {
+    await dropFreightDraft(supabase, v.id);
+    return dbFailure(lineError);
+  }
+
+  const { error: postError } = await supabase.rpc('post_expense_voucher', { p_voucher_id: v.id });
+  if (postError) {
+    await dropFreightDraft(supabase, v.id);
+    return dbFailure(postError);
+  }
+
+  revalidateBill(v.billId);
+  revalidatePath('/');
+  return ok({ id: v.id });
+}
+
+async function dropFreightDraft(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
+  const { error } = await supabase.from('expense_vouchers').delete().eq('id', id).eq('status', 'draft');
+  if (error) console.error('[purchases] could not remove the freight draft after a failed post:', error.message);
 }

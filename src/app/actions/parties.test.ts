@@ -145,6 +145,11 @@ describe('addPartyAddress / setDefaultSite', () => {
     expect(state.calls.find((c) => c.op === 'insert')?.payload).toMatchObject({ party_id: ID, is_default: true });
     expect(state.revalidated).toEqual([`/parties/${ID}`]);
   });
+  it('a counter user adding a site in another state gets the owner-only sentence', async () => {
+    reset(asCounter());
+    state.respond = (c) => (c.op === 'select' ? { count: 1 } : dbError('DN_VALIDATION:admin_only_field'));
+    expect(await addPartyAddress({ ...site, stateCode: '36' })).toEqual({ ok: false, code: 'validation', error: 'validation.site_state_owner_only' });
+  });
   it('owner at aal1 is refused, for both', async () => {
     reset(asAdmin('aal1'));
     expect(await addPartyAddress(site)).toMatchObject({ ok: false, code: 'forbidden' });

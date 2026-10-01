@@ -114,7 +114,11 @@ export async function addPartyAddress(input: unknown): Promise<ActionResult<{ id
     })
     .select('id')
     .single();
-  if (error) return dbFailure(error);
+  if (error) {
+    // Counter staff may add a delivery site in the party's own state only: another state decides the tax head, so it is the owner's call.
+    if (/DN_VALIDATION:admin_only_field/.test(error.message ?? '')) return fail('validation', (await getTranslations('errors'))('validation.site_state_owner_only'));
+    return dbFailure(error);
+  }
 
   revalidatePath(`/parties/${partyId}`);
   return ok({ id: data.id as string });

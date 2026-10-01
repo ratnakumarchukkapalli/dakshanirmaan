@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { asAdmin, asCounter, dbError, reset, state, type Answer, type Call } from '@/test/harness';
-import { cancelBill, deleteDraftBill, postBill, saveDraftBill } from './purchases';
+import { addBillFreight, cancelBill, deleteDraftBill, postBill, saveDraftBill } from './purchases';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next-intl/server', async () => (await import('@/test/harness')).intlMock);
@@ -18,6 +18,11 @@ const form = {
   lines: [{ itemId: ITEM, qty: '1200.000', altQty: '113', rate: '52.5000', discountPct: '' }],
 };
 const item = { id: ITEM, name: 'Tata Tiscon 12mm', hsn_code: '7214', gst_rate: 18, base_uom: 'kg', alt_uom: 'pcs', is_active: true, is_stock: true };
+
+const VOUCHER = '66666666-6666-4666-8666-666666666666';
+const TRANSPORTER = '77777777-7777-4777-8777-777777777777';
+const PAY = '88888888-8888-4888-8888-888888888888';
+const freight = { id: VOUCHER, billId: BILL, voucherDate: '2026-09-19', transporterId: TRANSPORTER, amount: '12000.00', payAccountId: PAY, note: 'lorry AP16 TC 4455' };
 
 const isDuplicateCheck = (c: Call) => c.table === 'purchase_invoices' && c.op === 'select' && c.filters.some(([k, v]) => k === 'status' && v === 'posted');
 
@@ -51,6 +56,7 @@ describe('every purchase action is owner-only', () => {
     ['deleteDraftBill', () => deleteDraftBill({ id: BILL })],
     ['postBill', () => postBill({ id: BILL })],
     ['cancelBill', () => cancelBill({ id: BILL, reason: 'wrong supplier' })],
+    ['addBillFreight', () => addBillFreight(freight)],
   ];
   for (const [name, run] of calls) {
     it(`${name}: a counter user is refused before the database is touched`, async () => {
@@ -330,5 +336,103 @@ describe('cancelBill', () => {
     reset(asAdmin());
     healthy((c) => (c.rpc === 'cancel_document' ? dbError('DN_HAS_ALLOCATIONS') : undefined));
     expect(await cancelBill({ id: BILL, reason: 'wrong bill' })).toMatchObject({ ok: false, code: 'has_allocations' });
+  });
+});
+
+describe('deleteDraftBill and photos', () => {
+  it('removes the draft\'s photos (rows, then files) before deleting the bill', async () => {
+    reset(asAdmin());
+    healthy((c) => {
+      if (c.table === 'attachments' && c.op === 'select') return { data: [{ id: 'a1', storage_path: `purchase_invoice/${BILL}/x.jpg` }] };
+      if (c.table === 'attachments' && c.op === 'delete') return { data: [{ id: 'a1' }] };
+      return undefined;
+    });
+    expect(await deleteDraftBill({ id: BILL })).toEqual({ ok: true, data: null });
+    const order = state.calls.map((c) => `${c.table}:${c.op}`);
+    expect(order.indexOf('attachments:delete')).toBeLessThan(order.indexOf('purchase_invoices:delete'));
+    expect(state.storageCalls.map((c) => c.fn)).toEqual(['remove']);
+  });
+  it('a posted or cancelled bill is refused before any photo is touched', async () => {
+    reset(asAdmin());
+    healthy((c) => (c.table === 'purchase_invoices' && c.op === 'select' ? { data: [{ id: BILL, status: 'cancelled' }] } : undefined));
+    expect(await deleteDraftBill({ id: BILL })).toMatchObject({ ok: false, code: 'not_draft' });
+    expect(state.calls.some((c) => c.table === 'attachments')).toBe(false);
+    expect(state.storageCalls).toEqual([]);
+  });
+  it('a database refusal while removing a photo stops the delete', async () => {
+    reset(asAdmin());
+    healthy((c) => {
+      if (c.table === 'attachments' && c.op === 'select') return { data: [{ id: 'a1', storage_path: 'p' }] };
+      if (c.table === 'attachments' && c.op === 'delete') return dbError('DN_VALIDATION:attachment_bill_posted');
+      return undefined;
+    });
+    expect(await deleteDraftBill({ id: BILL })).toMatchObject({ ok: false, error: 'validation.attachment_bill_posted' });
+    expect(find('purchase_invoices', 'delete')).toBeUndefined();
+  });
+});
+
+describe('addBillFreight (reverse-charge freight on a posted bill)', () => {
+  const freightWorld = (over: (call: Call) => Answer | undefined = () => undefined) =>
+    healthy((c) => {
+      const o = over(c);
+      if (o) return o;
+      if (c.table === 'expense_vouchers' && c.op === 'select') return { data: [] };
+      if (c.table === 'purchase_invoices' && c.op === 'select') return { data: [{ id: BILL, status: 'posted' }] };
+      if (c.table === 'parties' && c.op === 'select') return { data: [{ id: TRANSPORTER, type: 'supplier', is_active: true, state_code: '37' }] };
+      if (c.table === 'accounts' && c.filters.some(([k]) => k === 'system_key')) return { data: [{ id: 'acc-freight', is_group: false }] };
+      if (c.table === 'accounts') return { data: [{ id: PAY, is_money: true }] };
+      return undefined;
+    });
+
+  it('links a voucher to the bill, flags the line reverse-charge, posts it, and computes no tax itself', async () => {
+    reset(asAdmin());
+    freightWorld();
+    expect(await addBillFreight(freight)).toEqual({ ok: true, data: { id: VOUCHER } });
+    expect(find('expense_vouchers', 'insert')!.payload).toMatchObject({
+      id: VOUCHER, party_id: TRANSPORTER, purchase_invoice_id: BILL, voucher_type: 'expense', pay_account_id: PAY, status: 'draft', created_by: 'u-admin',
+    });
+    expect(find('expense_voucher_lines', 'insert')!.payload).toEqual({ voucher_id: VOUCHER, line_no: 1, account_id: 'acc-freight', amount: '12000.00', narration: 'lorry AP16 TC 4455', rcm: true });
+    expect(rpc('post_expense_voucher')!.payload).toEqual({ p_voucher_id: VOUCHER });
+    expect(state.revalidated).toEqual(expect.arrayContaining([`/purchases/${BILL}/view`]));
+  });
+  it('a transporter in another state is refused before anything is written', async () => {
+    reset(asAdmin());
+    freightWorld((c) => (c.table === 'parties' ? { data: [{ id: TRANSPORTER, type: 'supplier', is_active: true, state_code: '36' }] } : undefined));
+    expect(await addBillFreight(freight)).toMatchObject({ ok: false, code: 'validation', error: 'validation.rcm_interstate' });
+    expect(find('expense_vouchers', 'insert')).toBeUndefined();
+  });
+  it('a bill that is not posted takes no freight', async () => {
+    reset(asAdmin());
+    freightWorld((c) => (c.table === 'purchase_invoices' ? { data: [{ id: BILL, status: 'draft' }] } : undefined));
+    expect(await addBillFreight(freight)).toMatchObject({ ok: false, code: 'not_posted' });
+    expect(find('expense_vouchers', 'insert')).toBeUndefined();
+  });
+  it('a customer or a disabled party is not a transporter; a non-money account is not a way to pay', async () => {
+    reset(asAdmin());
+    freightWorld((c) => (c.table === 'parties' ? { data: [{ id: TRANSPORTER, type: 'customer', is_active: true, state_code: '37' }] } : undefined));
+    expect(await addBillFreight(freight)).toMatchObject({ ok: false, error: 'validation.invalid_supplier' });
+    reset(asAdmin());
+    freightWorld((c) => (c.table === 'accounts' && !c.filters.some(([k]) => k === 'system_key') ? { data: [{ id: PAY, is_money: false }] } : undefined));
+    expect(await addBillFreight(freight)).toMatchObject({ ok: false, error: 'validation.invalid_account' });
+  });
+  it('a refused post removes the draft so nothing is left half done', async () => {
+    reset(asAdmin());
+    freightWorld((c) => (c.rpc === 'post_expense_voucher' ? dbError('DN_PERIOD_LOCKED') : undefined));
+    expect(await addBillFreight(freight)).toMatchObject({ ok: false, code: 'period_locked' });
+    expect(state.calls.some((c) => c.table === 'expense_vouchers' && c.op === 'delete')).toBe(true);
+  });
+  it('a retry of a request that already posted answers with the same voucher and writes nothing', async () => {
+    reset(asAdmin());
+    freightWorld((c) => (c.table === 'expense_vouchers' && c.op === 'select' ? { data: [{ id: VOUCHER, status: 'posted' }] } : undefined));
+    expect(await addBillFreight(freight)).toEqual({ ok: true, data: { id: VOUCHER } });
+    expect(find('expense_vouchers', 'insert')).toBeUndefined();
+    expect(rpc('post_expense_voucher')).toBeUndefined();
+  });
+  it('refuses a zero or malformed amount and a future date', async () => {
+    reset(asAdmin());
+    freightWorld();
+    expect(await addBillFreight({ ...freight, amount: '0' })).toMatchObject({ ok: false, error: 'field.money_positive' });
+    expect(await addBillFreight({ ...freight, amount: '12,000' })).toMatchObject({ ok: false, error: 'field.money_invalid' });
+    expect(await addBillFreight({ ...freight, voucherDate: '2999-01-01' })).toMatchObject({ ok: false, error: 'validation.doc_date_future' });
   });
 });

@@ -23,8 +23,12 @@ import type { BillFormContext, BillFormInitial, BillFormValues } from '@/lib/pur
 import { altToBase, baseToAlt, trimZeros } from '@/lib/units';
 import { saveDraftBillSchema } from '@/schemas/purchases';
 import { BillLineRow } from './BillLineRow';
+import { BillPhotos, type BillPhoto } from './BillPhotos';
 
 type Confirm = null | 'post' | 'delete';
+
+// A stable default: BillPhotos resyncs from this prop whenever its identity changes.
+const NO_PHOTOS: BillPhoto[] = [];
 
 const emptyLine = () => ({ itemId: '', qty: '', altQty: '', rate: '', discountPct: '' });
 
@@ -32,9 +36,11 @@ interface Props {
   ctx: BillFormContext;
   /** Present when editing an existing draft. */
   initial?: BillFormInitial;
+  /** The draft's photos (the owner can add and remove them until it is posted). */
+  photos?: BillPhoto[];
 }
 
-export function BillForm({ ctx, initial }: Props) {
+export function BillForm({ ctx, initial, photos = NO_PHOTOS }: Props) {
   const t = useTranslations('purchases');
   const tc = useTranslations('common');
   const te = useTranslations('errors');
@@ -258,6 +264,8 @@ export function BillForm({ ctx, initial }: Props) {
             <p className="hint">{t('altHint')}</p>
             <p className="hint">{t('stockOnlyHint')}</p>
           </Card>
+
+          <BillPhotos billId={draftId} photos={photos} canRemove canAdd />
         </div>
 
         <aside className="floatpanel" aria-label={t('summary')}>
