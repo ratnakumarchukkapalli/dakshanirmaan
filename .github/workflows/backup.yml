@@ -11,9 +11,11 @@
 # Google Drive) is a later step; see RUNBOOK.md, "Switching on the Drive copy".
 name: Backup
 
+# SWITCHED OFF (owner decision, Ratna 2026-10-01): no scheduled run until the backup is wanted. To switch it on
+# again, restore the schedule below and set the two secrets (RUNBOOK.md 2.1). A manual run still works.
 on:
-  schedule:
-    - cron: '30 20 * * *'     # 02:00 India time
+  # schedule:
+  #   - cron: '30 20 * * *'     # 02:00 India time
   workflow_dispatch:
 
 permissions:

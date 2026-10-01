@@ -102,16 +102,11 @@ Plan agreed with Ratna 2026-09-26: finish Phase 1 fully — **19 aal2-enforcemen
 At deploy time decide: that project holds the REAL books, so a fake-data demo should go in a second hosted project (Free allows two per org); `demo-data.sql` must never be loaded into the real one. Also needed then: hosted Auth settings (email OTP, signups off, TOTP), the owner account via create-admin, Resend SMTP, Vercel env vars (RUNBOOK section 3 lists the secrets).
 Changes 16 and 19 are done and pushed; nothing is unpushed.
 
-## PENDING (Ratna, deferred 2026-09-26) — turn the nightly backup on
-Until this is done **nothing is backed up** (the Backup workflow runs daily but prints a warning and stops). Steps, in `RUNBOOK.md` 2.1:
-1. `age-keygen -o family-age-key.txt`; keep the file in two safe places; never in GitHub.
-2. GitHub → Settings → Secrets and variables → Actions: add `AGE_PUBLIC_KEY` (the `age1…` line) and `DATABASE_URL` (Supabase → Connect → Session pooler URI with the password; letters/digits-only password).
-3. Actions → Backup → Run workflow; download the artifact (a zip), then run the restore drill once (RUNBOOK 2.3). The hosted dump is untried until this happens.
-Also open: 7 Dependabot pull requests (eslint 10, typescript 7, @types/node 26, actions/checkout 7 are major bumps; do not merge blindly).
-Must be done before go-live (change 17) at the latest.
+## Backup: SWITCHED OFF (Ratna, 2026-10-01)
+The nightly Backup workflow no longer runs on a schedule (it failed every day because it was never configured, and Ratna does not want it for now). **Consequence to remember: hosted is on the Supabase Free plan with no point-in-time recovery, so with this off there is NO backup of the books.** Fine while hosted holds no real data (0 posted documents on 2026-10-01); revisit before the family starts entering real invoices. To switch on: uncomment the `schedule` in `.github/workflows/backup.yml`, add the secrets `AGE_PUBLIC_KEY` and `DATABASE_URL` (RUNBOOK 2.1). Also open: 7 Dependabot pull requests (eslint 10, typescript 7, @types/node 26, actions/checkout 7 are major bumps; do not merge blindly). Email sending (Resend SMTP) is deferred until after Phase 2 (Ratna, 2026-10-01).
 
 ## Left before go-live
-Phase 1 (01–19, 08b) is built, committed and pushed. Remaining: the nightly backup switched on (PENDING below), Resend SMTP before the family signs in (invite/reset emails), the pre-go-live `/security-review` (after all phases, per Ratna 2026-09-26), owner decision 1 (stock cost hidden from counter, still homeless), and the open owner questions listed per change above.
+Phase 1 (01–19, 08b) is built, committed and pushed. Remaining: the backup (switched off, see above; revisit before real data), Resend SMTP before the family signs in (after Phase 2), the pre-go-live `/security-review` (after all phases, per Ratna 2026-09-26), owner decision 1 (stock cost hidden from counter, still homeless), and the open owner questions listed per change above.
 Full list with owner/skill/spec-section/acceptance per change: `openspec/changes/README.md`.
 
 ## Deployed (2026-09-26)
