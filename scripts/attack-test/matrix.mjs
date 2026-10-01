@@ -188,8 +188,10 @@ async function writeOps(table, cfg) {
 for (const [t, lt, lines] of [['credit_notes', 'credit_note_lines', 'note'], ['debit_notes', 'debit_note_lines', 'note']]) {
   try {
     const p = t === 'credit_notes' ? C.kishore : C.krishna;
-    const id = one(`insert into ${t} (note_date, party_id, place_of_supply, status, taxable_total, grand_total) values (current_date, '${p}', '37', 'posted', 100, 118) returning id`);
+    // drafted, lined, then posted: note lines can only be written while the note is a draft (change 20)
+    const id = one(`insert into ${t} (note_date, party_id, place_of_supply, status, taxable_total, grand_total) values (current_date, '${p}', '37', 'draft', 100, 118) returning id`);
     sql(`insert into ${lt} (note_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, taxable_value, gst_rate) values ('${id}', 1, '${C.ppc}', 'x', '2523', 'BAG', 1, 100, 100, 18)`);
+    sql(`update ${t} set status = 'posted' where id = '${id}'`);
   } catch (e) { console.log('no posted', t, String(e.message).slice(0, 160)); }
 }
 for (const [t, cfg] of Object.entries(T)) await writeOps(t, cfg);

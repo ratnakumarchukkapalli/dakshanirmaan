@@ -97,17 +97,22 @@ reset role;
 -- and two posted challans
 insert into sales_invoices (invoice_no, invoice_date, party_id, place_of_supply, status, warehouse_id)
 values ('DN/26-27/0008', '2026-09-11', 'a0000000-0000-4000-8000-000000000003', '37', 'cancelled', (select id from warehouses where is_default and not is_transit));
+-- (inserted as drafts, lines added, then given their status: since change 20 note lines can only be
+-- written while the note is a draft, for every writer)
 insert into credit_notes (id, note_no, note_date, party_id, place_of_supply, status, taxable_total, cgst_total, sgst_total, grand_total) values
-  ('f0000000-0000-4000-8000-000000000001', 'CN/26-27/0001', '2026-09-15', 'a0000000-0000-4000-8000-000000000001', '37', 'posted', 400, 56, 56, 512),
-  ('f0000000-0000-4000-8000-000000000002', 'CN/26-27/0002', '2026-09-16', 'a0000000-0000-4000-8000-000000000003', '37', 'posted', 400, 56, 56, 512),
-  ('f0000000-0000-4000-8000-000000000003', 'CN/26-27/0003', '2026-09-17', 'a0000000-0000-4000-8000-000000000003', '37', 'cancelled', 400, 56, 56, 512),
-  ('f0000000-0000-4000-8000-000000000004', 'CN/26-27/0004', '2026-10-02', 'a0000000-0000-4000-8000-000000000003', '37', 'posted', 100, 0, 0, 100);
+  ('f0000000-0000-4000-8000-000000000001', 'CN/26-27/0001', '2026-09-15', 'a0000000-0000-4000-8000-000000000001', '37', 'draft', 400, 56, 56, 512),
+  ('f0000000-0000-4000-8000-000000000002', 'CN/26-27/0002', '2026-09-16', 'a0000000-0000-4000-8000-000000000003', '37', 'draft', 400, 56, 56, 512),
+  ('f0000000-0000-4000-8000-000000000003', 'CN/26-27/0003', '2026-09-17', 'a0000000-0000-4000-8000-000000000003', '37', 'draft', 400, 56, 56, 512),
+  ('f0000000-0000-4000-8000-000000000004', 'CN/26-27/0004', '2026-10-02', 'a0000000-0000-4000-8000-000000000003', '37', 'draft', 100, 0, 0, 100);
 insert into credit_note_lines (note_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, taxable_value, gst_rate, cgst_amt, sgst_amt)
 select n, 1, 'c0000000-0000-4000-8000-000000000001', 'Cement 50kg', '2523', 'bag', 1, 400, 400, 28, 56, 56
 from unnest(array['f0000000-0000-4000-8000-000000000001', 'f0000000-0000-4000-8000-000000000002', 'f0000000-0000-4000-8000-000000000003']::uuid[]) n;
 -- October: a credit note line with no HSN and a unit the portal list does not cover (for the warnings)
 insert into credit_note_lines (note_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, taxable_value, gst_rate)
 values ('f0000000-0000-4000-8000-000000000004', 1, 'c0000000-0000-4000-8000-000000000001', 'Odd service', '', 'trip', 1, 100, 100, 0);
+update credit_notes set status = 'posted'
+ where id in ('f0000000-0000-4000-8000-000000000001', 'f0000000-0000-4000-8000-000000000002', 'f0000000-0000-4000-8000-000000000004');
+update credit_notes set status = 'cancelled' where id = 'f0000000-0000-4000-8000-000000000003';
 insert into delivery_challans (challan_no, challan_date, party_id, warehouse_id, status) values
   ('DC/26-27/0001', '2026-09-08', 'a0000000-0000-4000-8000-000000000001', (select id from warehouses where is_default and not is_transit), 'posted'),
   ('DC/26-27/0002', '2026-09-09', 'a0000000-0000-4000-8000-000000000001', (select id from warehouses where is_default and not is_transit), 'posted');
