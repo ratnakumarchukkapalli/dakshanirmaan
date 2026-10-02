@@ -1,6 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
-import { ItemModal, ItemStatusButton, type ItemValues } from '@/components/items/ItemModal';
+import { DeleteItemButton, ItemModal, ItemStatusButton, type ItemValues } from '@/components/items/ItemModal';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { inrRate } from '@/lib/format';
@@ -64,6 +64,7 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                           <ItemModal item={values} triggerClassName="btn ghost sm" />
                           <ItemStatusButton itemId={i.id} isActive={i.is_active} />
+                          <DeleteItemButton itemId={i.id} name={i.name} />
                         </div>
                       </td>
                     </tr>

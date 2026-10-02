@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
-import { createItem, deactivateItem, reactivateItem, updateItem } from '@/app/actions/items';
+import { createItem, deactivateItem, deleteItem, reactivateItem, updateItem } from '@/app/actions/items';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { createItemSchema, type ItemFormInput, type ItemFormOutput } from '@/schemas/items';
@@ -146,5 +146,36 @@ export function ItemStatusButton({ itemId, isActive }: { itemId: string; isActiv
         {isActive ? t('disable') : t('enable')}
       </button>
     </div>
+  );
+}
+
+/** Owner-only. Asks first; the database refuses an item that has ever been used. */
+export function DeleteItemButton({ itemId, name }: { itemId: string; name: string }) {
+  const t = useTranslations('items');
+  const tc = useTranslations('common');
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const confirm = () =>
+    start(async () => {
+      setError(null);
+      const res = await deleteItem({ itemId });
+      if (!res.ok) return setError(res.error);
+      setOpen(false);
+      router.refresh();
+    });
+  return (
+    <>
+      <button type="button" className="btn ghost sm" onClick={() => { setError(null); setOpen(true); }}>{t('delete')}</button>
+      <Modal open={open} onClose={() => setOpen(false)} title={t('deleteTitle', { name })} closeLabel={tc('close')}>
+        <p>{t('deleteBody')}</p>
+        {error && <p role="alert" className="alert bad">{error}</p>}
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" onClick={() => setOpen(false)}>{tc('cancel')}</button>
+          <button type="button" className="btn danger" disabled={pending} onClick={confirm}>{t('deleteConfirm')}</button>
+        </div>
+      </Modal>
+    </>
   );
 }

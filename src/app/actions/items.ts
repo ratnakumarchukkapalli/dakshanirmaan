@@ -68,6 +68,24 @@ async function setActive(input: unknown, active: boolean): Promise<ActionResult>
   return ok();
 }
 
+/** Removes an item nothing has ever used; the database refuses (foreign keys) if it has history. */
+export async function deleteItem(input: unknown): Promise<ActionResult> {
+  const t = await getTranslations('errors');
+  const denied = await requireAdmin();
+  if (denied) return denied;
+  const parsed = itemIdSchema.safeParse(input);
+  if (!parsed.success) return zodFailure(parsed.error);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('items').delete().eq('id', parsed.data.itemId).select('id');
+  if (error) return dbFailure(error);
+  if (!data?.length) return fail('validation', t('validation.no_such_item'));
+
+  revalidatePath('/settings/items');
+  revalidatePath('/stock', 'layout');
+  return ok();
+}
+
 export async function deactivateItem(input: unknown): Promise<ActionResult> {
   return setActive(input, false);
 }

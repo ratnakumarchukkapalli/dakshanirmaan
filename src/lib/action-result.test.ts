@@ -34,6 +34,7 @@ describe('parseDbError: constraint failures (SQLSTATE)', () => {
   it('check and foreign-key failures are validation; permission failures are forbidden', () => {
     expect(parseDbError('violates check constraint "items_hsn_check"', '23514')).toEqual({ code: 'validation' });
     expect(parseDbError('violates foreign key constraint', '23503')).toEqual({ code: 'validation' });
+    expect(parseDbError('update or delete on table "items" violates foreign key constraint "sales_invoice_lines_item_id_fkey" on table "sales_invoice_lines"', '23503')).toEqual({ code: 'validation', detail: 'item_used' });
     expect(parseDbError('new row violates row-level security policy', '42501')).toEqual({ code: 'forbidden' });
   });
   it('a zero-value invoice (journal amount check) gets its own detail', () => {

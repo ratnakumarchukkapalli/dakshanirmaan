@@ -7,7 +7,7 @@ vi.mock('next/cache', async () => (await import('@/test/harness')).cacheMock);
 vi.mock('@/lib/auth/current', async () => (await import('@/test/harness')).currentMock);
 vi.mock('@/lib/supabase/server', async () => (await import('@/test/harness')).supabaseMock);
 
-import { createItem, deactivateItem, reactivateItem, updateItem } from './items';
+import { createItem, deactivateItem, deleteItem, reactivateItem, updateItem } from './items';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const item = { name: 'Tiscon 12mm', brand: '', category: 'steel', hsnCode: '7214', gstRate: '18', baseUom: 'kg', altUom: '', conversionFactor: '', reorderLevel: '', saleRate: '62.5375', isStock: true };
@@ -29,12 +29,14 @@ describe('items are owner-only', () => {
     expect(await updateItem({ id: ID, ...item })).toMatchObject({ ok: false, code: 'forbidden' });
     expect(await deactivateItem({ itemId: ID })).toMatchObject({ ok: false, code: 'forbidden' });
     expect(await reactivateItem({ itemId: ID })).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(await deleteItem({ itemId: ID })).toMatchObject({ ok: false, code: 'forbidden' });
     expect(state.calls).toHaveLength(0);
   });
   it('counter user is refused everywhere', async () => {
     reset(asCounter());
     expect(await createItem(item)).toMatchObject({ ok: false, code: 'forbidden' });
     expect(await deactivateItem({ itemId: ID })).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(await deleteItem({ itemId: ID })).toMatchObject({ ok: false, code: 'forbidden' });
     expect(state.calls).toHaveLength(0);
   });
 });
@@ -51,6 +53,18 @@ describe('item database rules', () => {
     expect(await updateItem({ id: ID, ...item })).toEqual({ ok: false, code: 'validation', error: 'validation.no_such_item' });
     expect(await deactivateItem({ itemId: ID })).toEqual({ ok: false, code: 'validation', error: 'validation.no_such_item' });
     expect(await reactivateItem({ itemId: ID })).toEqual({ ok: false, code: 'validation', error: 'validation.no_such_item' });
+  });
+  it('delete: owner removes an unused item; a used one gets the friendly "disable it instead"; a missing one says so', async () => {
+    reset(asAdmin());
+    state.respond = () => ({ data: [{ id: ID }], error: null });
+    expect((await deleteItem({ itemId: ID })).ok).toBe(true);
+    expect(state.calls.at(-1)?.op).toBe('delete');
+    expect(state.revalidated).toContain('/settings/items');
+    state.respond = () => dbError('update or delete on table "items" violates foreign key constraint "sales_invoice_lines_item_id_fkey" on table "sales_invoice_lines"', '23503');
+    expect(await deleteItem({ itemId: ID })).toEqual({ ok: false, code: 'validation', error: 'validation.item_used' });
+    state.respond = () => ({ data: [], error: null });
+    expect(await deleteItem({ itemId: ID })).toEqual({ ok: false, code: 'validation', error: 'validation.no_such_item' });
+    expect(await deleteItem({ itemId: 'nope' })).toMatchObject({ ok: false, code: 'validation' });
   });
   it('a number too large for its column is a validation problem, not internal', async () => {
     reset(asAdmin());

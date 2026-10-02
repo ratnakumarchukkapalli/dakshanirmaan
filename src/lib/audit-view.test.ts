@@ -17,6 +17,9 @@ describe('auditDetails', () => {
     expect(auditDetails('insert', null, { name: 'P1', gstin: 'x' })).toEqual([{ key: 'name', after: 'P1' }]);
     expect(auditDetails('lock', { is_locked: false }, { month: '2026-09-01', is_locked: true, reason: null })).toEqual([{ key: 'month', after: '2026-09-01' }]);
   });
+  it('a delete shows the identifying facts of the removed row (they live in `before`)', () => {
+    expect(auditDetails('delete', { name: 'Old Item', hsn_code: '2523' }, null)).toEqual([{ key: 'name', after: 'Old Item' }]);
+  });
   it('an unlock shows its reason', () => {
     expect(auditDetails('unlock', null, { month: '2026-09-01', reason: 'Filed the wrong month' })).toEqual([
       { key: 'month', after: '2026-09-01' }, { key: 'reason', after: 'Filed the wrong month' },

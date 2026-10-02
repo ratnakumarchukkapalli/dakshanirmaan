@@ -16,7 +16,8 @@ type Bag = Record<string, unknown> | null | undefined;
 
 /** Detail lines for one row, at most `limit`; the rest are dropped (the row still says what changed). */
 export function auditDetails(action: string, before: Bag, after: Bag, limit = 6): AuditDetail[] {
-  const a = after ?? {};
+  // A delete keeps the row in `before` and has no `after`: show what was deleted.
+  const a = (action === 'delete' ? before : after) ?? {};
   const b = before ?? {};
   if (action === 'update' && Object.keys(a).length > 0) {
     return Object.keys(a).slice(0, limit).map((key) => ({ key, before: show(b[key]), after: show(a[key]) }));
