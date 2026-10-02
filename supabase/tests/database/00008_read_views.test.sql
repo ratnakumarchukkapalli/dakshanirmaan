@@ -1009,7 +1009,8 @@ select is((select count(*)::int from pg_class c join pg_namespace n on n.oid = c
   -- Change 14 added v_sales_daily, v_sales_daily_category and v_money_balances (dashboard).
   -- Change 15 added v_money_ledger (cash & bank book).
   -- Change 22 added v_bank_book_items and v_bank_statement_summary (bank reconciliation).
-  25, 'twenty-five views exist (14 contracted + 2 stock _all + 2 internal helpers + open-purchase + employees + 3 dashboard + money ledger + 2 bank recon)');
+  -- Change 24a added v_quotations and v_quotation_lines (quotations).
+  27, 'twenty-seven views exist (14 contracted + 2 stock _all + 2 internal helpers + open-purchase + employees + 3 dashboard + money ledger + 2 bank recon + 2 quotations)');
 select is((select count(*)::int from pg_matviews where schemaname = 'public'), 0,
   'nothing is materialised');
 select is((select count(*)::int from information_schema.columns

@@ -8,6 +8,10 @@ describe('parseDbError', () => {
     expect(parseDbError('DN_NEGATIVE_STOCK')).toEqual({ code: 'negative_stock' });
     expect(parseDbError('DN_NO_PERIOD')).toEqual({ code: 'no_period' });
   });
+  it('maps a stale quotation write (DN_CONFLICT) to conflict', () => {
+    expect(parseDbError('DN_CONFLICT')).toEqual({ code: 'conflict' });
+    expect(parseDbError('error: DN_CONFLICT (stale)')).toEqual({ code: 'conflict' });
+  });
   it('carries the detail of a validation error', () => {
     expect(parseDbError('DN_VALIDATION:max_active_users')).toEqual({ code: 'validation', detail: 'max_active_users' });
     expect(parseDbError('DN_VALIDATION:last_admin')).toEqual({ code: 'validation', detail: 'last_admin' });

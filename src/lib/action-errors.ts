@@ -3,12 +3,25 @@ import { getTranslations } from 'next-intl/server';
 import type { ZodError } from 'zod';
 import { fail, parseDbError, type Failure } from '@/lib/action-result';
 
-/** Turns a database error into a friendly, translated failure. Unknown errors are logged, not shown. */
-export async function dbFailure(error: { message?: string; code?: string } | null | undefined): Promise<Failure> {
+type DbError = { message?: string; code?: string; details?: string | null };
+
+/**
+ * Turns a database error into a friendly, translated failure. Unknown errors are logged, not shown.
+ *
+ * `scope` lets one screen word a validation detail its own way: `errors.<scope>.<detail>` is tried
+ * before the shared `errors.validation.<detail>`. When the database names the offender in the
+ * error's `details` (a disabled item or party), `errors.<scope>.<detail>_named` gets that name as `{name}`.
+ */
+export async function dbFailure(error: DbError | null | undefined, opts: { scope?: string } = {}): Promise<Failure> {
   const t = await getTranslations('errors');
   const { code, detail } = parseDbError(error?.message, error?.code);
   if (code === 'internal') console.error('[action] unexpected database error:', error?.message);
   if (code === 'validation') {
+    if (opts.scope && detail) {
+      const name = typeof error?.details === 'string' ? error.details.trim().slice(0, 80) : '';
+      if (name && t.has(`${opts.scope}.${detail}_named`)) return fail('validation', t(`${opts.scope}.${detail}_named`, { name }));
+      if (t.has(`${opts.scope}.${detail}`)) return fail('validation', t(`${opts.scope}.${detail}`));
+    }
     return fail('validation', t.has(`validation.${detail}`) ? t(`validation.${detail}`) : t('validation.generic'));
   }
   return t.has(code) ? fail(code, t(code)) : fail('internal', t('internal'));

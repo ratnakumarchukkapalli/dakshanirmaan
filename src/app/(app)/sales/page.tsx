@@ -181,6 +181,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
             { key: 'challan', label: t('challans'), href: href('challan') },
             { key: 'note', label: tn('segment'), href: href('note') },
             { key: 'draft', label: t('drafts'), href: href('draft') },
+            { key: 'quotes', label: t('quotes'), href: '/sales/quotes' },
           ]}
         />
         <SearchInput name="q" defaultValue={q} label={t('searchLabel')} placeholder={t('searchPlaceholder')} buttonLabel={t('searchButton')} keep={{ status: segment === 'all' ? undefined : segment }} />

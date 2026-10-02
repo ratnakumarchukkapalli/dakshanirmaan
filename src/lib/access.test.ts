@@ -53,6 +53,11 @@ describe('counter user', () => {
     expect(go('/settings', counter)).toEqual(redirect('/'));
     expect(go('/settings/users', counter)).toEqual(redirect('/'));
   });
+  it('reaches quotations (any active member may quote, accept and convert)', () => {
+    expect(go('/sales/quotes', counter)).toEqual(allow);
+    expect(go('/sales/quotes/new', counter)).toEqual(allow);
+    expect(go('/sales/quotes/3f2b1c1e-0000-4000-8000-000000000000', counter)).toEqual(allow);
+  });
   it('is bounced off the login screens', () => {
     expect(go('/login', counter)).toEqual(redirect('/'));
     expect(go('/login/mfa', counter)).toEqual(redirect('/'));

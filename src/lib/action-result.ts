@@ -27,6 +27,9 @@ const DB_CODES: Record<string, ErrorCode> = {
   DN_CHEQUE_STATE: 'cheque_state',
   // Raised by receive_stock_transfer when the transfer is not in transit (already received, cancelled, still a draft).
   DN_TRANSFER_STATE: 'transfer_state',
+  // Raised by save_quotation when the quote was changed by someone else since the form loaded it
+  // (or the form sent no version at all): a stale write, same meaning as the draft `updated_at` guard.
+  DN_CONFLICT: 'conflict',
   // Raised by post_sales_invoice when the draft's challan was already converted to a different,
   // posted invoice (a stray duplicate draft from a double-click on "Invoice ->"). No detail
   // string travels with it, so this reads as the generic validation sentence.
