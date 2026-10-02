@@ -9,6 +9,7 @@ const TABS = [
   { key: 'periods', href: '/settings/period-locks' },
   { key: 'audit', href: '/settings/audit-trail' },
   { key: 'cutover', href: '/settings/cutover' },
+  { key: 'export', href: '/settings/export' },
 ] as const;
 
 export async function SettingsTabs() {

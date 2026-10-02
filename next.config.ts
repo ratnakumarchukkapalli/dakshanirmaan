@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/invoices/[id]/pdf': ['./src/assets/fonts/**'],
     '/api/parties/[id]/statement.pdf': ['./src/assets/fonts/**'],
+    // the year archive renders its statement PDFs with the same fonts
+    '/api/backup/archive.zip': ['./src/assets/fonts/**'],
   },
   async headers() {
     return [{ source: '/:path*', headers: staticSecurityHeaders }];

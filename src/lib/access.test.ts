@@ -52,6 +52,9 @@ describe('counter user', () => {
     expect(go('/purchases-lookalike', counter)).toEqual(allow);
     expect(go('/settings', counter)).toEqual(redirect('/'));
     expect(go('/settings/users', counter)).toEqual(redirect('/'));
+    // Export & backup: the screen is turned away; the download routes answer 403 themselves.
+    expect(go('/settings/export', counter)).toEqual(redirect('/'));
+    expect(go('/api/backup/books.xlsx', counter)).toEqual(allow);
   });
   it('reaches quotations (any active member may quote, accept and convert)', () => {
     expect(go('/sales/quotes', counter)).toEqual(allow);
@@ -68,6 +71,7 @@ describe('admin who has not done the authenticator step', () => {
   it('is held on /login/mfa and nowhere else', () => {
     expect(go('/', adminStep1)).toEqual(redirect('/login/mfa'));
     expect(go('/settings/users', adminStep1)).toEqual(redirect('/login/mfa'));
+    expect(go('/settings/export', adminStep1)).toEqual(redirect('/login/mfa'));
     expect(go('/login', adminStep1)).toEqual(redirect('/login/mfa'));
     expect(go('/login/mfa', adminStep1)).toEqual(allow);
   });
@@ -77,6 +81,8 @@ describe('admin with the authenticator step done', () => {
   it('reaches everything, including settings', () => {
     expect(go('/', admin)).toEqual(allow);
     expect(go('/settings/users', admin)).toEqual(allow);
+    expect(go('/settings/export', admin)).toEqual(allow);
+    expect(go('/api/backup/books.xlsx', admin)).toEqual(allow);
   });
   it('is bounced off the login screens', () => {
     expect(go('/login', admin)).toEqual(redirect('/'));

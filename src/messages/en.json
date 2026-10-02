@@ -450,7 +450,8 @@
       "coa": "Chart of accounts",
       "cutover": "Go-live",
       "periods": "Period locks",
-      "audit": "Audit trail"
+      "audit": "Audit trail",
+      "export": "Export & backup"
     },
     "periods": {
       "title": "Period locks",
@@ -500,7 +501,8 @@
         "cancel": "Cancelled",
         "lock": "Locked",
         "unlock": "Unlocked",
-        "ensure_fiscal_year": "Created year"
+        "ensure_fiscal_year": "Created year",
+        "export": "Exported"
       },
       "entities": {
         "parties": "Party",
@@ -518,7 +520,38 @@
         "stock_transfers": "Stock transfer",
         "day_closes": "Day close",
         "opening_batches": "Opening balances",
-        "cash_deposits": "Cash deposit"
+        "cash_deposits": "Cash deposit",
+        "books": "Full books (Excel)",
+        "tally": "Tally file",
+        "archive": "Year archive"
+      }
+    },
+    "export": {
+      "title": "Export & backup",
+      "hint": "Take your books with you. Everything here only reads: nothing in the books changes, and every download is recorded in the audit trail.",
+      "yearLabel": "Financial year",
+      "noYears": "No financial year is set up yet.",
+      "comingNext": "Coming next",
+      "newTab": "(opens in a new tab)",
+      "books": {
+        "title": "Full books (Excel)",
+        "body": "One workbook with the sheets a CA asks for: chart of accounts, trial balance, journal, party ledger, sales and purchase invoices with their lines, notes, payments, stock, GST and bank lines. Cancelled documents are included and marked.",
+        "button": "Download Excel"
+      },
+      "tally": {
+        "title": "Tally file (XML)",
+        "body": "Every ledger and every posted voucher of the year in Tally's voucher import format, so the books can move to Tally if ever needed. Accounts only: stock items are not included.",
+        "note": "Generated to Tally's documented import format; not yet imported into a live Tally. Ask your CA to test-import on a copy company first.",
+        "order": "Two files, imported into Tally in this order: the ledgers first, then the vouchers.",
+        "buttonLedgers": "1. Ledgers file",
+        "buttonVouchers": "2. Vouchers file",
+        "inventory": "Inventory and Goods in Transit come in under Current Assets, not Stock-in-Hand, because Tally may refuse Stock-in-Hand ledgers in plain vouchers. Your CA can move them after the import.",
+        "numbering": "To keep our voucher numbers, set Sales, Purchase, Receipt, Payment, Contra, Journal, Credit Note and Debit Note to Manual numbering in Tally before importing. The number is also written in each voucher's narration."
+      },
+      "archive": {
+        "title": "Year archive (ZIP)",
+        "body": "The whole year in one folder you can keep offline: the Excel workbook, the Tally files, every table as a data file, the main reports as PDF and a checksum list. Opens without this app.",
+        "button": "Download ZIP"
       }
     }
   },

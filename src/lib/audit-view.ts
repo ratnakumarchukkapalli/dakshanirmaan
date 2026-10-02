@@ -3,7 +3,7 @@
 
 export interface AuditDetail { key: string; before?: string; after?: string }
 
-const IDENTIFYING = ['doc_no', 'invoice_no', 'note_no', 'voucher_no', 'adj_no', 'transfer_no', 'challan_no', 'name', 'month', 'reason', 'as_of', 'year_label'];
+const IDENTIFYING = ['doc_no', 'invoice_no', 'note_no', 'voucher_no', 'adj_no', 'transfer_no', 'challan_no', 'name', 'month', 'reason', 'as_of', 'year_label', 'fy'];
 const MAX = 60;
 
 const show = (v: unknown): string => {

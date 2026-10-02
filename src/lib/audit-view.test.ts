@@ -25,6 +25,9 @@ describe('auditDetails', () => {
       { key: 'month', after: '2026-09-01' }, { key: 'reason', after: 'Filed the wrong month' },
     ]);
   });
+  it('an export shows its financial year', () => {
+    expect(auditDetails('export', null, { fy: 2026 })).toEqual([{ key: 'fy', after: '2026' }]);
+  });
   it('honours the limit', () => {
     expect(auditDetails('update', {}, { a: 1, b: 2, c: 3 }, 2)).toHaveLength(2);
   });
