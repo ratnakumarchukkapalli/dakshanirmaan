@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 // Acceptance (change 15): RSC by default; only the form pieces are client components.
 const dir = __dirname;
-const pages = ['', 'day-close', 'day-book', 'aging', 'stock', 'cash-bank'].map((p) => path.join(dir, '../../app/(app)/reports', p, 'page.tsx'));
+const pages = ['', 'day-close', 'day-book', 'aging', 'stock', 'cash-bank', 'reconcile', 'reconcile/[id]'].map((p) => path.join(dir, '../../app/(app)/reports', p, 'page.tsx'));
 const components = readdirSync(dir).filter((f) => /\.tsx$/.test(f)).map((f) => path.join(dir, f));
 
 describe('reports client boundary', () => {
@@ -22,5 +22,6 @@ describe('reports client boundary', () => {
     const cash = readFileSync(pages[5]!, 'utf8');
     expect(cash).toMatch(/if \(!isVerifiedAdmin\(member\)\) redirect\('\/reports'\)/);
     expect(readFileSync(pages[0]!, 'utf8')).toMatch(/isAdmin \|\| !c\.ownerOnly/);
+    for (const f of [pages[6]!, pages[7]!]) expect(readFileSync(f, 'utf8'), f).toMatch(/if \(!isVerifiedAdmin\(member\)\) redirect\('\/reports'\)/);
   });
 });

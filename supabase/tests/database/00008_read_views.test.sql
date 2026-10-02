@@ -969,8 +969,10 @@ do $$ begin
   values ((select id from _ids where name = 'a_bank'), '2026-09-01', '2026-09-30');
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
-select matches(current_setting('pgtap_test.raised_msg', true), 'row-level security',
-  'a user-role session cannot write bank statements (admin only)');
+-- Change 22: no role writes the statement tables directly any more (import_bank_statement and the
+-- match functions are the only way in), so the refusal is now a privilege, not RLS.
+select matches(current_setting('pgtap_test.raised_msg', true), 'permission denied',
+  'a user-role session cannot write bank statements');
 
 select set_config('pgtap_test.raised_msg', 'none', false);
 set local role authenticated;
@@ -981,8 +983,8 @@ do $$ begin
 exception when others then perform set_config('pgtap_test.raised_msg', sqlerrm, true); end; $$;
 reset role;
 set local request.jwt.claims to '';
-select is(current_setting('pgtap_test.raised_msg', true), 'none',
-  'an admin session can write bank statements');
+select matches(current_setting('pgtap_test.raised_msg', true), 'permission denied',
+  'an admin session cannot write bank statements directly either (change 22: functions only)');
 
 select set_config('pgtap_test.raised_msg', '', false);
 do $$ begin
@@ -1006,7 +1008,8 @@ select is((select count(*)::int from pg_class c join pg_namespace n on n.oid = c
   -- v_open_sales_invoices for the outgoing-payment direction. Change 13 added v_employees (staff list).
   -- Change 14 added v_sales_daily, v_sales_daily_category and v_money_balances (dashboard).
   -- Change 15 added v_money_ledger (cash & bank book).
-  23, 'twenty-three views exist (14 contracted + 2 stock _all + 2 internal helpers + open-purchase + employees + 3 dashboard + money ledger)');
+  -- Change 22 added v_bank_book_items and v_bank_statement_summary (bank reconciliation).
+  25, 'twenty-five views exist (14 contracted + 2 stock _all + 2 internal helpers + open-purchase + employees + 3 dashboard + money ledger + 2 bank recon)');
 select is((select count(*)::int from pg_matviews where schemaname = 'public'), 0,
   'nothing is materialised');
 select is((select count(*)::int from information_schema.columns

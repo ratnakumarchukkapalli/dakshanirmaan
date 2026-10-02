@@ -2,9 +2,11 @@ import { notFound } from 'next/navigation';
 import { PaymentForm } from '@/components/payments/PaymentForm';
 import { getCurrentMember } from '@/lib/auth/current';
 import { isVerifiedAdmin } from '@/lib/auth/require';
+import { loadOpenLine } from '@/lib/bank-data';
+import { directionOfLine, prefillFromBankLine } from '@/lib/bank-prefill';
 import { compareDecimal, decimalText } from '@/lib/decimal';
 import { loadPaymentFormContext } from '@/lib/payments-data';
-import type { PaymentFormInitial } from '@/lib/payments-types';
+import type { BankLineSource, PaymentFormInitial, PaymentFormValues } from '@/lib/payments-types';
 import { createClient } from '@/lib/supabase/server';
 
 /**
@@ -12,8 +14,8 @@ import { createClient } from '@/lib/supabase/server';
  * a blank one. There is no separate view route for a posted payment — that mirrors change 11's
  * challan precedent (the frontend spec names only this one route for payments too).
  */
-export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
-  const { id } = await searchParams;
+export default async function NewPaymentPage({ searchParams }: { searchParams: Promise<{ id?: string; bankLine?: string }> }) {
+  const { id, bankLine: bankLineId } = await searchParams;
   const supabase = await createClient();
   const member = await getCurrentMember();
   const isAdmin = isVerifiedAdmin(member);
@@ -58,5 +60,22 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
   }
 
   const ctx = await loadPaymentFormContext(supabase, isAdmin, keepPartyId);
-  return <PaymentForm ctx={ctx} initial={initial} />;
+
+  // `?bankLine=` (owner only): record a receipt/payment from an unmatched bank statement line. A line that is
+  // missing, already matched or not valid is ignored silently and the form opens as usual.
+  let bankLine: BankLineSource | undefined;
+  let prefill: PaymentFormValues | undefined;
+  if (isAdmin && bankLineId && /^[0-9a-f-]{36}$/i.test(bankLineId)) {
+    const line = await loadOpenLine(supabase, bankLineId);
+    const bank = ctx.accounts.find((a) => a.systemKey === 'bank');
+    if (line && bank) {
+      const values = prefillFromBankLine(line, bank.id);
+      bankLine = {
+        lineId: line.id, statementId: line.statementId, txnDate: line.txnDate, narration: line.narration,
+        amount: directionOfLine(line) === 'receipt' ? line.credit : line.debit,
+      };
+      prefill = values;
+    }
+  }
+  return <PaymentForm ctx={ctx} initial={initial} bankLine={bankLine} prefill={prefill} />;
 }

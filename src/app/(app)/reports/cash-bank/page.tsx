@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ReportFilters } from '@/components/reports/ReportFilters';
 import { ReportError, ReportHead } from '@/components/reports/ReportHead';
@@ -42,7 +43,9 @@ export default async function CashBankPage({ searchParams }: { searchParams: Pro
       <ReportHead
         title={t('title')} subtitle={t('subtitle')} backLabel={tr('back')}
         export={book ? { href: `/api/reports/cash-bank/xlsx?${q(book.account.id)}`, label: tr('exportXlsx') } : undefined}
-      />
+      >
+        <Link className="btn ghost" href="/reports/reconcile">{t('reconcileLink')}</Link>
+      </ReportHead>
       {tooMany ? (
         <ReportError message={t('tooMany')} />
       ) : !book ? (

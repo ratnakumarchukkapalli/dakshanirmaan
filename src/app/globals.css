@@ -330,8 +330,8 @@ dialog.modal::backdrop { background: rgba(10, 14, 20, 0.42); backdrop-filter: bl
 
 /* ---------- toolbar, segmented control, search ---------- */
 .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-.seg { display: inline-flex; padding: 3px; border-radius: 12px; gap: 2px; }
-.seg a { padding: 6px 12px; border-radius: 9px; font-weight: 650; font-size: 13px; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
+.seg { display: inline-flex; padding: 3px; border-radius: 12px; gap: 2px; max-width: 100%; overflow-x: auto; }
+.seg a { flex: none; white-space: nowrap; padding: 6px 12px; border-radius: 9px; font-weight: 650; font-size: 13px; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
 .seg a[aria-current='true'] { background: var(--surface-solid); color: var(--ink); box-shadow: var(--shadow); }
 .search { display: flex; gap: 6px; flex: 1; min-width: 200px; }
 .search input[type='search'] {
@@ -645,3 +645,22 @@ a.aitem:hover { background: var(--accent-soft); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- bank reconciliation: a table on a desktop, one card per row on a phone ---------- */
+@media (max-width: 600px) {
+  .stacktable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .stacktable, .stacktable tbody, .stacktable tr, .stacktable td { display: block; width: 100%; }
+  .stacktable tr { border: 1px solid var(--border); border-radius: var(--r-inner); margin: 0 0 10px; padding: 6px 2px; background: var(--surface-solid); }
+  .stacktable tr.bf { border-style: dashed; }
+  .stacktable td { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border: 0; padding: 4px 10px; text-align: right; }
+  .stacktable td.wide { min-width: 0; }
+  .stacktable td::before {
+    content: attr(data-label); flex: none; text-align: left; font-size: 11px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  }
+  .stacktable td[colspan]::before, .stacktable td.actions::before { display: none; }
+  .stacktable td.actions > div { width: 100%; }
+}
+
+/* A chip inside a stat tile may be a long sentence (bank reconciliation): let it wrap instead of overflowing the tile. */
+.tile .sub .chip { white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.tile .sub { overflow-wrap: anywhere; }

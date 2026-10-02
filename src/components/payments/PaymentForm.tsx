@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useForm, useWatch, type Resolver } from 'react-hook-form';
+import { matchLineToPayment } from '@/app/actions/bank';
 import { postPayment, saveDraftPayment } from '@/app/actions/payments';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
@@ -16,9 +17,10 @@ import { Modal } from '@/components/ui/Modal';
 import { Picker, type PickerOption } from '@/components/ui/Picker';
 import type { ErrorCode } from '@/lib/action-result';
 import { addDecimal, compareDecimal } from '@/lib/decimal';
-import { inr, inr2 } from '@/lib/format';
+import { afterBankLinePost, lockToBankLine } from '@/lib/bank-prefill';
+import { formatDate, inr, inr2 } from '@/lib/format';
 import { autoAllocateOldestFirst, settleAmount } from '@/lib/payments-alloc';
-import type { FormAccount, PaymentFormContext, PaymentFormInitial, PaymentFormValues } from '@/lib/payments-types';
+import type { BankLineSource, FormAccount, PaymentFormContext, PaymentFormInitial, PaymentFormValues } from '@/lib/payments-types';
 import { PAYMENT_MODES, saveDraftPaymentSchema } from '@/schemas/payments';
 import { AllocationGrid } from './AllocationGrid';
 
@@ -26,6 +28,10 @@ interface Props {
   ctx: PaymentFormContext;
   /** Present when editing an existing draft. */
   initial?: PaymentFormInitial;
+  /** Owner only: the unmatched bank statement line this payment records. After it posts, the line is matched to it. */
+  bankLine?: BankLineSource;
+  /** Form values taken from that line (used when there is no draft yet). */
+  prefill?: PaymentFormValues;
 }
 
 /**
@@ -34,7 +40,7 @@ interface Props {
  * things `post_payment` itself refuses from anyone else, so the form never offers what the
  * database will reject.
  */
-export function PaymentForm({ ctx, initial }: Props) {
+export function PaymentForm({ ctx, initial, bankLine, prefill }: Props) {
   const t = useTranslations('payments');
   const ts = useTranslations('sales');
   const tc = useTranslations('common');
@@ -46,6 +52,8 @@ export function PaymentForm({ ctx, initial }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ message: string; code?: ErrorCode } | null>(null);
   const [confirm, setConfirm] = useState<null | 'post'>(null);
+  // Set when the payment posted from a bank line but linking the line failed: the form stays, with a way back.
+  const [linkBack, setLinkBack] = useState<string | null>(null);
   const [allocations, setAllocations] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
     for (const a of initial?.values.allocations ?? []) out[a.invoiceId] = a.amount;
@@ -53,11 +61,16 @@ export function PaymentForm({ ctx, initial }: Props) {
   });
   const alertRef = useRef<HTMLDivElement>(null);
 
+  // A payment recorded from a bank line keeps the line's side, amount and the bank ledger: nothing to mistype.
+  // The line wins over a draft named in the same URL (a crafted ?id= could otherwise keep another direction or account).
+  const lockedDirection = (prefill?.direction ?? initial?.values.direction ?? 'receipt') as 'receipt' | 'payment';
+  const lockedAccountId = prefill?.accountId ?? initial?.values.accountId ?? '';
+
   const partiesById = useMemo(() => new Map(ctx.parties.map((p) => [p.id, p])), [ctx.parties]);
 
   const { register, handleSubmit, control, setValue, getValues, trigger, reset, formState: { errors } } = useForm<PaymentFormValues>({
     resolver: zodResolver(saveDraftPaymentSchema) as unknown as Resolver<PaymentFormValues>,
-    defaultValues: initial?.values ?? {
+    defaultValues: initial?.values ?? prefill ?? {
       direction: 'receipt', partyId: '', paymentDate: ctx.today, mode: 'cash', instrumentNo: '', instrumentDate: '',
       chequeBank: '', amount: '', discount: '', accountId: '', note: '', allocations: [],
     },
@@ -142,7 +155,7 @@ export function PaymentForm({ ctx, initial }: Props) {
         setNotice(null);
         if (values.paymentDate > ctx.today) return setFailure({ message: te('validation.payment_date_future') });
         const payload = {
-          ...values,
+          ...(bankLine ? lockToBankLine(values, { amount: bankLine.amount, direction: lockedDirection }, lockedAccountId) : values),
           id: draftId ?? undefined,
           expectedUpdatedAt: updatedAt ?? undefined,
           allocations: Object.entries(liveAllocations).filter(([, v]) => v).map(([invoiceId, v]) => ({ invoiceType, invoiceId, amount: v })),
@@ -154,7 +167,7 @@ export function PaymentForm({ ctx, initial }: Props) {
         }
         setDraftId(saved.data.id);
         setUpdatedAt(saved.data.updatedAt);
-        if (!draftId) window.history.replaceState(null, '', `/payments/new?id=${saved.data.id}`);
+        if (!draftId) window.history.replaceState(null, '', `/payments/new?id=${saved.data.id}${bankLine ? `&bankLine=${bankLine.lineId}` : ''}`);
         if (kind === 'save') {
           setConfirm(null);
           return setNotice(ts('savedNotice'));
@@ -167,6 +180,20 @@ export function PaymentForm({ ctx, initial }: Props) {
         }
         setConfirm(null);
         setNotice(t('postedNotice', { number: res.data.voucherNo }));
+        if (bankLine) {
+          // Recorded from a bank line: link the line to the new entry, then back to the statement.
+          // A thrown call (network, server error) is the same as a refused link: the payment stands, so lock the form.
+          const linked = await matchLineToPayment({ lineId: bankLine.lineId, paymentId: res.data.id })
+            .catch(() => ({ ok: false as const, error: te('internal') }));
+          const next = afterBankLinePost(linked.ok ? { ok: true } : { ok: false, error: linked.error }, bankLine.statementId);
+          if (next.kind === 'redirect') return router.push(next.to);
+          // Posted but not linked: lock the form (a second Post would record the same money twice) and leave the draft URL.
+          setDraftId(null);
+          setUpdatedAt(null);
+          setLinkBack(next.backHref);
+          window.history.replaceState(null, '', next.backHref);
+          return setFailure({ message: next.message });
+        }
         setDraftId(null);
         setUpdatedAt(null);
         setAllocations({});
@@ -178,6 +205,20 @@ export function PaymentForm({ ctx, initial }: Props) {
         router.refresh();
       }),
     )();
+
+  // Posted from a bank line but the line could not be linked: only the sentence and the way back, no Post, no Save.
+  if (linkBack) {
+    return (
+      <div className="screen stack">
+        <div className="screenhead" style={{ marginBottom: 0 }}><h1>{lockedDirection === 'receipt' ? t('titleReceive') : t('titlePay')}</h1></div>
+        <div aria-live="polite">
+          {notice && <div role="status" className="alert good">{notice}</div>}
+          {failure && <div role="alert" className="alert bad">{failure.message}</div>}
+        </div>
+        <p><Link href={linkBack} className="btn primary big">{t('bankLineBack')}</Link></p>
+      </div>
+    );
+  }
 
   return (
     <div className="screen stack">
@@ -204,8 +245,15 @@ export function PaymentForm({ ctx, initial }: Props) {
             {notice && <div role="status" className="alert good">{notice}</div>}
           </div>
 
+          {bankLine && (
+            <div className="alert warn" role="note">
+              <b>{t('bankLineBanner', { amount: inr2(bankLine.amount), date: formatDate(bankLine.txnDate) })}</b>
+              {bankLine.narration && <div className="mono" style={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{bankLine.narration}</div>}
+            </div>
+          )}
+
           <Card>
-            {ctx.isAdmin && (
+            {ctx.isAdmin && !bankLine && (
               <div className="sitechips" role="group" aria-label={t('directionReceive')} style={{ marginBottom: 12 }}>
                 <button type="button" className={`chipbtn${direction === 'receipt' ? ' on' : ''}`} aria-pressed={direction === 'receipt'} onClick={() => setDirection('receipt')}>
                   {t('directionReceive')}
@@ -236,7 +284,7 @@ export function PaymentForm({ ctx, initial }: Props) {
 
             <div className="fieldrow">
               <Field id="pay-amount" label={t('amountLabel')} error={err(errors.amount?.message)}>
-                <input id="pay-amount" className="num" inputMode="decimal" autoComplete="off" {...register('amount')} />
+                <input id="pay-amount" className="num" inputMode="decimal" autoComplete="off" readOnly={!!bankLine} {...register('amount')} />
               </Field>
               <Field id="pay-mode" label={t('modeLabel')} error={err(errors.mode?.message)}>
                 <select id="pay-mode" {...register('mode')}>
@@ -246,7 +294,7 @@ export function PaymentForm({ ctx, initial }: Props) {
               <Field id="pay-account" label={direction === 'receipt' ? t('intoAccount') : t('fromAccount')} error={err(errors.accountId?.message)}>
                 <select id="pay-account" {...register('accountId')}>
                   <option value="">—</option>
-                  {ctx.accounts.map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
+                  {ctx.accounts.filter((a) => !bankLine || a.id === lockedAccountId).map((a) => <option key={a.id} value={a.id}>{accountLabel(a)}</option>)}
                 </select>
               </Field>
               <Field id="pay-ref" label={mode === 'cheque' ? t('chequeNoLabel') : t('refLabel')} error={err(errors.instrumentNo?.message)}>

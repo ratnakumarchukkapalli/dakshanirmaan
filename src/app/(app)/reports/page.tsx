@@ -9,6 +9,7 @@ const CARDS = [
   { key: 'aging', href: '/reports/aging', ownerOnly: false },
   { key: 'stock', href: '/reports/stock', ownerOnly: false },
   { key: 'cashBank', href: '/reports/cash-bank', ownerOnly: true },
+  { key: 'reconcile', href: '/reports/reconcile', ownerOnly: true },
   { key: 'trialBalance', href: '/reports/trial-balance', ownerOnly: true },
   { key: 'pnl', href: '/reports/pnl', ownerOnly: true },
   { key: 'balanceSheet', href: '/reports/balance-sheet', ownerOnly: true },

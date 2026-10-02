@@ -16,6 +16,8 @@
 -- so this edit is the planned completion of that deferral, not a break.
 -- Moves again, 33 -> 34, with change 17's migration: 'opening_balance_equity' (account 3900), named by
 -- the spec's "Opening balances (change 17)" section ("add system_key + account 3900").
+-- Moves again, 34 -> 35, with change 22's migration: 'bank_charges' (account 5950), the ledger a
+-- bank charge found on an imported statement is booked to.
 begin;
 
 create extension if not exists pgtap with schema extensions;
@@ -24,8 +26,8 @@ select plan(2);
 
 select is(
   (select count(*)::int from accounts where system_key is not null),
-  34,
-  'exactly 34 system_key accounts are seeded (25 original + 7 from change 03 + 1 from change 04 + 1 from change 17)'
+  35,
+  'exactly 35 system_key accounts are seeded (25 original + 7 from change 03 + 1 from change 04 + 1 from change 17 + 1 from change 22)'
 );
 
 select set_eq(
@@ -45,7 +47,9 @@ select set_eq(
     -- Change 04 migration (1): the cheque lifecycle's own ledger
     'cheques_in_hand',
     -- Change 17 migration (1): the balancing side of the opening entry
-    'opening_balance_equity'
+    'opening_balance_equity',
+    -- Change 22 migration (1): bank charges booked from a statement line
+    'bank_charges'
   ],
   'every spec-named system_key exists as exactly one accounts row'
 );

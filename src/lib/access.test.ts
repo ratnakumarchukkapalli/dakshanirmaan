@@ -37,6 +37,10 @@ describe('counter user', () => {
     expect(go('/reports/aging', counter)).toEqual(allow);
     expect(go('/reports/cash-bank', counter)).toEqual(redirect('/'));
     expect(go('/reports/cash-bank-lookalike', counter)).toEqual(allow);
+    // Bank reconciliation: the list and a statement are owner-only.
+    expect(go('/reports/reconcile', counter)).toEqual(redirect('/'));
+    expect(go('/reports/reconcile/3f2b1c1e-0000-4000-8000-000000000000', counter)).toEqual(redirect('/'));
+    expect(go('/reports/reconcile-lookalike', counter)).toEqual(allow);
     // Its Excel route decides for itself (403), so a download is never a redirect.
     expect(go('/api/reports/cash-bank/xlsx', counter)).toEqual(allow);
     expect(go('/staff/3f2b1c1e-0000-4000-8000-000000000000', counter)).toEqual(redirect('/'));

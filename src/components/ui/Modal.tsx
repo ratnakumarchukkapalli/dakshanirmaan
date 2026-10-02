@@ -8,13 +8,15 @@ interface Props {
   title: string;
   closeLabel: string;
   children: ReactNode;
+  /** False while work is in flight: Escape, the backdrop and the close button do nothing. Default true. */
+  dismissible?: boolean;
 }
 
 /**
  * Glass dialog built on the native <dialog> element: focus is trapped inside, Escape closes it,
  * and focus returns to whatever opened it. Content is mounted only while open, so forms reset.
  */
-export function Modal({ open, onClose, title, closeLabel, children }: Props) {
+export function Modal({ open, onClose, title, closeLabel, children, dismissible = true }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   // Where the press began: a drag-select in a field that ends over the backdrop must not close it.
@@ -34,6 +36,9 @@ export function Modal({ open, onClose, title, closeLabel, children }: Props) {
       aria-labelledby={titleId}
       // React bubbles a dialog's `close` up its component tree, so a Modal nested in another (a Picker
       // inside a form dialog) would otherwise close its parent too.
+      onCancel={(e) => {
+        if (!dismissible) e.preventDefault();
+      }}
       onClose={(e) => {
         e.stopPropagation();
         onClose();
@@ -44,7 +49,7 @@ export function Modal({ open, onClose, title, closeLabel, children }: Props) {
       // A click on the dialog itself (not its content) is a click on the dimmed backdrop, but only
       // when the press also began there.
       onClick={(e) => {
-        const closes = e.target === e.currentTarget && pressedOnBackdrop.current;
+        const closes = dismissible && e.target === e.currentTarget && pressedOnBackdrop.current;
         pressedOnBackdrop.current = false;
         if (closes) onClose();
       }}
@@ -53,7 +58,7 @@ export function Modal({ open, onClose, title, closeLabel, children }: Props) {
         <div className="modal-body">
           <div className="modal-head">
             <h2 id={titleId}>{title}</h2>
-            <button type="button" className="iconbtn" onClick={onClose} aria-label={closeLabel}>
+            <button type="button" className="iconbtn" onClick={onClose} aria-label={closeLabel} disabled={!dismissible}>
               <span aria-hidden="true">✕</span>
             </button>
           </div>

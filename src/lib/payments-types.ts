@@ -83,3 +83,14 @@ export interface PaymentTiles {
   chequesIssued: string;
   unallocated: string;
 }
+
+/** The unmatched bank statement line a receipt/payment is being recorded from (`/payments/new?bankLine=`). */
+export interface BankLineSource {
+  lineId: string;
+  statementId: string;
+  /** ISO date of the line. */
+  txnDate: string;
+  /** The amount on the line (credit for a receipt, debit for a payment), 2 decimals. */
+  amount: string;
+  narration: string;
+}
