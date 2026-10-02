@@ -17,15 +17,25 @@ export const decimal = (dp: number, message = 'number_invalid') =>
 export const boundedDecimal = (precision: number, dp: number, message = 'number_invalid') =>
   decimal(dp, message).regex(new RegExp(`^\\d{1,${precision - dp}}(\\.|$)`), 'number_too_large');
 
-export const optionalText = (max: number, message = 'text_long') =>
-  z.preprocess(blankToUndefined, z.string().trim().max(max, message).optional());
+/**
+ * Control characters (a stray ^A from a paste, an escape sequence, a NUL) break Excel files and print as junk, so
+ * names, narrations and notes refuse them. A free-text NOTE may also hold tab and new lines.
+ */
+export const noControlChars = (v: string) => !/\p{Cc}/u.test(v);
+export const noControlCharsExceptBreaks = (v: string) => !/[^\P{Cc}\t\n]/u.test(v);
+
+export const optionalText = (max: number, message = 'text_long', multiline = false) =>
+  z.preprocess(
+    blankToUndefined,
+    z.string().trim().max(max, message).refine(multiline ? noControlCharsExceptBreaks : noControlChars, 'text_invalid').optional(),
+  );
 
 export const stateField = z.string().refine(isStateCode, 'state_invalid');
 
 export const addressSchema = z.object({
-  line1: z.string().trim().min(1, 'address_required').max(120, 'text_long'),
+  line1: z.string().trim().min(1, 'address_required').max(120, 'text_long').refine(noControlChars, 'text_invalid'),
   line2: optionalText(120),
-  city: z.string().trim().min(1, 'city_required').max(60, 'text_long'),
+  city: z.string().trim().min(1, 'city_required').max(60, 'text_long').refine(noControlChars, 'text_invalid'),
   district: optionalText(60),
   pincode: z.string().trim().regex(/^[1-9][0-9]{5}$/, 'pincode_invalid'),
 });

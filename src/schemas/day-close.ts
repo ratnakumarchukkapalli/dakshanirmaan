@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { boundedDecimal, isoDateField, optionalText } from './common';
+import { boundedDecimal, isoDateField, noControlChars, optionalText } from './common';
 
 // Day-close input, shared by the counted-cash form and the server actions. Money is text (never a
 // float). Messages are `errors.field.*` keys. `post_day_close` is the authority on the expected
@@ -21,7 +21,7 @@ export const closeDaySchema = z.object({
 export const reopenDaySchema = z.object({
   id: z.uuid('id_invalid'),
   // Kept in the audit trail beside the reversal.
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export type CloseDayInput = z.input<typeof closeDaySchema>;

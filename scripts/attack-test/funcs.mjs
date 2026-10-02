@@ -128,6 +128,14 @@ await every('cancel_opening_balances', '', async () => ({ p_reason: 'attack test
 await every('go_live_readiness', '', async () => ({}), open(...ADMIN));
 await every('gstr1_data', '', async () => ({ p_month: '2026-09-01' }), open(...ADMIN));
 await every('gstr3b_summary', '', async () => ({ p_month: '2026-09-01' }), open(...ADMIN));
+// Changes 22 (bank reconciliation) and 25 (audited exports): owner-only functions. The owner control sends arguments the function
+// rejects on business grounds (nothing is imported or posted), which still proves the gate is open; every other identity must be refused.
+const NIL = '00000000-0000-0000-0000-000000000000';
+await every('log_export', 'audited export row', async () => ({ p_kind: 'books', p_fy: 2026 }), open(...ADMIN));
+await every('import_bank_statement', 'empty line list', async () => ({ p_account_id: C.bank, p_source_file: 'attack.csv', p_lines: [] }), open(...ADMIN));
+await every('post_bank_expense', 'unknown line', async () => ({ p_line_id: NIL, p_account_id: null, p_note: 'attack' }), open(...ADMIN));
+await every('unmatch_bank_line', 'unknown line', async () => ({ p_line_id: NIL }), open(...ADMIN));
+await every('ignore_bank_line', 'unknown line', async () => ({ p_line_id: NIL, p_reason: 'attack' }), open(...ADMIN));
 for (const identity of ORDER) {
   // each identity tries to make ITSELF an active admin; the owner control acts on another account
   const target = identity === 'admin_aal2' ? IDS.user : (IDS[identity].userId ? IDS[identity] : IDS.user);

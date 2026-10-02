@@ -99,9 +99,20 @@ export const adminClientMock = {
   createAdminClient: () => ({
     auth: {
       admin: new Proxy({}, {
-        get: (_t, fn: string) => async (...args: unknown[]) => {
-          state.adminCalls.push({ fn, args });
-          return state.adminAuth[fn]?.(...args) ?? { data: {}, error: null };
+        get: (_t, fn: string) => {
+          // admin.mfa.listFactors / deleteFactor are recorded as 'mfa.listFactors' / 'mfa.deleteFactor'.
+          if (fn === 'mfa') {
+            return new Proxy({}, {
+              get: (_m, mfn: string) => async (...args: unknown[]) => {
+                state.adminCalls.push({ fn: `mfa.${mfn}`, args });
+                return state.adminAuth[`mfa.${mfn}`]?.(...args) ?? { data: { factors: [] }, error: null };
+              },
+            });
+          }
+          return async (...args: unknown[]) => {
+            state.adminCalls.push({ fn, args });
+            return state.adminAuth[fn]?.(...args) ?? { data: {}, error: null };
+          };
         },
       }),
     },

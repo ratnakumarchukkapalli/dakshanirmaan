@@ -7,11 +7,16 @@
 #
 # Writes <output-dir>/dn-backup-<UTC timestamp>.tar.age and prints its path. Inside the archive:
 #   data.dump      pg_dump custom format, data only: every table in `public` plus the sign-in accounts
-#                  (auth.users, auth.identities). Restoring it needs a database already built from
-#                  the migrations, which is exactly what `scripts/backup/restore-drill.sh` does.
+#                  (auth.users, auth.identities) and the authenticator-app enrolments (auth.mfa_factors).
+#                  Restoring it needs a database already built from the migrations, which is exactly
+#                  what `scripts/backup/restore-drill.sh` does.
 #   manifest.json  migration version, row count of every table, total debits and credits, when.
 # The private key is never needed here: only the public recipient. Whoever holds the private key
 # can read the books, so it lives with the family (see RUNBOOK.md), not in this repository.
+# auth.mfa_factors holds the owners' TOTP secrets. They stay inside the age-encrypted archive only; the
+# file is never written anywhere unencrypted except this script's own temporary folder, which is deleted
+# on exit. That is why a restore brings the owners' authenticator apps back (RUNBOOK 2.4).
+# The private `docs` storage bucket (bill photos) is NOT part of this dump: see storage-copy.sh (opt-in).
 #
 # Optional guards:
 #   EXPECTED_AGE_RECIPIENT_SHA256   sha256 (hex) of the correct age1... public key. When set, a different
@@ -65,7 +70,8 @@ manifest() {
       'counts', (select jsonb_object_agg(table_name,
           (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text::bigint)
         from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'),
-      'auth_users', (select count(*) from auth.users)
+      'auth_users', (select count(*) from auth.users),
+      'auth_mfa_factors', (select count(*) from auth.mfa_factors)
     ))"
 }
 
@@ -78,7 +84,7 @@ while :; do
   manifest > "$work/manifest.json"
   # shellcheck disable=SC2086
   $PGDUMP --dbname "$DATABASE_URL" --format=custom --data-only --no-owner --no-privileges \
-    -t 'public.*' -t auth.users -t auth.identities > "$work/data.dump"
+    -t 'public.*' -t auth.users -t auth.identities -t auth.mfa_factors > "$work/data.dump"
   manifest > "$work/manifest.after.json"
   if [ "$(grep -v made_at "$work/manifest.json")" = "$(grep -v made_at "$work/manifest.after.json")" ]; then break; fi
   if [ "$attempt" -ge 3 ]; then

@@ -7,7 +7,8 @@
 # It RESETS THE LOCAL SUPABASE STACK (`supabase db reset`: fresh, migrated, seed data only) and then
 # loads the backup into it, so it never touches a hosted database. --yes confirms the reset.
 # (Foreign keys are off during the load, so the checks include orphan lines and users without an account.)
-# Checks: the archive is for the same migration version as this checkout, every table's row count
+# Checks (the sign-in accounts and the authenticator-app enrolments, auth.mfa_factors, are restored and reported too):
+# the archive is for the same migration version as this checkout, every table's row count
 # matches the manifest, total debits equal total credits, and the trial balance nets to zero.
 # The backup must be restored with the repository checked out at the commit whose newest migration equals
 # the manifest's migration_version (RUNBOOK 2.3 gives the commands), because the tables have to match.
@@ -53,7 +54,7 @@ $PSQL "$LOCAL_DB_URL" -X -q -v ON_ERROR_STOP=1 -c "
     for t in select format('%I.%I', schemaname, tablename) from pg_tables where schemaname = 'public' loop
       execute 'truncate table ' || t || ' restart identity cascade';
     end loop;
-    truncate table auth.identities, auth.users cascade;
+    truncate table auth.mfa_factors, auth.identities, auth.users cascade;
   end \$\$;"
 
 echo "drill: restoring…" >&2
@@ -83,6 +84,9 @@ union all
 select 'row counts match the manifest', (select n = 0 from bad), coalesce((select list from bad), 'all tables equal')
 union all
 select 'sign-in accounts match', (select count(*) from auth.users) = (select (j->>'auth_users')::int from m), (select count(*)::text from auth.users) || ' accounts'
+union all
+select 'authenticator enrolments restored', coalesce((select count(*) from auth.mfa_factors) = (select (j->>'auth_mfa_factors')::int from m), (select j->>'auth_mfa_factors' is null from m)),
+       (select count(*)::text from auth.mfa_factors) || ' authenticator enrolments' || (select case when j->>'auth_mfa_factors' is null then ' (this older backup did not carry them: owners enrol again)' else '' end from m)
 union all
 select 'debits equal credits', (select coalesce(sum(debit), 0) = coalesce(sum(credit), 0) from journal_lines),
        'debit ' || (select coalesce(sum(debit), 0) from journal_lines) || ' credit ' || (select coalesce(sum(credit), 0) from journal_lines)

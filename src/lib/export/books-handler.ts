@@ -18,8 +18,8 @@ import { EXPORT_ROW_CAP, RowCapError } from './types';
 export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const INTERNAL = 'Something went wrong and nothing was sent. Please try again.';
 
-export async function booksResponse(fyParam: string | null): Promise<Response> {
-  const opened = await openExport(fyParam);
+export async function booksResponse(fyParam: string | null, fetchSite?: string | null): Promise<Response> {
+  const opened = await openExport(fyParam, fetchSite);
   if (opened.response) return opened.response;
   const { ctx } = opened;
 

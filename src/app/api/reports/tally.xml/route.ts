@@ -8,5 +8,5 @@ export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
-  return tallyResponse(p.get('fy'), p.get('part'), p.get('company'));
+  return tallyResponse(p.get('fy'), p.get('part'), p.get('company'), request.headers.get('sec-fetch-site'));
 }

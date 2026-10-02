@@ -125,3 +125,36 @@ describe('filenames', () => {
     expect(reportFilename('DayBook', '2026-09-01_2026-09-30')).toBe('DN-DayBook-2026-09-01_2026-09-30.xlsx');
   });
 });
+
+describe('report workbooks: hostile text (A7)', () => {
+  const texts = (ws: ExcelJS.Worksheet) => {
+    const out: string[] = [];
+    ws.eachRow((r) => r.eachCell((c) => { if (typeof c.value === 'string') out.push(c.value); }));
+    return out;
+  };
+
+  it('ageing: a party named =HYPERLINK(...) or with a control character is defused in the sheet', async () => {
+    const t = scoped('aging');
+    const row = (partyId: string, name: string) => ({ partyId, name, b0_30: '1.00', b31_60: '0.00', b61_90: '0.00', b90_plus: '0.00', onAccount: '0.00', interest: '0.00', receivable: '1.00' });
+    const report: AgeingReport = {
+      rows: [row('p1', '=HYPERLINK("http://x","y")'), row('p2', 'Ravi\u0001'), row('p3', '-2+3')],
+      totals: { b0_30: '3.00', b31_60: '0.00', b61_90: '0.00', b90_plus: '0.00', onAccount: '0.00', interest: '0.00', receivable: '3.00' },
+      reconciliation: null,
+    };
+    const all = texts(await sheet(await buildAgeingWorkbook(report, '@Org\u0001', t, t('title'))));
+    expect(all).toContain('\'=HYPERLINK("http://x","y")');
+    expect(all).toContain('Ravi');
+    expect(all).toContain("'-2+3");
+    expect(all.filter((s) => /^[=+\-@]/.test(s))).toEqual([]);
+    expect(all.filter((s) => /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(s))).toEqual([]);
+  });
+
+  it('day book and cash book: narrations are defused too', async () => {
+    const t = scoped('dayBook');
+    const day = [{ date: '2026-09-05', entryNo: 1, docNo: 'RCPT/1', sourceType: 'payment', narration: '=cmd|\'/c calc\'!A1\u0001', amount: '1.00', isReversal: false, isReversed: false }] as unknown as DayBookRow[];
+    const all = texts(await sheet(await buildDayBookWorkbook(day, { from: '2026-09-01', to: '2026-09-30' }, 'Org', t, t('title'))));
+    expect(all).toContain("'=cmd|'/c calc'!A1");
+    expect(all.filter((s) => /^[=+\-@]/.test(s))).toEqual([]);
+  });
+});
+

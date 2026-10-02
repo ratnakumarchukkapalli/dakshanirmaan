@@ -21,7 +21,7 @@ export const saveQuoteSchema = z
     quoteDate: isoDateField,
     /** Blank = the database's default (quote date + 7 days). */
     validUntil: z.preprocess(blankToUndefined, isoDateField.optional()),
-    note: optionalText(QUOTE_NOTE_MAX),
+    note: optionalText(QUOTE_NOTE_MAX, 'text_long', true),
     lines: z.array(invoiceLineSchema).min(1, 'lines_required').max(MAX_INVOICE_LINES, 'lines_many'),
   })
   .superRefine((v, ctx) => {

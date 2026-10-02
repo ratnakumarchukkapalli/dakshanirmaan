@@ -1905,6 +1905,9 @@ select matches(
 
 -- Finding 8: the constraints that make the function guards unreachable rather than merely
 -- unlikely.
+-- Security pass (20261011100000): _challan2 is posted, so the line guard would refuse first; it is
+-- switched off here so the CHECK constraint itself is what is exercised.
+alter table delivery_challan_lines disable trigger document_lines_guard;
 select throws_ok(
   format($$ insert into delivery_challan_lines
               (challan_id, line_no, item_id, item_name, hsn_code, uom, qty, rate, gst_rate)
@@ -1914,6 +1917,7 @@ select throws_ok(
   null,
   'a challan line of zero quantity is rejected by the table itself'
 );
+alter table delivery_challan_lines enable trigger document_lines_guard;
 
 select throws_ok(
   $$ insert into day_closes (close_date, counted) values ('2026-08-20', -1) $$,

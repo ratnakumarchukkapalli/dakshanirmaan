@@ -385,14 +385,19 @@ select throws_ok($$select post_credit_note('0c000000-0000-4000-8000-000000000003
 reset role;
 set local request.jwt.claims to '';
 update credit_notes set note_date = '2026-06-21', against_invoice_id = 'd2000000-0000-4000-8000-000000000003' where id = '0c000000-0000-4000-8000-000000000003';
+-- Security pass (20261011100000): a cancelled invoice fabricated by the table owner past the posted-document guard.
+alter table sales_invoices disable trigger zz_posted_document_guard;
 update sales_invoices set status = 'cancelled' where id = 'd2000000-0000-4000-8000-000000000003';
+alter table sales_invoices enable trigger zz_posted_document_guard;
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
 select throws_ok($$select post_credit_note('0c000000-0000-4000-8000-000000000003')$$,
   'P0001', 'DN_VALIDATION:invoice_not_posted', 'a note against an invoice that is not posted is refused');
 reset role;
 set local request.jwt.claims to '';
+alter table sales_invoices disable trigger zz_posted_document_guard;
 update sales_invoices set status = 'posted' where id = 'd2000000-0000-4000-8000-000000000003';
+alter table sales_invoices enable trigger zz_posted_document_guard;
 delete from credit_note_lines where note_id = '0c000000-0000-4000-8000-000000000003';
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated","aal":"aal2"}';
@@ -1142,8 +1147,12 @@ select throws_ok($$delete from debit_note_lines where note_id = '0d000000-0000-4
   'P0001', 'DN_NOT_DRAFT', 'no line of a posted debit note can be deleted');
 select throws_ok($$update credit_note_lines set note_id = '0c000000-0000-4000-8000-000000000001' where note_id = '0c000000-0000-4000-8000-000000000301'$$,
   'P0001', 'DN_NOT_DRAFT', 'a line cannot be moved between notes once either is posted');
+-- Security pass (20261011100000): the invoice is posted, so document_lines_guard refuses first; it is
+-- switched off here so the foreign key itself is what is exercised.
+alter table sales_invoice_lines disable trigger document_lines_guard;
 select throws_ok($$delete from sales_invoice_lines where id = 'd3000000-0000-4000-8000-000000000101'$$,
   '23503', null, 'an invoice line a note points at cannot be deleted (ON DELETE RESTRICT)');
+alter table sales_invoice_lines enable trigger document_lines_guard;
 
 -- Remaining validation codes, on one draft against I9 (P3)
 insert into credit_notes (id, note_date, party_id, place_of_supply, against_invoice_id, reason, stock_effect) values

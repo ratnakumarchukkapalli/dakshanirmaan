@@ -78,17 +78,32 @@ for (const p of pages) {
 // ================================================================================================
 const routes = [['/api/reports/aging/xlsx', 'members'], ['/api/reports/stock/xlsx', 'members'], ['/api/reports/day-book/xlsx?from=2026-09-01&to=2026-09-30', 'members'],
   ['/api/reports/cash-bank/xlsx', 'owner'], ['/api/reports/trial-balance/xlsx', 'owner'], ['/api/reports/pnl/xlsx', 'owner'], ['/api/reports/balance-sheet/xlsx', 'owner'], ['/api/reports/gstr3b/xlsx?month=2026-09', 'owner'],
-  ['/api/reports/gstr1?month=2026-09', 'owner'], [`/api/parties/${C.kishore}/statement.pdf`, 'members'], [`/api/parties/${C.kishore}/statement.xlsx`, 'members'], [`/api/invoices/${inv}/pdf`, 'members']];
-for (const [path, who] of routes) {
+  ['/api/reports/gstr1?month=2026-09', 'owner'], [`/api/parties/${C.kishore}/statement.pdf`, 'members'], [`/api/parties/${C.kishore}/statement.xlsx`, 'members'], [`/api/invoices/${inv}/pdf`, 'members'],
+  // change 25 (exports): owner at aal2 only, audited through log_export(). The year archive is heavy and writes an audit row per
+  // call, so it is checked for the refusals only (skipOwner); the books workbook and the Tally masters file are the owner controls.
+  ['/api/backup/books.xlsx?fy=2026', 'owner'], ['/api/reports/tally.xml?fy=2026&part=masters', 'owner'], ['/api/backup/archive.zip?fy=2026', 'owner', { skipOwner: true }]];
+for (const [path, who, ropt = {}] of routes) {
   for (const identity of IDENT) {
-    const r = await get(identity, path);
+    if (identity === 'admin_aal2' && ropt.skipOwner) continue;
+    // A browser navigating inside the app sends Sec-Fetch-Site: same-origin; send it so these rows test the role gate alone.
+    const r = await fetch(APP + path, { redirect: 'manual', headers: { cookie: COOKIE[identity], 'Sec-Fetch-Site': 'same-origin' } });
     const ct = r.headers.get('content-type') || '';
-    const gotFile = r.status === 200 && /pdf|spreadsheet|octet|json/.test(ct);
+    const gotFile = r.status === 200 && /pdf|spreadsheet|octet|json|zip|xml/.test(ct);
     const allowed = identity === 'admin_aal2' || (identity === 'user' && who === 'members');
     const expected = allowed ? 'file' : 'refused (401/403/redirect)';
     const verdict = allowed ? (gotFile ? 'PASS' : 'INCONCLUSIVE') : (gotFile ? 'FAIL' : 'PASS');
     if (identity === 'admin_aal2') { out.push({ identity, object: `route ${path}`, op: 'GET', actual: `${r.status} ${ct}`, verdict: verdict === 'PASS' ? 'CONTROL' : 'INCONCLUSIVE' }); if (verdict !== 'PASS') console.log('owner control failed', path, r.status, ct); continue; }
     rec({ identity, object: `route ${path.split('?')[0]}`, op: 'GET', variant: '', req: `GET ${path} (cookie of ${identity})`, actual: `${r.status} ${ct.split(';')[0]}${r.headers.get('location') ? ' -> ' + r.headers.get('location') : ''}`, expected, verdict, spec: 'api-architecture: exports refuse without a session; owner-only reports 403 to a counter; only the signed link is public' });
+  }
+}
+// finding A6: an export triggered from another site (link, image, form) must not run, even with a valid owner cookie.
+// Needs the Sec-Fetch-Site check of the 2026-10 security pass; a FAIL here with the owner control rows PASSing means that check is missing.
+for (const path of ['/api/backup/books.xlsx?fy=2026', '/api/reports/tally.xml?fy=2026&part=masters', '/api/backup/archive.zip?fy=2026']) {
+  for (const site of ['cross-site']) {
+    const r = await fetch(APP + path, { redirect: 'manual', headers: { cookie: COOKIE.admin_aal2, 'Sec-Fetch-Site': site } });
+    const ct = r.headers.get('content-type') || '';
+    const gotFile = r.status === 200 && /pdf|spreadsheet|octet|json|zip|xml/.test(ct);
+    rec({ identity: 'admin_aal2', object: `route ${path.split('?')[0]}`, op: 'GET', variant: `Sec-Fetch-Site: ${site} (cross-site trigger)`, req: `GET ${path} (owner cookie, Sec-Fetch-Site: ${site})`, actual: `${r.status} ${ct.split(';')[0]}`, expected: 'refused (403)', verdict: gotFile ? 'FAIL' : 'PASS', spec: 'security pass A6: export GET routes refuse cross-site triggers' });
   }
 }
 // signed WhatsApp link: the only public shape
@@ -139,7 +154,13 @@ const OWNER_ONLY = new Set(['inviteUser', 'disableUser', 'enableUser', 'resetUse
   // change 21a (purchases) and change 20 (credit/debit notes) are owner-only end to end
   'saveDraftBill', 'deleteDraftBill', 'postBill', 'cancelBill', 'saveDraftNote', 'deleteDraftNote', 'postNote', 'cancelNote',
   // change 21b (bill photos, reverse-charge freight)
-  'createAttachmentUpload', 'recordAttachment', 'deleteAttachment', 'addBillFreight']);
+  'createAttachmentUpload', 'recordAttachment', 'deleteAttachment', 'addBillFreight',
+  // change 22 (bank statement import and reconciliation): every action in bank.ts is requireAdminMember
+  'importBankStatement', 'autoMatchStatement', 'matchBankLine', 'unmatchBankLine', 'ignoreBankLine', 'matchLineToPayment', 'bookBankExpense',
+  // change 26 (admin delete of an unused item) and the owner-only half of change 24 cash deposits (postCashDeposit stays member-level, cancelCashDeposit is requireAdmin)
+  'deleteItem', 'cancelCashDeposit']);
+// Member-level (counter allowed) actions added since: postCashDeposit, saveQuote, markQuote, convertQuoteToInvoice, changePassword. They are NOT listed
+// above, so the user rows expect the gate to be open for them ("not forbidden").
 const summary = [];
 const SKIP = new Set(['signOut']); // revokes the session server-side: would kill the identities under test
 const refusedRes = (r) => r.status === 307 || r.code === 'forbidden' || [400, 401, 403, 404, 405].includes(r.status);

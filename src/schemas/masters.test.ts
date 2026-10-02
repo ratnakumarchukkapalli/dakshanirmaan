@@ -141,3 +141,36 @@ describe('item numbers fit their columns', () => {
     expect(createItemSchema.safeParse({ ...item, saleRate: '9999999999.9999' }).success).toBe(true);
   });
 });
+
+describe('control characters in free text (A7)', () => {
+  it('a party name with a control character is refused, a normal Telugu or punctuated name is not', () => {
+    for (const bad of ['Ravi\u0001', 'Ra\u0000vi', 'Ravi\u001b[31m', 'Ravi\u007f', 'Ra\tvi', 'Ra\nvi']) {
+      expect(msg(createPartySchema.safeParse({ ...party, name: bad }))).toBe('text_invalid');
+    }
+    expect(createPartySchema.safeParse({ ...party, name: 'రవి ట్రేడర్స్ & Co. (Guntur) - 2' }).success).toBe(true);
+  });
+  it('a formula-looking name is still a legal name (it is defused when written to Excel)', () => {
+    expect(createPartySchema.safeParse({ ...party, name: '=HYPERLINK("http://x","y")' }).success).toBe(true);
+  });
+  it('site label and address lines refuse control characters too', () => {
+    const addr = { partyId: '11111111-1111-4111-8111-111111111111', label: 'Site 1', stateCode: '37', line1: 'Plot 4', city: 'Guntur', pincode: '522001' };
+    expect(partyAddressSchema.safeParse(addr).success).toBe(true);
+    expect(msg(partyAddressSchema.safeParse({ ...addr, label: 'Site\u0001' }))).toBe('text_invalid');
+    expect(msg(partyAddressSchema.safeParse({ ...addr, line1: 'Plot\u0002' }))).toBe('text_invalid');
+    expect(msg(partyAddressSchema.safeParse({ ...addr, city: 'Gun\u0003tur' }))).toBe('text_invalid');
+    expect(msg(partyAddressSchema.safeParse({ ...addr, line2: 'Near\u0004' }))).toBe('text_invalid');
+  });
+  it('notes may hold tab and new lines but no other control character', async () => {
+    const { optionalText } = await import('./common');
+    const note = optionalText(100, 'text_long', true);
+    expect(note.safeParse('line one\nline two\tindented').success).toBe(true);
+    expect(note.safeParse('bad\u0001').success).toBe(false);
+    expect(optionalText(100).safeParse('one\ntwo').success).toBe(false); // single-line fields refuse breaks
+  });
+  it('cancellation reasons refuse control characters', async () => {
+    const { cancelPaymentSchema } = await import('./payments');
+    const id = '11111111-1111-4111-8111-111111111111';
+    expect(cancelPaymentSchema.safeParse({ id, reason: 'Wrong party' }).success).toBe(true);
+    expect(msg(cancelPaymentSchema.safeParse({ id, reason: 'Wrong\u0001 party' }))).toBe('text_invalid');
+  });
+});

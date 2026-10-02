@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isMobile, isPhone, normalisePhone } from '@/lib/phone';
-import { addressSchema, blankToUndefined, boundedDecimal, decimal, stateField } from './common';
+import { addressSchema, blankToUndefined, boundedDecimal, decimal, noControlChars, stateField } from './common';
 import { gstinField, gstinMatchesState } from './gstin';
 
 const phoneField = z.preprocess(
@@ -29,7 +29,7 @@ const termsShape = {
 };
 
 const partyShape = {
-  name: z.string().trim().min(1, 'name_required').max(120, 'text_long'),
+  name: z.string().trim().min(1, 'name_required').max(120, 'text_long').refine(noControlChars, 'text_invalid'),
   // Employees are created from the staff screen, not here.
   type: z.enum(['customer', 'supplier', 'both'], 'type_invalid'),
   gstin: gstinField,
@@ -73,7 +73,7 @@ export const updatePartyBasicsSchema = z.object({ id: z.uuid('id_invalid'), ...b
 
 export const partyAddressSchema = z.object({
   partyId: z.uuid('id_invalid'),
-  label: z.string().trim().min(1, 'label_required').max(40, 'text_long'),
+  label: z.string().trim().min(1, 'label_required').max(40, 'text_long').refine(noControlChars, 'text_invalid'),
   stateCode: stateField,
   ...addressSchema.shape,
 });

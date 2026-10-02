@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { addressSchema, optionalText, stateField } from './common';
+import { addressSchema, noControlChars, optionalText, stateField } from './common';
 import { gstinField, gstinMatchesState } from './gstin';
 
 export const organizationSchema = z
   .object({
-    legalName: z.string().trim().min(1, 'name_required').max(120, 'text_long'),
+    legalName: z.string().trim().min(1, 'name_required').max(120, 'text_long').refine(noControlChars, 'text_invalid'),
     tradeName: optionalText(120),
     gstin: gstinField,
     stateCode: stateField,

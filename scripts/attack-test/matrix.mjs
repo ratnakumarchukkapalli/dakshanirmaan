@@ -30,6 +30,9 @@ async function probe(identity, method, path, body, extra = {}) {
 // ---- expectations -------------------------------------------------------------------------------
 const ADMIN_ONLY_READ = new Set(['bank_statements', 'bank_statement_lines', 'opening_batches', 'opening_lines',
   'v_pnl', 'v_balance_sheet', 'v_trial_balance', 'v_money_balances', 'v_money_ledger', 'v_bank_recon', 'v_employees', 'attachments']);
+// change 28: stock_movements has column-level SELECT without rate/value, so `select *` (it names the cost
+// columns) is refused with 42501 even for a counter who may read the safe columns (checked right after the SELECT phase).
+const SELECT_STAR_REFUSED = new Set(['stock_movements']);
 // draft tables a counter `user` may NOT write (21b: purchases are owner-only end to end)
 // (change 20: credit/debit note drafts are owner-only too; the matrix had not caught up)
 const OWNER_ONLY_WRITES = new Set(['purchase_invoices', 'purchase_invoice_lines', 'credit_notes', 'credit_note_lines', 'debit_notes', 'debit_note_lines']);
@@ -130,7 +133,7 @@ for (const r of rels) {
     if (identity === 'admin_aal2') continue; // control
     let expected = 'refuse';
     if (r.name === 'app_users' && identity !== 'anon') expected = 'own-row';
-    else if (identity === 'user' && !ADMIN_ONLY_READ.has(r.name)) expected = 'allow';
+    else if (identity === 'user' && !ADMIN_ONLY_READ.has(r.name)) expected = SELECT_STAR_REFUSED.has(r.name) ? 'refuse' : 'allow';
     judge({ identity, object: r.name, op: 'SELECT', req: `GET /rest/v1/${path}`, out, expected });
   }
   // legacy anon JWT as bearer
@@ -141,6 +144,12 @@ for (const r of rels) {
 }
 fs.writeFileSync(OUT + '/select-matrix.json', JSON.stringify(selectMatrix, null, 1));
 console.log(`SELECT phase done: ${ran} checks, ${fails.length} non-pass so far`);
+// change 28: the counter still reads the quantity columns of stock_movements, and any request that names a cost column is refused.
+for (const [variant, path, expected] of [['safe columns (id, qty, item_id)', 'stock_movements?select=id,qty,item_id&limit=3', 'allow'], ['cost column rate', 'stock_movements?select=rate&limit=3', 'refuse'],
+  ['cost column value', 'stock_movements?select=value&limit=3', 'refuse'], ['cost used as a filter (value=gt.0)', 'stock_movements?select=id&value=gt.0&limit=3', 'refuse'], ['cost used as an order key', 'stock_movements?select=id&order=rate.desc&limit=3', 'refuse']]) {
+  const out = await probe('user', 'GET', path);
+  judge({ identity: 'user', object: 'stock_movements', op: 'SELECT', variant, req: `GET /rest/v1/${path}`, out, expected });
+}
 
 // ------------------------------------------------------------------------------------------------
 // 2. Header / line tables: INSERT, UPDATE and DELETE on a draft row and on a posted row
@@ -294,16 +303,18 @@ const nobody = () => 'refuse';
   await runCase({ table: 'items', op: 'INSERT', body: () => ({ name: 'ATTACK-ITEM-' + uniq(), category: 'cement', hsn_code: '2523', gst_rate: 18, base_uom: 'BAG', sale_rate: 100 }), expectFor: only('admin_aal2') });
   for (const [v, b] of [['sale_rate', { sale_rate: 1 }], ['gst_rate to 0', { gst_rate: 0 }], ['is_active=false', { is_active: false }], ['hsn_code', { hsn_code: '0000' }]])
     await runCase({ table: 'items', op: 'UPDATE', variant: v, body: b, mkRow: mkItem, expectFor: only('admin_aal2') });
-  await runCase({ table: 'items', op: 'DELETE', mkRow: mkItem, expectFor: nobody });
+  // change 26: an owner (aal2) may delete an item that nothing refers to (audited); nobody else may.
+  await runCase({ table: 'items', op: 'DELETE', variant: 'unused item', mkRow: mkItem, expectFor: only('admin_aal2') });
 
   const mkAcct = () => one(`insert into accounts (code, name, type) values ('9${uniq().slice(-6)}', 'ATTACK-ACCT-${uniq()}', 'expense') returning id`);
-  await runCase({ table: 'accounts', op: 'INSERT', body: () => ({ code: '8' + uniq().slice(-6), name: 'ATTACK-' + uniq(), type: 'expense' }), expectFor: only('admin_aal2') });
+  // the app has no "add an account" feature: nobody adds one through the API (owner included)
+  await runCase({ table: 'accounts', op: 'INSERT', body: () => ({ code: '8' + uniq().slice(-6), name: 'ATTACK-' + uniq(), type: 'expense' }), expectFor: nobody });
   for (const [v, b] of [['name', { name: 'ATTACK' }], ['is_money=true (turn any account into a money account)', { is_money: true }], ['type', { type: 'income' }], ['system_key', { system_key: 'cash' }]])
     await runCase({ table: 'accounts', op: 'UPDATE', variant: v, body: b, mkRow: mkAcct, expectFor: only('admin_aal2') });
   await runCase({ table: 'accounts', op: 'DELETE', mkRow: mkAcct, expectFor: nobody });
 
   const mkWh = () => one(`insert into warehouses (name) values ('ATTACK-WH-${uniq()}') returning id`);
-  await runCase({ table: 'warehouses', op: 'INSERT', body: () => ({ name: 'ATTACK-WH-' + uniq() }), expectFor: only('admin_aal2') });
+  await runCase({ table: 'warehouses', op: 'INSERT', body: () => ({ name: 'ATTACK-WH-' + uniq() }), expectFor: nobody });
   await runCase({ table: 'warehouses', op: 'UPDATE', variant: 'name', body: { name: 'ATTACK' }, mkRow: mkWh, expectFor: only('admin_aal2') });
   await runCase({ table: 'warehouses', op: 'UPDATE', variant: 'is_transit=true', body: { is_transit: true }, mkRow: mkWh, expectFor: nobody });
   await runCase({ table: 'warehouses', op: 'DELETE', mkRow: mkWh, expectFor: nobody });
@@ -325,16 +336,17 @@ const nobody = () => 'refuse';
   await runCase({ table: 'doc_sequences', op: 'INSERT', body: () => ({ series: 'Z' + uniq().slice(-3), doc_type: 'quotation', fy_label: '2026-27', prefix: 'ZZ' }), expectFor: nobody });
   await runCase({ table: 'doc_sequences', op: 'DELETE', mkRow: seqId, expectFor: nobody });
 }
-// -- owner-only staging tables
+// -- owner-only staging tables. Change 22: bank_statements / bank_statement_lines are written ONLY by import_bank_statement()
+// and the match functions (no INSERT/UPDATE/DELETE privilege for any API role), so every direct write is refused, owner included.
 {
   const mkStmt = () => one(`insert into bank_statements (account_id, period_from, period_to) values ('${C.bank}', '2026-08-01', '2026-08-31') returning id`);
-  await runCase({ table: 'bank_statements', op: 'INSERT', body: { account_id: C.bank, period_from: '2026-08-01', period_to: '2026-08-31' }, expectFor: only('admin_aal2') });
-  await runCase({ table: 'bank_statements', op: 'UPDATE', body: { source_file: 'ATTACK' }, mkRow: mkStmt, expectFor: only('admin_aal2') });
-  await runCase({ table: 'bank_statements', op: 'DELETE', mkRow: mkStmt, expectFor: only('admin_aal2') });
+  await runCase({ table: 'bank_statements', op: 'INSERT', body: { account_id: C.bank, period_from: '2026-08-01', period_to: '2026-08-31' }, expectFor: nobody });
+  await runCase({ table: 'bank_statements', op: 'UPDATE', body: { source_file: 'ATTACK' }, mkRow: mkStmt, expectFor: nobody });
+  await runCase({ table: 'bank_statements', op: 'DELETE', mkRow: mkStmt, expectFor: nobody });
   const mkStl = () => one(`insert into bank_statement_lines (statement_id, txn_date, narration, debit) values ('${mkStmt()}', '2026-08-02', 'x', 1) returning id`);
-  await runCase({ table: 'bank_statement_lines', op: 'INSERT', body: () => ({ statement_id: mkStmt(), txn_date: '2026-08-02', narration: 'x', credit: 1 }), expectFor: only('admin_aal2') });
-  await runCase({ table: 'bank_statement_lines', op: 'UPDATE', body: { narration: 'ATTACK' }, mkRow: mkStl, expectFor: only('admin_aal2') });
-  await runCase({ table: 'bank_statement_lines', op: 'DELETE', mkRow: mkStl, expectFor: only('admin_aal2') });
+  await runCase({ table: 'bank_statement_lines', op: 'INSERT', body: () => ({ statement_id: mkStmt(), txn_date: '2026-08-02', narration: 'x', credit: 1 }), expectFor: nobody });
+  await runCase({ table: 'bank_statement_lines', op: 'UPDATE', body: { narration: 'ATTACK' }, mkRow: mkStl, expectFor: nobody });
+  await runCase({ table: 'bank_statement_lines', op: 'DELETE', mkRow: mkStl, expectFor: nobody });
   const mkBatch = () => { sql(`delete from opening_lines where batch_id in (select id from opening_batches where status='draft')`); sql(`delete from opening_batches where status='draft'`); return one(`insert into opening_batches (status) values ('draft') returning id`); };
   await runCase({ table: 'opening_batches', op: 'INSERT', variant: 'draft', body: () => { sql(`delete from opening_lines where batch_id in (select id from opening_batches where status='draft')`); sql(`delete from opening_batches where status='draft'`); return { status: 'draft' }; }, expectFor: only('admin_aal2') });
   await runCase({ table: 'opening_batches', op: 'UPDATE', variant: "status='posted'", body: { status: 'posted' }, mkRow: mkBatch, expectFor: nobody });

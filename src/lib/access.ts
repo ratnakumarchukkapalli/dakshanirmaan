@@ -34,7 +34,23 @@ const isCashBookPath = (p: string) => p === '/reports/cash-bank' || p.startsWith
 // Bank reconciliation (statements, matches) is owner-only too.
 const isReconcilePath = (p: string) => p === '/reports/reconcile' || p.startsWith('/reports/reconcile/');
 
-export function decideAccess({ pathname, search = '', member }: { pathname: string; search?: string; member: Member }): AccessDecision {
+/**
+ * The path as the router will read it: percent-escapes decoded once and repeated slashes collapsed, so
+ * `/%73ettings/users` or `//settings` cannot slip past the prefix checks below. null = malformed escape.
+ */
+export function canonicalPath(pathname: string): string | null {
+  try {
+    return decodeURIComponent(pathname).replace(/\/{2,}/g, '/');
+  } catch {
+    return null;
+  }
+}
+
+export function decideAccess({ pathname: rawPathname, search = '', member }: { pathname: string; search?: string; member: Member }): AccessDecision {
+  const pathname = canonicalPath(rawPathname);
+  // A malformed escape is never a real page: send the person somewhere safe instead of guessing.
+  if (pathname === null) return { action: 'redirect', to: member ? '/' : '/login' };
+
   if (isPublicPath(pathname) || isSignedInvoiceLink(pathname, search)) return { action: 'allow' };
 
   if (!member) return pathname === '/login' ? { action: 'allow' } : { action: 'redirect', to: '/login' };

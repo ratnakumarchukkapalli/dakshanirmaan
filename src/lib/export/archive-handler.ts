@@ -64,8 +64,8 @@ const replay = (table: ExportTable, rows: ExportRow[]): ExportTable => ({
   },
 });
 
-export async function archiveResponse(fyParam: string | null): Promise<Response> {
-  const opened = await openExport(fyParam);
+export async function archiveResponse(fyParam: string | null, fetchSite?: string | null): Promise<Response> {
+  const opened = await openExport(fyParam, fetchSite);
   if (opened.response) return opened.response;
   const { ctx } = opened;
 

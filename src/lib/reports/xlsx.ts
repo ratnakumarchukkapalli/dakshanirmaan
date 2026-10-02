@@ -2,6 +2,7 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import type { AgeingReport, CashBook, DayBookRow, StockReport } from '@/lib/reports-data';
 import { formatDate } from '@/lib/format';
+import { safeCells, stripXmlIllegal } from '@/lib/safe-text';
 
 // The report workbooks (exceljs; the `xlsx` package is banned). Money is written as numbers with a
 // number format and dates as dates, never as pre-formatted text, so a sheet can be summed and
@@ -22,11 +23,11 @@ export interface Sheet { wb: ExcelJS.Workbook; ws: ExcelJS.Worksheet }
 
 export function start(orgName: string, title: string, sub: string[]): Sheet {
   const wb = new ExcelJS.Workbook();
-  wb.creator = orgName;
+  wb.creator = stripXmlIllegal(orgName);
   const ws = wb.addWorksheet(title.slice(0, 31));
-  ws.addRow([orgName]).font = { bold: true, size: 14 };
-  ws.addRow([title]).font = { bold: true };
-  for (const line of sub) ws.addRow([line]);
+  ws.addRow(safeCells([orgName])).font = { bold: true, size: 14 };
+  ws.addRow(safeCells([title])).font = { bold: true };
+  for (const line of sub) ws.addRow(safeCells([line]));
   ws.addRow([]);
   return { wb, ws };
 }
@@ -34,7 +35,7 @@ export function start(orgName: string, title: string, sub: string[]): Sheet {
 export const finish = async ({ wb }: Sheet) => Buffer.from(await wb.xlsx.writeBuffer());
 
 export function headerRow(ws: ExcelJS.Worksheet, labels: string[]) {
-  const row = ws.addRow(labels);
+  const row = ws.addRow(safeCells(labels));
   row.font = { bold: true };
   ws.views = [{ state: 'frozen', ySplit: row.number }];
   return row;
@@ -46,7 +47,7 @@ export async function buildAgeingWorkbook(report: AgeingReport, org: string, t: 
   const s = start(org, title, [t('hint')]);
   headerRow(s.ws, [t('colParty'), t('b0_30'), t('b31_60'), t('b61_90'), t('b90_plus'), t('onAccount'), t('interest'), t('colReceivable')]);
   const push = (cells: (string | number)[], bold = false) => {
-    const row = s.ws.addRow(cells);
+    const row = s.ws.addRow(safeCells(cells));
     for (let c = 2; c <= 8; c++) row.getCell(c).numFmt = MONEY;
     if (bold) row.font = { bold: true };
   };
@@ -62,7 +63,7 @@ export async function buildStockWorkbook(report: StockReport, isAdmin: boolean, 
   const s = start(org, title, [godown]);
   headerRow(s.ws, [t('colItem'), t('colGodown'), t('colUom'), t('colQty'), ...(isAdmin ? [t('colAvg'), t('colValue')] : [])]);
   for (const r of report.rows) {
-    const row = s.ws.addRow([r.itemName, r.godown, r.baseUom, num(r.qty), ...(isAdmin ? [r.avgRate === null ? null : num(r.avgRate), r.value === null ? null : num(r.value)] : [])]);
+    const row = s.ws.addRow(safeCells([r.itemName, r.godown, r.baseUom, num(r.qty), ...(isAdmin ? [r.avgRate === null ? null : num(r.avgRate), r.value === null ? null : num(r.value)] : [])]));
     row.getCell(4).numFmt = QTY;
     if (isAdmin) {
       row.getCell(5).numFmt = RATE;
@@ -70,7 +71,7 @@ export async function buildStockWorkbook(report: StockReport, isAdmin: boolean, 
     }
   }
   if (isAdmin && report.totalValue !== null) {
-    const row = s.ws.addRow([t('total'), '', '', null, null, num(report.totalValue)]);
+    const row = s.ws.addRow(safeCells([t('total'), '', '', null, null, num(report.totalValue)]));
     row.font = { bold: true };
     row.getCell(6).numFmt = MONEY;
   }
@@ -82,10 +83,10 @@ export async function buildDayBookWorkbook(rows: DayBookRow[], range: { from: st
   const s = start(org, title, [`${formatDate(range.from)} – ${formatDate(range.to)}`]);
   headerRow(s.ws, [t('colDate'), t('colEntry'), t('colDoc'), t('colType'), t('colNarration'), t('colAmount'), t('colFlag')]);
   for (const r of rows) {
-    const row = s.ws.addRow([
+    const row = s.ws.addRow(safeCells([
       isoDate(r.date), Number(r.entryNo), r.docNo ?? '', t.has(`types.${r.sourceType}`) ? t(`types.${r.sourceType}`) : r.sourceType, r.narration ?? '', num(r.amount),
       r.isReversal ? t('reversal') : r.isReversed ? t('reversed') : '',
-    ]);
+    ]));
     row.getCell(1).numFmt = DATE;
     row.getCell(6).numFmt = MONEY;
   }
@@ -97,19 +98,19 @@ export async function buildCashBookWorkbook(book: CashBook, range: { from: strin
   const s = start(org, `${title} – ${book.account.name}`, [`${formatDate(range.from)} – ${formatDate(range.to)}`]);
   headerRow(s.ws, [t('colDate'), t('colDoc'), t('colDetails'), t('in'), t('out'), t('colBalance')]);
   const money = (row: ExcelJS.Row) => [4, 5, 6].forEach((c) => (row.getCell(c).numFmt = MONEY));
-  const opening = s.ws.addRow([isoDate(range.from), t('opening'), '', null, null, num(book.opening)]);
+  const opening = s.ws.addRow(safeCells([isoDate(range.from), t('opening'), '', null, null, num(book.opening)]));
   opening.getCell(1).numFmt = DATE;
   opening.font = { italic: true };
   money(opening);
   for (const r of book.rows) {
-    const row = s.ws.addRow([
+    const row = s.ws.addRow(safeCells([
       isoDate(r.date), r.docNo ?? '', [r.narration, r.isReversal ? t('reversal') : null].filter(Boolean).join(' · '),
       num(r.debit) || null, num(r.credit) || null, num(r.balance),
-    ]);
+    ]));
     row.getCell(1).numFmt = DATE;
     money(row);
   }
-  const closing = s.ws.addRow([null, t('closing'), '', num(book.totalIn), num(book.totalOut), num(book.closing)]);
+  const closing = s.ws.addRow(safeCells([null, t('closing'), '', num(book.totalIn), num(book.totalOut), num(book.closing)]));
   closing.font = { bold: true };
   money(closing);
   s.ws.columns = [{ width: 12 }, { width: 20 }, { width: 50 }, { width: 15 }, { width: 15 }, { width: 16 }];

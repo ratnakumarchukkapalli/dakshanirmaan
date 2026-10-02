@@ -3,10 +3,12 @@ import Link from 'next/link';
 import { DeleteItemButton, ItemModal, ItemStatusButton, type ItemValues } from '@/components/items/ItemModal';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
+import { requireOwnerPage } from '@/lib/auth/require';
 import { inrRate } from '@/lib/format';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function ItemsPage({ searchParams }: { searchParams: Promise<{ inactive?: string }> }) {
+  await requireOwnerPage();
   const showDisabled = (await searchParams).inactive === '1';
   const t = await getTranslations('items');
   const supabase = await createClient();

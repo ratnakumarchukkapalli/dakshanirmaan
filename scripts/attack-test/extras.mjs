@@ -39,15 +39,21 @@ function rec(id, title, identity, req, actual, verdict, spec, note = '') {
   const ownerPnl = (await G('admin_aal2', 'v_pnl?select=profit_effect&limit=10000')).json; const userPnl = (await G('user', 'v_pnl?select=profit_effect&limit=10000')).json;
   rec('K2', 'profit & loss: `v_pnl` refuses the counter but income/expense lines are readable and add to the same profit', 'user', `GET v_pnl (rows=${userPnl.length}) vs GET accounts + journal_lines`,
     `v_pnl rows for user=${userPnl.length}; user-derived net profit=${profit.toFixed(2)}; owner v_pnl profit=${sum(ownerPnl, 'profit_effect').toFixed(2)} (gap = hidden payroll)`, 'KNOWN', 'db-architecture Known limit: "Revisit before go-live"', 'The `v_pnl`/`v_balance_sheet`/`v_trial_balance` gates are view-level only.');
-  // K3: stock cost
-  const sm = (await G('user', 'stock_movements?select=item_id,qty,rate,value&limit=5')).json;
-  const ss = (await G('user', 'v_stock_summary?select=*&limit=2')).json;
-  const cols = ss[0] ? Object.keys(ss[0]).join(',') : '';
-  rec('K3', 'stock COST: `stock_movements.rate/value`, `v_stock_summary` cost columns readable by the counter', 'user', `GET stock_movements?select=rate,value; GET v_stock_summary`, `stock_movements sample rate/value=${JSON.stringify(sm[0])}; v_stock_summary columns=${cols}`, 'KNOWN',
-    'STATUS.md owner decision 1 (stock cost hidden from counter; "still homeless"); db-architecture clarification (c)', 'Also purchase_invoice_lines.rate (supplier prices) and stock_on_hand().value/avg_rate.');
+  // K3: stock cost. CLOSED by change 28 (owner-only in the database): the counter's request that names rate/value is refused,
+  // and the cost columns of the stock views are NULL for a counter. This row is a regression check, no longer a known limit.
+  const smCost = await G('user', 'stock_movements?select=item_id,qty,rate,value&limit=5');
+  const smStar = await G('user', 'stock_movements?select=*&limit=5');
+  const smQty = await G('user', 'stock_movements?select=item_id,qty&limit=5');
+  const ss = (await G('user', 'v_stock_summary?select=*&limit=50')).json;
+  const costCols = Array.isArray(ss) && ss[0] ? Object.keys(ss[0]).filter((c) => /rate|value|cost/i.test(c)) : [];
+  const costLeak = Array.isArray(ss) ? ss.filter((r) => costCols.some((c) => r[c] !== null && r[c] !== undefined)).length : -1;
+  const k3ok = smCost.status >= 400 && smStar.status >= 400 && smQty.status < 300 && Array.isArray(ss) && costLeak === 0;
+  rec('K3', 'stock COST (change 28): `stock_movements.rate/value` refused to the counter; cost columns of `v_stock_summary` are NULL', 'user', `GET stock_movements?select=rate,value; select=*; GET v_stock_summary`,
+    `rate,value => ${smCost.status} ${errCode(smCost)}; select=* => ${smStar.status} ${errCode(smStar)}; qty columns => ${smQty.status}; v_stock_summary cost columns [${costCols.join(',')}] non-null rows=${costLeak}`, k3ok ? 'PASS' : 'FAIL',
+    'change 28: stock cost owner-only in the database (STATUS.md owner decision 1)', 'Residual derivation of cost from purchase documents is K4 (accepted).');
   const pil = (await G('user', 'purchase_invoice_lines?select=item_name,rate&limit=2')).json;
   const soh = (await http('POST', '/rest/v1/rpc/stock_on_hand', { token: tok('user'), body: { p_item: C.ppc, p_warehouse: C.head } })).json;
-  rec('K4', 'supplier cost prices and payables readable by the counter', 'user', `GET purchase_invoice_lines?select=item_name,rate; rpc stock_on_hand`, `purchase line rate=${JSON.stringify(pil[0])}; stock_on_hand=${JSON.stringify(soh)}`, 'KNOWN', 'same owner decision 1 (cost hidden from counter); dashboard "To pay" is hidden in the UI by default only', '');
+  rec('K4', 'supplier cost prices and payables readable by the counter', 'user', `GET purchase_invoice_lines?select=item_name,rate; rpc stock_on_hand`, `purchase line rate=${JSON.stringify(pil[0])}; stock_on_hand (cost is NULL for a counter since change 28)=${JSON.stringify(soh)}`, 'KNOWN', 'same owner decision 1 (cost hidden from counter); dashboard "To pay" is hidden in the UI by default only', 'Accepted residual (report K1-K4).');
   // K5: day_closes inference
   const wagesDay = one(`select voucher_date from expense_vouchers where voucher_type='wages' and status='posted' order by voucher_date desc limit 1`);
   const wages = one(`select sum(l.amount) from expense_voucher_lines l join expense_vouchers v on v.id=l.voucher_id where v.voucher_type='wages' and v.status='posted' and v.voucher_date='${wagesDay}'`);

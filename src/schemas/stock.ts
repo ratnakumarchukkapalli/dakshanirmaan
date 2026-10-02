@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { blankToUndefined, boundedDecimal, isoDateField, positiveQty } from './common';
+import { blankToUndefined, boundedDecimal, isoDateField, noControlChars, positiveQty } from './common';
 
 // Godown adjustment and transfer input, shared by the modals and the server actions. Quantities
 // are text in the item's base unit (3 dp). Messages are `errors.field.*` keys. The database is the
@@ -28,7 +28,7 @@ export const recordAdjustmentSchema = z.object({
   id: requestId,
   adjDate: isoDateField,
   warehouseId: z.uuid('godown_required'),
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
   lines: z.array(adjustmentLineSchema).min(1, 'lines_required').max(MAX_STOCK_LINES, 'lines_many'),
 });
 

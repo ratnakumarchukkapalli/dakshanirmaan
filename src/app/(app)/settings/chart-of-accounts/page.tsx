@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
+import { requireOwnerPage } from '@/lib/auth/require';
 import { createClient } from '@/lib/supabase/server';
 
 interface Account {
@@ -15,6 +16,7 @@ interface Account {
 
 // Read-only: system accounts are wired into the posting engine and are not edited here.
 export default async function ChartOfAccountsPage() {
+  await requireOwnerPage();
   const t = await getTranslations('coa');
   const supabase = await createClient();
   const { data } = await supabase.from('accounts').select('id, code, name, type, parent_id, is_group, system_key').order('code');

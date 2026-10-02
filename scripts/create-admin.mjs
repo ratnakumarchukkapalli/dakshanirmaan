@@ -86,7 +86,13 @@ if (created.data.user) {
 } else if (created.error?.code === 'email_exists') {
   const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
   userId = data.users.find((u) => u.email?.toLowerCase() === email)?.id;
-  if (userId) await admin.auth.admin.updateUserById(userId, { password });
+  if (userId) {
+    const updated = await admin.auth.admin.updateUserById(userId, { password });
+    if (updated.error) {
+      console.error('Could not set the password on the existing sign-in account:', updated.error.message);
+      process.exit(1);
+    }
+  }
 }
 if (!userId) {
   console.error('Could not create the sign-in account:', created.error?.message);

@@ -69,7 +69,7 @@ select is(
      from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')
-      and has_table_privilege('anon', c.oid, 'select,insert,update,delete,truncate,references,trigger')),
+      and has_table_privilege('anon', c.oid, 'select,insert,update,delete,truncate,references,trigger,maintain')),
   '',
   'anon holds no privilege on any table or view in public');
 
@@ -203,7 +203,7 @@ select lives_ok($$select post_payment('e0000000-0000-0000-0000-000000000001')$$,
 select throws_ok(
   $$insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
     values ('e0000000-0000-0000-0000-000000000001', 'sales_invoice', 'd0000000-0000-0000-0000-000000000001', 100)$$,
-  '42501', null, 'F1: a session cannot add an allocation to a posted receipt');
+  'P0001', 'DN_NOT_DRAFT', 'F1: a session cannot add an allocation to a posted receipt');
 select is(
   pg_temp.rows_touched($$update payment_allocations set amount = 1 where id = 'ba000000-0000-0000-0000-000000000001'$$),
   0, 'F1: a session cannot change an allocation of a posted receipt');

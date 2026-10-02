@@ -2,10 +2,10 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getCurrentMember } from '@/lib/auth/current';
 import { pickClientIp } from '@/lib/auth/client-ip';
-import { createLimiter } from '@/lib/auth/rate-limit';
 import { registerFonts } from '@/lib/invoice-pdf/fonts';
 import { loadInvoicePdfData } from '@/lib/invoice-pdf/data';
 import { invoiceDocument } from '@/lib/invoice-pdf/InvoiceDocument';
+import { allowInvoiceLinkUse, allowSignedRequest, RETRY_AFTER_SECONDS, recordBadLink } from '@/lib/invoice-pdf/link-limits';
 import { qrDataUrl, upiUri } from '@/lib/invoice-pdf/upi';
 import { verifyInvoiceLink } from '@/lib/share-link';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -18,11 +18,10 @@ import { createClient } from '@/lib/supabase/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Bad signatures from one address: a brute-force spray is cut off long before it could matter.
-const badLinks = createLimiter({ limit: 20, windowMs: 10 * 60 * 1000 });
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const text = (status: number, body: string) => new NextResponse(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+const text = (status: number, body: string, extra: Record<string, string> = {}) =>
+  new NextResponse(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...extra } });
+const tooMany = () => text(429, 'Too many requests', { 'Retry-After': String(RETRY_AFTER_SECONDS) });
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,14 +29,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const sig = request.nextUrl.searchParams.get('sig');
   let supabase;
-  if (sig !== null) {
+  const signed = sig !== null;
+  if (signed) {
     const ip = pickClientIp((name) => request.headers.get(name));
-    if (!badLinks.allows(ip)) return text(429, 'Too many requests');
+    if (!allowSignedRequest(ip)) return tooMany();
     const check = verifyInvoiceLink(id, request.nextUrl.searchParams.get('exp'), sig, process.env.INVOICE_LINK_SECRET);
     if (check !== 'ok') {
-      badLinks.hit(ip);
+      recordBadLink(ip);
       return text(403, 'This link is not valid.');
     }
+    if (!allowInvoiceLinkUse(id)) return tooMany();
     supabase = createAdminClient();
   } else {
     const member = await getCurrentMember();
@@ -50,6 +51,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (result.kind === 'draft') return text(409, 'This invoice is still a draft. Post it to get an invoice PDF.');
   if (result.kind === 'error') return text(500, 'Could not prepare the invoice.');
   const { data } = result;
+  // A shared link never serves a cancelled invoice (a signed-in member still can: the PDF shows CANCELLED).
+  if (signed && data.cancelled) return text(410, 'This invoice has been cancelled.');
 
   const wantsQr = !data.cancelled && data.open !== '0.00' && !!data.org.upiVpa;
   const qr = wantsQr

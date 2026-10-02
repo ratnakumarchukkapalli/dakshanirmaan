@@ -11,8 +11,23 @@ import type { Supabase } from './types';
 export const textResponse = (status: number, body: string): Response =>
   new Response(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 
-/** The signed-in verified owner, or the 403 to send back. */
-export async function requireExportOwner(): Promise<{ member: CurrentMember; denied?: undefined } | { member?: undefined; denied: Response }> {
+/**
+ * A browser tells the server where a request came from in `Sec-Fetch-Site`: `same-origin` when the app's own page
+ * (its Download button) triggered it, `none` for a typed or bookmarked address. `cross-site` and `same-site` mean
+ * another page (an image tag, a link on a sibling site) fired the owner's download, which would spam the audit log
+ * and burn CPU, so those get a 403. No header (curl, an old browser) is allowed: the owner-only gate still applies.
+ */
+export function crossSiteRefusal(fetchSite: string | null | undefined): Response | null {
+  if (fetchSite == null) return null;
+  const site = fetchSite.trim().toLowerCase();
+  if (site === 'same-origin' || site === 'none') return null;
+  return textResponse(403, 'Exports can only be started from the app itself.');
+}
+
+/** The signed-in verified owner, or the 403 to send back. Refuses a cross-site request before looking at anything else. */
+export async function requireExportOwner(fetchSite?: string | null): Promise<{ member: CurrentMember; denied?: undefined } | { member?: undefined; denied: Response }> {
+  const crossSite = crossSiteRefusal(fetchSite);
+  if (crossSite) return { denied: crossSite };
   const member = await getCurrentMember();
   if (!member || !isVerifiedAdmin(member)) return { denied: textResponse(403, 'Only an owner can export the books.') };
   return { member };

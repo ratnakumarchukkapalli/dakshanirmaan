@@ -38,7 +38,7 @@ select is(
 create temp table _pay as
 with pay as (
   insert into payments (direction, payment_date, party_id, mode, amount, account_id, status)
-  select 'payment', '2026-09-05', party_id, 'neft', 4000.00, (select id from accounts where system_key = 'cash'), 'posted'
+  select 'payment', '2026-09-05', party_id, 'neft', 4000.00, (select id from accounts where system_key = 'cash'), 'draft'
   from _party
   returning id
 )
@@ -46,6 +46,8 @@ select id as pay_id from pay;
 
 insert into payment_allocations (payment_id, invoice_type, invoice_id, amount)
 select (select pay_id from _pay), 'purchase_invoice', (select pi_id from _pi), 4000.00;
+-- Security pass (20261011100000): allocations are written while the payment is a draft.
+update payments set status = 'posted' where id = (select pay_id from _pay);
 
 select is(
   (select open_amount from v_open_purchase_invoices where invoice_id = (select pi_id from _pi)),

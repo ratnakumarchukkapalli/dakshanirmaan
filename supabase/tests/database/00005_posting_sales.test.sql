@@ -715,7 +715,10 @@ select is(
   'the invoice stays posted: the blocked cancel changed nothing'
 );
 
+-- Security pass (20261011100000): fixture written as the table owner past the guard trigger.
+alter table payment_allocations disable trigger payment_allocations_guard;
 delete from payment_allocations where payment_id = (select payment_id from _alloc_payment);
+alter table payment_allocations enable trigger payment_allocations_guard;
 
 -- ============================================================
 -- Admin-only negative-stock override (organization.allow_negative_stock).

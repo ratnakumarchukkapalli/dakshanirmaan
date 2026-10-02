@@ -79,7 +79,7 @@
   "users": {
     "title": "Users & roles",
     "addTitle": "Add a person",
-    "addHelp": "No email is sent. Choose a starting password (at least 8 characters), add the person, then tell them the email and password in person.",
+    "addHelp": "No email is sent. Choose a starting password (at least 8 characters, 12 for an owner), add the person, then tell them the email and password in person.",
     "listTitle": "People",
     "name": "Name",
     "email": "Email",
@@ -96,13 +96,15 @@
     "disabled": "{name} can no longer sign in.",
     "addedNotice": "{email} was added. Tell them the email and starting password in person, and ask them to change it from the menu.",
     "password": "Starting password",
-    "passwordHint": "At least 8 characters. Tell them in person; they should change it from the menu at once.",
+    "passwordHint": "At least 8 characters (12 for an owner). Tell them in person; they should change it from the menu at once.",
     "generate": "Suggest one",
     "resetPassword": "Reset password",
     "newPassword": "New password",
     "savePassword": "Set password",
     "passwordReset": "Password changed for {name}. Tell them in person.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "totpYes": "Authenticator set up: yes",
+    "totpNo": "Authenticator set up: no"
   },
   "errors": {
     "forbidden": "You do not have permission to do this.",
@@ -110,6 +112,7 @@
     "rate_limited": "Too many tries. Please wait a few minutes and try again.",
     "code_wrong": "That code did not work. Request a new one and try again.",
     "mfa_already": "An authenticator app is already set up for this account.",
+    "partial_signout_others": "Your password is changed, but other devices could not be signed out. Sign out of them yourself, or ask the owner.",
     "partial_disable": "The person is disabled in the app, but their sign-in account could not be blocked. Press Disable again.",
     "partial_enable": "The person is enabled in the app, but their sign-in account could not be unblocked. Press Enable again.",
     "period_locked": "That month is locked, or not set up for accounting. Ask an owner.",
@@ -228,6 +231,7 @@
       "reason_required": "Give a reason.",
       "opening_after_documents": "Bills or vouchers are already posted on or before that date. Use an earlier date: the day before billing started.",
       "same_password": "That is already your password. Choose a new one.",
+      "current_password_wrong": "Your current password is not right.",
       "bill_date_future": "The bill date cannot be in the future.",
       "no_such_bill": "That bill was not found.",
       "invalid_supplier": "Choose an active supplier for this bill.",
@@ -363,7 +367,9 @@
       "money_positive": "Enter an amount greater than zero.",
       "employee_required": "Choose an employee.",
       "password_short": "Use at least 8 characters.",
+      "password_short_admin": "An owner's password needs at least 12 characters.",
       "password_long": "Use at most 72 characters.",
+      "text_invalid": "Remove the hidden control characters from this text.",
       "password_required": "Enter your password.",
       "supplier_required": "Choose a supplier.",
       "supplier_bill_no_required": "Enter the supplier's bill number.",
@@ -1865,7 +1871,8 @@
         "demo": "No demo or test data is in this database.",
         "tally": "Tally or the old book is kept read-only for reference."
       },
-      "bank_set_up": "The UPI ID is set and the bank ledger carries the bank's name (HDFC Bank)"
+      "bank_set_up": "The UPI ID is set and the bank ledger carries the bank's name (HDFC Bank)",
+      "owners_have_totp": "Every active owner has an authenticator app set up"
     },
     "csv": {
       "empty": "The file has no rows.",
@@ -1884,7 +1891,8 @@
   },
   "account": {
     "title": "Change my password",
-    "hint": "Use at least 8 characters. Do not reuse a password from anywhere else.",
+    "hint": "Use at least 8 characters (owners: at least 12). Do not reuse a password from anywhere else. Other devices are signed out when you change it.",
+    "currentPassword": "Current password",
     "newPassword": "New password",
     "save": "Change password",
     "done": "Your password is changed.",

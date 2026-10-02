@@ -9,6 +9,20 @@
 # (RUNBOOK 2.1). When set, a wrong key fails the run before anything is encrypted.
 # The encrypted file is kept as a private workflow artifact for 30 days. The off-GitHub copy (family
 # Google Drive) is a later step; see RUNBOOK.md, "Switching on the Drive copy".
+# SWITCH-ON STEPS (backups are OFF until the owner does these; details in RUNBOOK.md section 2.1 and the
+# go-live checklist in section 12; source: docs/reviews/2026-10-final-security-pass.md, owner action 5):
+#   1. On a trusted computer: `age-keygen -o ~/family-age-key.txt`. Keep TWO copies of that file, both OUTSIDE the repository.
+#   2. GitHub -> Settings -> Secrets and variables -> Actions -> Secrets: AGE_PUBLIC_KEY (the age1... line) and
+#      DATABASE_URL (Supabase *session pooler* URI, ending ?sslmode=require).
+#   3. Same page -> Variables: EXPECTED_AGE_RECIPIENT_SHA256 (sha256 of the public key) and ALLOW_EMPTY_BACKUP=1
+#      (only until the opening balances are posted).
+#   4. Uncomment the `schedule:` lines below and commit.
+#   5. Actions -> Backup -> Run workflow once. Download the artifact, run scripts/backup/restore-drill.sh on it (RUNBOOK 2.3).
+#   6. When the opening balances are posted: DELETE the ALLOW_EMPTY_BACKUP variable.
+#   7. Year-end: download the FY archive ZIP (Settings -> Export & backup) and keep it offline.
+# OPTIONAL bill-photo copy (private `docs` bucket): set the repository variable BACKUP_STORAGE=1 plus the variable
+# SUPABASE_PROJECT_REF and the secret SUPABASE_ACCESS_TOKEN (a Supabase personal access token). Default OFF: the bucket is empty today.
+# Every `uses:` below is pinned to a full commit SHA (tag in the trailing comment); Dependabot proposes updates.
 name: Backup
 
 # SWITCHED OFF (owner decision, Ratna 2026-10-01): no scheduled run until the backup is wanted. To switch it on
@@ -45,7 +59,7 @@ jobs:
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: steps.cfg.outputs.ready == 'true'
         with:
           persist-credentials: false
@@ -66,9 +80,33 @@ jobs:
         # Only after a fully successful dump; each run uploads under its own name, so a failed run
         # can never replace an earlier good artifact.
         if: success() && steps.cfg.outputs.ready == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dn-backup-${{ github.run_id }}
-          path: backups/*.tar.age
+          path: backups/dn-backup-*.tar.age
+          retention-days: 30
+          if-no-files-found: error
+      # OPT-IN second copy: the bill photos in the private `docs` bucket. After the database artifact is kept, so a
+      # storage problem can never cost that day's database backup (it still turns the run red).
+      - name: Set up the Supabase CLI (bill-photo copy only)
+        if: success() && steps.cfg.outputs.ready == 'true' && vars.BACKUP_STORAGE == '1'
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        with:
+          version: 2.117.0
+      - name: Copy and encrypt the bill photos
+        if: success() && steps.cfg.outputs.ready == 'true' && vars.BACKUP_STORAGE == '1'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          AGE_RECIPIENT: ${{ secrets.AGE_PUBLIC_KEY }}
+          EXPECTED_AGE_RECIPIENT_SHA256: ${{ vars.EXPECTED_AGE_RECIPIENT_SHA256 }}
+          ALLOW_EMPTY_BACKUP: ${{ vars.ALLOW_EMPTY_BACKUP }}   # an empty bucket passes only while this is 1
+        run: scripts/backup/storage-copy.sh backups
+      - name: Keep the encrypted bill photos
+        if: success() && steps.cfg.outputs.ready == 'true' && vars.BACKUP_STORAGE == '1'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dn-storage-${{ github.run_id }}
+          path: backups/dn-storage-*.tar.age
           retention-days: 30
           if-no-files-found: error

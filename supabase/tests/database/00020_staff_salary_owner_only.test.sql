@@ -24,12 +24,14 @@ insert into parties (id, name, type, state_code, monthly_salary, daily_wage) val
 -- Vouchers written directly as the database owner (what the posting function leaves behind); the
 -- advance is then posted for real below so v_employees has a balance to show.
 insert into expense_vouchers (id, voucher_date, party_id, status, voucher_type, period_month) values
-  ('b0000000-0000-0000-0000-000000000001', '2026-09-01', 'a0000000-0000-0000-0000-000000000001', 'posted', 'salary', '2026-09-01'),
-  ('b0000000-0000-0000-0000-000000000002', '2026-09-02', 'a0000000-0000-0000-0000-000000000002', 'posted', 'wages', '2026-09-01'),
-  ('b0000000-0000-0000-0000-000000000003', '2026-09-03', null, 'posted', 'expense', null);
+  ('b0000000-0000-0000-0000-000000000001', '2026-09-01', 'a0000000-0000-0000-0000-000000000001', 'draft', 'salary', '2026-09-01'),
+  ('b0000000-0000-0000-0000-000000000002', '2026-09-02', 'a0000000-0000-0000-0000-000000000002', 'draft', 'wages', '2026-09-01'),
+  ('b0000000-0000-0000-0000-000000000003', '2026-09-03', null, 'draft', 'expense', null);
 insert into expense_voucher_lines (voucher_id, line_no, account_id, amount)
 select v.id, 1, (select id from accounts where code = '5500'), 100
 from expense_vouchers v;
+-- Security pass (20261011100000): lines are written while the voucher is a draft, then it is marked posted.
+update expense_vouchers set status = 'posted';
 
 -- ============================================================
 -- Owner: sees the rates, the vouchers, and the staff list

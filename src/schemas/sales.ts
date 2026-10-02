@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { GSTIN_PATTERN } from '@/lib/gst';
-import { blankToUndefined, boundedDecimal, decimal, optionalText, stateField } from './common';
+import { blankToUndefined, boundedDecimal, decimal, noControlChars, optionalText, stateField } from './common';
 
 // Sales invoice input, shared by the billing form and the server actions. Money and quantities
 // are strings (never floats); messages are `errors.field.*` keys. The wire date is ISO.
@@ -96,7 +96,7 @@ export const postCashSaleSchema = z.object({ id: z.uuid('id_invalid'), accountId
 export const cancelInvoiceSchema = z.object({
   id: z.uuid('id_invalid'),
   // Kept in the audit trail beside the reversal.
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export type RecordEwbInput = z.input<typeof recordEwbSchema>;

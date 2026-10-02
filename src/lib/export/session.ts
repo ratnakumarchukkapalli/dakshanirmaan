@@ -9,8 +9,8 @@ import type { ExportContext } from './types';
  * no database read), the organisation, the financial year (`?fy=`, 400 when it is not one of the years
  * set up) and the as-of instant, captured once. Parts A, B and C all start here.
  */
-export async function openExport(fyParam: string | null): Promise<{ ctx: ExportContext; response?: undefined } | { ctx?: undefined; response: Response }> {
-  const gate = await requireExportOwner();
+export async function openExport(fyParam: string | null, fetchSite?: string | null): Promise<{ ctx: ExportContext; response?: undefined } | { ctx?: undefined; response: Response }> {
+  const gate = await requireExportOwner(fetchSite);
   if (gate.denied) return { response: gate.denied };
 
   try {

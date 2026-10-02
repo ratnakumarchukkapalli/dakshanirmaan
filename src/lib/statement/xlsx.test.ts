@@ -72,3 +72,23 @@ describe('party statement workbook', () => {
     await expect(buildStatementWorkbook({ ...ledger, truncated: true }, org, labels)).rejects.toThrow(/truncated/);
   });
 });
+
+describe('party statement workbook: hostile text (A7)', () => {
+  it('defuses a formula-looking party name or narration and strips control characters from every text cell', async () => {
+    const hostile: PartyLedger = {
+      ...ledger,
+      party: { ...ledger.party, name: '=HYPERLINK("http://evil","click")' },
+      rows: [{ ...ledger.rows[0]!, docNo: '+DOC\u0001', narration: 'Ravi\u0001 @SUM(1)' }],
+    };
+    const ws = await read({ ...hostile, closing: { ar: '1.00' } });
+    const texts: string[] = [];
+    ws.eachRow((r) => r.eachCell((c) => { if (typeof c.value === 'string') texts.push(c.value); }));
+    expect(texts).toContain('\'=HYPERLINK("http://evil","click")');
+    expect(texts).toContain("'+DOC");
+    expect(texts).toContain('Ravi @SUM(1)');
+    // nothing that starts like a formula, and no control characters anywhere
+    expect(texts.filter((t) => /^[=+\-@]/.test(t))).toEqual([]);
+    expect(texts.filter((t) => /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(t))).toEqual([]);
+  });
+});
+

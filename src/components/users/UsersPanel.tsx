@@ -8,6 +8,7 @@ import { disableUser, enableUser, inviteUser, resetUserPassword } from '@/app/ac
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { Field } from '@/components/ui/Field';
+import { ADMIN_PASSWORD_MIN } from '@/schemas/auth';
 import { inviteUserSchema, type InviteUserInput } from '@/schemas/users';
 
 export interface UserRow {
@@ -18,6 +19,8 @@ export interface UserRow {
   isActive: boolean;
   /** Display-ready (DD-MM-YYYY) or null. */
   invitedOn: string | null;
+  /** Active owners only: has an authenticator app been set up? null = not an active owner, or not known. */
+  hasTotp: boolean | null;
 }
 
 type Notice = { tone: 'good' | 'bad' | 'warn'; text: string } | null;
@@ -135,7 +138,14 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
                 <tr key={u.userId}>
                   <td>{u.name}</td>
                   <td>{u.email ?? '—'}</td>
-                  <td>{tRole(u.role)}</td>
+                  <td>
+                    {tRole(u.role)}
+                    {u.hasTotp !== null && (
+                      <div>
+                        <Chip tone={u.hasTotp ? 'good' : 'warn'}>{u.hasTotp ? t('totpYes') : t('totpNo')}</Chip>
+                      </div>
+                    )}
+                  </td>
                   <td>
                     <Chip tone={u.isActive ? 'good' : 'muted'}>{u.isActive ? t('active') : t('inactive')}</Chip>
                   </td>
@@ -146,7 +156,7 @@ export function UsersPanel({ users, currentUserId }: { users: UserRow[]; current
                     ) : resetFor === u.userId ? (
                       <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                         <input aria-label={t('newPassword')} type="text" autoComplete="off" spellCheck={false} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                        <button type="button" className="btn primary sm" disabled={pending || newPassword.length < 8} onClick={() => savePassword(u)}>{t('savePassword')}</button>
+                        <button type="button" className="btn primary sm" disabled={pending || newPassword.length < (u.role === 'admin' ? ADMIN_PASSWORD_MIN : 8)} onClick={() => savePassword(u)}>{t('savePassword')}</button>
                         <button type="button" className="btn ghost sm" onClick={() => { setResetFor(null); setNewPassword(''); }}>{t('cancel')}</button>
                       </span>
                     ) : (

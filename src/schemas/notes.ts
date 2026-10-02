@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { blankToUndefined, boundedDecimal, isoDateField } from './common';
+import { blankToUndefined, boundedDecimal, isoDateField, noControlChars } from './common';
 
 // Credit and debit note input, shared by the note form and the server actions. Money and quantities
 // are strings (never floats); messages are `errors.field.*` keys. The wire date is ISO. The same
@@ -31,7 +31,7 @@ export const saveDraftNoteSchema = z
     /** The posted invoice (credit note) or bill (debit note) this note is against. */
     invoiceId: z.uuid('invoice_required'),
     noteDate: isoDateField,
-    reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+    reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
     /** True = goods go back (stock moves); false = a value-only adjustment (rate difference, discount). */
     stockEffect: z.boolean(),
     lines: z.array(noteLineSchema).min(1, 'lines_required').max(MAX_NOTE_LINES, 'lines_many'),
@@ -57,7 +57,7 @@ export const cancelNoteSchema = z.object({
   kind: z.enum(NOTE_KINDS),
   id: z.uuid('id_invalid'),
   // Kept in the audit trail beside the reversal.
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export type SaveDraftNoteInput = z.input<typeof saveDraftNoteSchema>;

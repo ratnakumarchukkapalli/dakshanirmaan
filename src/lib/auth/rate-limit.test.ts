@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowCodeCheck, allowCodeRequest, allowTotpCheck, createLimiter } from './rate-limit';
+import { allowCodeRequest, allowTotpCheck, createLimiter, recordSignInFailure, recordSignInSuccess, signInAllowed } from './rate-limit';
 
 const MIN = 60_000;
 
@@ -83,24 +83,54 @@ describe('sign-in code limits', () => {
   });
 });
 
-describe('code-check and authenticator limits', () => {
-  it('10 code checks per email per address, and 10 authenticator checks per person', () => {
+describe('password sign-in limits (failures only)', () => {
+  const fail = (email: string, ip: string, n: number, t: number) => { for (let i = 0; i < n; i++) recordSignInFailure(email, ip, t + i); };
+
+  it('10 failures per email per address per 15 minutes, then it opens again', () => {
     const t = 4_000_000_000;
-    for (let i = 0; i < 10; i++) expect(allowCodeCheck('c@x.test', 'ip-1', t + i)).toBe(true);
-    expect(allowCodeCheck('c@x.test', 'ip-1', t + 20)).toBe(false);
+    fail('c@x.test', 'ip-1', 9, t);
+    expect(signInAllowed('c@x.test', 'ip-1', t + 20)).toBe(true);
+    fail('c@x.test', 'ip-1', 1, t + 30);
+    expect(signInAllowed('c@x.test', 'ip-1', t + 40)).toBe(false);
+    expect(signInAllowed('c@x.test', 'ip-1', t + 16 * MIN)).toBe(true);
+  });
+  it('checking is free: only recorded failures count', () => {
+    const t = 4_100_000_000;
+    for (let i = 0; i < 50; i++) expect(signInAllowed('free@x.test', 'ip-1', t + i)).toBe(true);
+  });
+  it('an attacker\'s failures from one address never block the owner from another address', () => {
+    const t = 5_000_000_000;
+    for (let i = 0; i < 40; i++) if (signInAllowed('owner@x.test', 'attacker', t + i)) recordSignInFailure('owner@x.test', 'attacker', t + i);
+    expect(signInAllowed('owner@x.test', 'attacker', t + 100)).toBe(false);
+    expect(signInAllowed('owner@x.test', 'owner-home', t + 100)).toBe(true);
+  });
+  it('a correct sign-in clears the failures of that address', () => {
+    const t = 5_100_000_000;
+    fail('p@x.test', 'ip-1', 10, t);
+    expect(signInAllowed('p@x.test', 'ip-1', t + 20)).toBe(false);
+    recordSignInSuccess('p@x.test', 'ip-1', t + 30);
+    expect(signInAllowed('p@x.test', 'ip-1', t + 40)).toBe(true);
+  });
+  it('the per-email ceiling (100 / 15 min) stops a spread-out attack on strangers\' addresses but not a known address', () => {
+    const t = 6_000_000_000;
+    recordSignInSuccess('v@x.test', 'known-ip', t - 1000);
+    for (let ip = 0; ip < 11; ip++) fail('v@x.test', `ip-${ip}`.padEnd(8, 'x'), 10, t + ip * 20);
+    expect(signInAllowed('v@x.test', 'ip-fresh', t + 500)).toBe(false);
+    expect(signInAllowed('v@x.test', 'known-ip', t + 500)).toBe(true);
+    expect(signInAllowed('v@x.test', 'ip-fresh', t + 16 * MIN)).toBe(true);
+  });
+  it('one address spraying many emails is stopped at 30 failures an hour, for that address only', () => {
+    const t = 7_000_000_000;
+    for (let i = 0; i < 30; i++) recordSignInFailure(`e${i}@x.test`, 'sprayer', t + i);
+    expect(signInAllowed('new@x.test', 'sprayer', t + 100)).toBe(false);
+    expect(signInAllowed('new@x.test', 'elsewhere', t + 100)).toBe(true);
+  });
+});
+
+describe('authenticator limits', () => {
+  it('10 authenticator checks per person per 15 minutes', () => {
+    const t = 4_000_000_000;
     for (let i = 0; i < 10; i++) expect(allowTotpCheck('user-1', t + i)).toBe(true);
     expect(allowTotpCheck('user-1', t + 20)).toBe(false);
-  });
-  it('one address cannot burn the owner\'s code checks from another address', () => {
-    const t = 5_000_000_000;
-    for (let i = 0; i < 50; i++) allowCodeCheck('owner@x.test', 'attacker', t + i);
-    expect(allowCodeCheck('owner@x.test', 'attacker', t + 100)).toBe(false);
-    expect(allowCodeCheck('owner@x.test', 'owner-home', t + 100)).toBe(true);
-  });
-  it('a looser per-email ceiling of 40 per 15 minutes still applies across addresses', () => {
-    const t = 6_000_000_000;
-    for (let ip = 0; ip < 4; ip++) for (let i = 0; i < 10; i++) expect(allowCodeCheck('v@x.test', `ip-${ip}`, t + ip * 20 + i)).toBe(true);
-    expect(allowCodeCheck('v@x.test', 'ip-fresh', t + 200)).toBe(false);
-    expect(allowCodeCheck('v@x.test', 'ip-fresh', t + 16 * MIN)).toBe(true);
   });
 });

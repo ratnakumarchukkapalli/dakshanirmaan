@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isPhone, normalisePhone } from '@/lib/phone';
-import { blankToUndefined, boundedDecimal, decimal, isoDateField } from './common';
+import { blankToUndefined, boundedDecimal, decimal, isoDateField, noControlChars } from './common';
 
 // Employees and their pay vouchers (owner-only, like everything on the staff screen). Money is
 // text with at most 2 decimals; the voucher amount is what the person says was paid, and
@@ -15,7 +15,7 @@ const phoneField = z.preprocess(
 );
 
 const employeeShape = {
-  name: z.string().trim().min(1, 'name_required').max(80, 'name_long'),
+  name: z.string().trim().min(1, 'name_required').max(80, 'name_long').refine(noControlChars, 'text_invalid'),
   phone: phoneField,
   /** Monthly salary, for a salaried person. Blank = none. */
   monthlySalary: optionalMoney,
@@ -37,7 +37,7 @@ export const advanceSchema = z.object({
   ...voucherBase,
   employeeId: z.uuid('employee_required'),
   amount: positiveMoney,
-  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').optional()),
+  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').refine(noControlChars, 'text_invalid').optional()),
 });
 
 /**
@@ -64,7 +64,7 @@ export const wagesSchema = z.object({
   rate: boundedDecimal(14, 2, 'money_invalid').refine((v) => /[1-9]/.test(v), 'money_positive'),
   /** A named worker's advance is recovered only when the person says so (blank = none). */
   advanceRecovered: optionalMoney,
-  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').optional()),
+  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').refine(noControlChars, 'text_invalid').optional()),
 });
 
 export type EmployeeInput = z.input<typeof createEmployeeSchema>;

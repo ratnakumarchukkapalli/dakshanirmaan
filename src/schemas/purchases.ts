@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { blankToUndefined, boundedDecimal, decimal, isoDateField } from './common';
+import { blankToUndefined, boundedDecimal, decimal, isoDateField, noControlChars } from './common';
 
 // Purchase bill input, shared by the bill form and the server actions. Money and quantities are
 // strings (never floats); messages are `errors.field.*` keys. The wire date is ISO.
@@ -54,7 +54,7 @@ export const billIdSchema = z.object({ id: z.uuid('id_invalid') });
 export const cancelBillSchema = z.object({
   id: z.uuid('id_invalid'),
   // Kept in the audit trail beside the reversal.
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export type SaveDraftBillInput = z.input<typeof saveDraftBillSchema>;
@@ -73,6 +73,6 @@ export const addFreightSchema = z.object({
   transporterId: z.uuid('supplier_required'),
   amount: boundedDecimal(14, 2, 'money_invalid').refine(positive, 'money_positive'),
   payAccountId: z.uuid('account_required'),
-  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').optional()),
+  note: z.preprocess(blankToUndefined, z.string().trim().max(120, 'text_long').refine(noControlChars, 'text_invalid').optional()),
 });
 export type AddFreightInput = z.input<typeof addFreightSchema>;

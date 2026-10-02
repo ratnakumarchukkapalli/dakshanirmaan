@@ -59,6 +59,62 @@ describe('inviteUser', () => {
   });
 });
 
+describe('inviteUser: reusing an orphan sign-in account (A8)', () => {
+  /** The sign-in service says the email exists; the list finds the orphan, which has no place in the business. */
+  function withOrphan(factors: { id: string }[] = []) {
+    state.adminAuth.createUser = () => ({ data: { user: null }, error: { code: 'email_exists', message: 'exists' } });
+    state.adminAuth.listUsers = () => ({ data: { users: [{ id: ID, email: 'counter@example.com' }] }, error: null });
+    state.adminAuth['mfa.listFactors'] = () => ({ data: { factors }, error: null });
+    state.respond = (c) => (c.op === 'select' ? { data: [], error: null } : { data: null, error: null });
+  }
+  const names = () => state.adminCalls.map((c) => c.fn);
+
+  it('sets the new password, lifts any ban and removes leftover authenticator factors BEFORE recording the role', async () => {
+    reset(asAdmin());
+    withOrphan([{ id: 'f-1' }, { id: 'f-2' }]);
+    expect(await inviteUser(invite)).toEqual({ ok: true, data: { userId: ID } });
+    expect(state.adminCalls.find((c) => c.fn === 'updateUserById')).toMatchObject({ args: [ID, { password: 'a-long-enough-password', ban_duration: 'none' }] });
+    expect(state.adminCalls.filter((c) => c.fn === 'mfa.deleteFactor').map((c) => c.args[0])).toEqual([{ id: 'f-1', userId: ID }, { id: 'f-2', userId: ID }]);
+    expect(state.calls.some((c) => c.rpc === 'admin_set_user')).toBe(true);
+  });
+  it('a brand-new account is not reset and has no factors to remove', async () => {
+    reset(asAdmin());
+    withNewAccount();
+    await inviteUser(invite);
+    expect(names()).toEqual(['createUser']);
+  });
+  it('a reused account that is ALREADY a member is left alone: no password reset, no factor removed', async () => {
+    reset(asAdmin());
+    withOrphan([{ id: 'f-1' }]);
+    state.respond = () => ({ data: [{ user_id: ID }], error: null });
+    expect(await inviteUser(invite)).toEqual({ ok: false, code: 'validation', error: 'validation.already_member' });
+    expect(names()).not.toContain('updateUserById');
+    expect(names()).not.toContain('mfa.deleteFactor');
+  });
+  it('a failed password reset stops the invite with a friendly failure and records no role', async () => {
+    reset(asAdmin());
+    withOrphan();
+    state.adminAuth.updateUserById = () => ({ data: {}, error: { code: 'boom', message: 'x' } });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await inviteUser(invite)).toEqual({ ok: false, code: 'internal', error: 'internal' });
+    spy.mockRestore();
+    expect(state.calls.some((c) => c.rpc === 'admin_set_user')).toBe(false);
+  });
+  it('a failed factor listing or removal stops the invite with a friendly failure and records no role', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    reset(asAdmin());
+    withOrphan();
+    state.adminAuth['mfa.listFactors'] = () => ({ data: null, error: { code: 'boom', message: 'x' } });
+    expect(await inviteUser(invite)).toMatchObject({ ok: false, code: 'internal' });
+    reset(asAdmin());
+    withOrphan([{ id: 'f-1' }]);
+    state.adminAuth['mfa.deleteFactor'] = () => ({ data: null, error: { code: 'boom', message: 'x' } });
+    expect(await inviteUser(invite)).toMatchObject({ ok: false, code: 'internal' });
+    spy.mockRestore();
+    expect(state.calls.some((c) => c.rpc === 'admin_set_user')).toBe(false);
+  });
+});
+
 describe('disableUser / enableUser', () => {
   const member = { email: 'c@example.com', name: 'Suresh', role: 'user' };
   const found = (c: { op: string }) => (c.op === 'select' ? { data: [member], error: null } : { data: null, error: null });
@@ -116,6 +172,14 @@ describe('resetUserPassword', () => {
     reset(asAdmin());
     expect(await resetUserPassword({ userId: ID, password: 'short' })).toMatchObject({ ok: false, code: 'validation', error: 'field.password_short' });
     expect(state.adminCalls).toHaveLength(0);
+  });
+
+  it('an owner\'s password needs 12 characters, a counter person\'s 8', async () => {
+    reset(asAdmin());
+    state.respond = () => ({ data: [{ user_id: ID, role: 'admin' }], error: null });
+    expect(await resetUserPassword({ userId: ID, password: 'only11chars' })).toEqual({ ok: false, code: 'validation', error: 'field.password_short_admin' });
+    expect(state.adminCalls).toHaveLength(0);
+    expect((await resetUserPassword({ userId: ID, password: 'exactly12chr' })).ok).toBe(true);
   });
 
   it('only people already in the business can be reset', async () => {

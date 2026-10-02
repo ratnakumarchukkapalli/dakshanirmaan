@@ -23,8 +23,8 @@ import { singleLine } from './tally-xml';
 
 const INTERNAL = 'Something went wrong and nothing was sent. Please try again.';
 
-export async function tallyResponse(fyParam: string | null, partParam: string | null, companyParam: string | null): Promise<Response> {
-  const opened = await openExport(fyParam);
+export async function tallyResponse(fyParam: string | null, partParam: string | null, companyParam: string | null, fetchSite?: string | null): Promise<Response> {
+  const opened = await openExport(fyParam, fetchSite);
   if (opened.response) return opened.response;
   const { ctx } = opened;
 

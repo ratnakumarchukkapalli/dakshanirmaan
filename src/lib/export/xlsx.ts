@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { Writable } from 'node:stream';
+import { safeText } from '@/lib/safe-text';
 import { exactCellNumber } from './decimal';
 import { EXPORT_ROW_CAP, RowCapError, type ColumnType, type ExportCell, type ExportColumn, type ExportRow, type ExportTable } from './types';
 
@@ -20,21 +21,7 @@ export const NUMBER_FORMAT: Partial<Record<ColumnType, string>> = {
 
 const DEFAULT_WIDTH: Record<ColumnType, number> = { text: 22, int: 9, money: 15, qty: 13, rate: 13, date: 12, datetime: 17, bool: 8 };
 
-// Characters XML 1.0 cannot carry (control characters other than tab/newline/return, and the two
-// non-characters). A name pasted from somewhere odd must not make the whole file unreadable.
-const XML_ILLEGAL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
-const FORMULA_START = /^[=+\-@\t\r]/;
-
-/**
- * Text for a cell: illegal XML characters removed, and a leading `=`, `+`, `-`, `@`, tab or carriage
- * return defused by a leading apostrophe, so a party called `=HYPERLINK("http://x","y")` shows as
- * that text in any spreadsheet and survives a CSV round trip. (Cells are written as strings, which
- * Excel never evaluates; the apostrophe protects what happens after a copy, a CSV save or an import.)
- */
-export function safeText(value: string): string {
-  const clean = value.replace(XML_ILLEGAL, '');
-  return FORMULA_START.test(clean) ? `'${clean}` : clean;
-}
+export { safeText };
 
 /** An instant as a spreadsheet date-time that reads the organisation's wall clock (a workbook has no zone). */
 export function wallClock(iso: string, timeZone: string): Date {

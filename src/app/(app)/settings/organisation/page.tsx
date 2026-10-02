@@ -1,7 +1,9 @@
 import { OrganizationForm } from '@/components/settings/OrganizationForm';
+import { requireOwnerPage } from '@/lib/auth/require';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function OrganisationPage() {
+  await requireOwnerPage();
   const supabase = await createClient();
   const { data: o } = await supabase.from('organization').select('*').maybeSingle();
   const a = (o?.address ?? {}) as Record<string, string | null>;

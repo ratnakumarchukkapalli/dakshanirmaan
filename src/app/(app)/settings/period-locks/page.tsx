@@ -1,4 +1,5 @@
 import { PeriodLocks, type PeriodRow } from '@/components/settings/PeriodLocks';
+import { requireOwnerPage } from '@/lib/auth/require';
 import { rows } from '@/lib/db';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,6 +16,7 @@ const nextLabel = (label: string) => {
 };
 
 export default async function PeriodLocksPage() {
+  await requireOwnerPage();
   const supabase = await createClient();
   const [periodsRes, ...draftRes] = await Promise.all([
     supabase.from('fiscal_periods').select('month, year_label, is_locked').order('month', { ascending: false }),

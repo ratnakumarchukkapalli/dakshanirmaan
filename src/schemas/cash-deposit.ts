@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { boundedDecimal, isoDateField, optionalText } from './common';
+import { boundedDecimal, isoDateField, noControlChars, optionalText } from './common';
 
 // "Deposit cash to bank" input, shared by the modal and the server actions. Money is text (never a
 // float). Messages are `errors.field.*` keys. `post_cash_deposit` is the authority on the date, the
@@ -17,7 +17,7 @@ export const cashDepositSchema = z.object({
 export const cancelCashDepositSchema = z.object({
   id: z.uuid('id_invalid'),
   // Kept in the audit trail beside the reversal.
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export type CashDepositInput = z.input<typeof cashDepositSchema>;

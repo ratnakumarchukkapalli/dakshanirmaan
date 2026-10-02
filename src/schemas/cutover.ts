@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { boundedDecimal, isoDateField, positiveQty } from './common';
+import { boundedDecimal, isoDateField, noControlChars, positiveQty } from './common';
 
 // Cutover input, shared by the screen and the server actions. Money and quantities are text (never a
 // float). Messages are `errors.field.*` keys. `post_opening_balances` is the authority on every rule
@@ -39,5 +39,5 @@ export const postOpeningSchema = z.object({
 });
 
 export const cancelOpeningSchema = z.object({
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });

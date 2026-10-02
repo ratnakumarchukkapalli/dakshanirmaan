@@ -7,6 +7,7 @@ import { fail, ok, type ActionResult } from '@/lib/action-result';
 import { requireAdmin } from '@/lib/auth/require';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { adminPasswordField } from '@/schemas/auth';
 import { inviteUserSchema, resetPasswordSchema, userIdSchema } from '@/schemas/users';
 
 // A ban this long is "for good"; enabling lifts it. Keeps a disabled person from getting new sessions.
@@ -26,6 +27,7 @@ export async function inviteUser(input: unknown): Promise<ActionResult<{ userId:
 
   const service = createAdminClient();
   let userId: string | undefined;
+  let reused = false;
   const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
   if (created.data.user) {
     userId = created.data.user.id;
@@ -34,6 +36,7 @@ export async function inviteUser(input: unknown): Promise<ActionResult<{ userId:
     // One page of 200 is plenty: the business has at most 10 people (the database caps active users).
     const { data } = await service.auth.admin.listUsers({ page: 1, perPage: 200 });
     userId = data.users.find((u) => u.email?.toLowerCase() === email)?.id;
+    reused = true;
   }
   if (!userId) {
     console.error('[admin] could not create sign-in account:', created.error?.code ?? created.error?.message);
@@ -43,6 +46,28 @@ export async function inviteUser(input: unknown): Promise<ActionResult<{ userId:
   const supabase = await createClient();
   const { data: existing } = await supabase.from('app_users').select('user_id').eq('user_id', userId).maybeSingle();
   if (existing) return fail('validation', t('validation.already_member'));
+
+  if (reused) {
+    // The orphan sign-in account belongs to whoever made it, not to the person being added now: give it the
+    // password the owner just chose, lift any ban, and remove authenticator factors an earlier holder enrolled.
+    const reset = await service.auth.admin.updateUserById(userId, { password, ban_duration: 'none' });
+    if (reset.error) {
+      console.error('[admin] could not reset the reused sign-in account:', reset.error.code ?? reset.error.message);
+      return fail('internal', t('internal'));
+    }
+    const factors = await service.auth.admin.mfa.listFactors({ userId });
+    if (factors.error) {
+      console.error('[admin] could not list the reused account\'s factors:', factors.error.code ?? factors.error.message);
+      return fail('internal', t('internal'));
+    }
+    for (const factor of factors.data?.factors ?? []) {
+      const gone = await service.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
+      if (gone.error) {
+        console.error('[admin] could not remove a leftover factor:', gone.error.code ?? gone.error.message);
+        return fail('internal', t('internal'));
+      }
+    }
+  }
 
   const { error } = await supabase.rpc('admin_set_user', {
     p_user_id: userId, p_email: email, p_name: name, p_role: role, p_is_active: true,
@@ -105,8 +130,10 @@ export async function resetUserPassword(input: unknown): Promise<ActionResult> {
   const { userId, password } = parsed.data;
 
   const supabase = await createClient();
-  const { data: row } = await supabase.from('app_users').select('user_id').eq('user_id', userId).maybeSingle();
+  const { data: row } = await supabase.from('app_users').select('user_id, role').eq('user_id', userId).maybeSingle();
   if (!row) return fail('validation', t('validation.no_such_user'));
+  // An owner's password is held to the longer owner minimum.
+  if (row.role === 'admin' && !adminPasswordField.safeParse(password).success) return fail('validation', t('field.password_short_admin'));
 
   const { error } = await createAdminClient().auth.admin.updateUserById(userId, { password });
   if (error) {

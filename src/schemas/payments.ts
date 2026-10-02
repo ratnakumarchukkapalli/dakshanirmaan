@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { compareDecimal } from '@/lib/decimal';
-import { blankToUndefined, boundedDecimal, decimal } from './common';
+import { blankToUndefined, boundedDecimal, decimal, noControlChars } from './common';
 
 // Receipt / outgoing payment input, shared by the payment form and the server actions. Money
 // travels as strings (never floats); messages are `errors.field.*` keys. The wire date is ISO.
@@ -40,9 +40,9 @@ export const saveDraftPaymentSchema = z
     paymentDate: isoDate,
     mode: z.enum(PAYMENT_MODES, 'mode_invalid'),
     // Cheque no. (mode = cheque) or UPI/NEFT reference — same free-text column either way.
-    instrumentNo: z.preprocess(blankToUndefined, z.string().trim().max(40, 'text_long').optional()),
+    instrumentNo: z.preprocess(blankToUndefined, z.string().trim().max(40, 'text_long').refine(noControlChars, 'text_invalid').optional()),
     instrumentDate: z.preprocess(blankToUndefined, isoDate.optional()),
-    chequeBank: z.preprocess(blankToUndefined, z.string().trim().max(60, 'text_long').optional()),
+    chequeBank: z.preprocess(blankToUndefined, z.string().trim().max(60, 'text_long').refine(noControlChars, 'text_invalid').optional()),
     amount: boundedDecimal(14, 2, 'money_invalid').refine((v) => compareDecimal(v, '0.00', 2) === 1, 'money_invalid'),
     // Admin-only at post time (the database's own rule); accepted from anyone at draft time,
     // same as the invoice form accepts a credit override at draft time and the DB decides later.
@@ -51,7 +51,7 @@ export const saveDraftPaymentSchema = z
       decimal(2, 'money_invalid'),
     ),
     accountId: z.uuid('account_required'),
-    note: z.preprocess(blankToUndefined, z.string().trim().max(200, 'text_long').optional()),
+    note: z.preprocess(blankToUndefined, z.string().trim().max(200, 'text_long').refine(noControlChars, 'text_invalid').optional()),
     allocations: z.array(paymentAllocationSchema).max(MAX_ALLOCATIONS, 'lines_many'),
   })
   .superRefine((v, ctx) => {
@@ -63,13 +63,13 @@ export const paymentIdSchema = z.object({ id: z.uuid('id_invalid') });
 
 export const bounceChequeSchema = z.object({
   id: z.uuid('id_invalid'),
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export const cancelPaymentSchema = z.object({
   id: z.uuid('id_invalid'),
   // Kept in the audit trail beside the reversal.
-  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long'),
+  reason: z.string().trim().min(3, 'reason_required').max(200, 'text_long').refine(noControlChars, 'text_invalid'),
 });
 
 export type SaveDraftPaymentInput = z.input<typeof saveDraftPaymentSchema>;

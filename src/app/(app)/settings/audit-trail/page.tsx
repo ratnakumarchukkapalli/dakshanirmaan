@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 import { ReportFilters } from '@/components/reports/ReportFilters';
 import { Card } from '@/components/ui/Card';
 import { auditDetails } from '@/lib/audit-view';
+import { requireOwnerPage } from '@/lib/auth/require';
 import { rows } from '@/lib/db';
 import { addDaysIso } from '@/lib/dashboard-math';
 import { formatDate, todayIn } from '@/lib/format';
@@ -16,6 +17,7 @@ interface AuditRow { id: string; at: string; actor: string | null; action: strin
 // The audit trail: who posted, cancelled, locked or edited what (owners only; the settings layout is the first lock,
 // the database policy on audit_log the second). Newest first, at most 200 rows, filtered in the URL.
 export default async function AuditTrailPage({ searchParams }: { searchParams: Promise<{ entity?: string; actor?: string; from?: string; to?: string }> }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const [t, tr, ctx, supabase] = await Promise.all([
     getTranslations('settings.audit'), getTranslations('reports'), getShellContext(), createClient(),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { decideAccess, type Member } from './access';
 
 const go = (pathname: string, member: Member) => decideAccess({ pathname, member });
@@ -115,5 +115,38 @@ describe('signed invoice links', () => {
     expect(via(`/api/invoices/${id}/xlsx`, '?sig=x')).toEqual(redirect('/login'));
     expect(via('/api/reports/gstr1', '?sig=x')).toEqual(redirect('/login'));
     expect(via('/sales', '?sig=x')).toEqual(redirect('/login'));
+  });
+});
+
+describe('encoded and odd paths cannot dodge the guards (A3)', () => {
+  const counter: Member = { role: 'user', aal: 'aal1' };
+  it.each([
+    '/%73ettings', '/%73ettings/users', '/settings%2Fusers', '//settings/users',
+    '/%73taff', '/pur%63hases/new', '/reports/cash%2Dbank', '/reports/%72econcile',
+  ])('turns a counter user away from %s', (path) => {
+    expect(decideAccess({ pathname: path, member: counter })).toEqual({ action: 'redirect', to: '/' });
+  });
+  it('still lets a counter user reach ordinary encoded pages', () => {
+    expect(decideAccess({ pathname: '/parties/Ravi%20Traders', member: counter })).toEqual({ action: 'allow' });
+  });
+  it('sends a malformed escape to a safe page: dashboard if signed in, login if not', () => {
+    expect(decideAccess({ pathname: '/settings/%E0%A4%A', member: counter })).toEqual({ action: 'redirect', to: '/' });
+    expect(decideAccess({ pathname: '/%', member: null })).toEqual({ action: 'redirect', to: '/login' });
+  });
+  it('a signed-out visitor is still sent to login for an encoded settings path', () => {
+    expect(decideAccess({ pathname: '/%73ettings', member: null })).toEqual({ action: 'redirect', to: '/login' });
+  });
+  it('an owner still reaches settings by the encoded spelling', () => {
+    expect(decideAccess({ pathname: '/%73ettings/users', member: { role: 'admin', aal: 'aal2' } })).toEqual({ action: 'allow' });
+  });
+});
+
+describe('the proxy matcher escapes its dots (A3)', () => {
+  it('only the real sw.js / offline.html / favicon.ico are skipped, not look-alikes', async () => {
+    vi.doMock('server-only', () => ({}));
+    const { config } = await import('./../proxy');
+    const re = new RegExp(`^${config.matcher[0]}$`);
+    for (const skipped of ['/sw.js', '/offline.html', '/favicon.ico']) expect(re.test(skipped)).toBe(false);
+    for (const covered of ['/swXjs', '/offlineXhtml', '/faviconXico', '/settings']) expect(re.test(covered)).toBe(true);
   });
 });

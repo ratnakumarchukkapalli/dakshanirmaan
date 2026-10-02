@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { blankToUndefined, boundedDecimal, decimal, optionalText } from './common';
+import { blankToUndefined, boundedDecimal, decimal, noControlChars, optionalText } from './common';
 
 const itemShape = {
-  name: z.string().trim().min(1, 'name_required').max(120, 'text_long'),
+  name: z.string().trim().min(1, 'name_required').max(120, 'text_long').refine(noControlChars, 'text_invalid'),
   brand: optionalText(60),
   category: z.enum(['cement', 'steel', 'other'], 'category_invalid'),
   hsnCode: z.string().trim().regex(/^[0-9]{4,8}$/, 'hsn_invalid'),

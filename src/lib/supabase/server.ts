@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { sessionCookieOptions } from './cookie-options';
 
 /** User-scoped client for server components and actions: RLS applies as the signed-in user. */
 export async function createClient() {
@@ -8,6 +9,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      cookieOptions: sessionCookieOptions(),
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll(cookiesToSet) {

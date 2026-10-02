@@ -7,15 +7,15 @@ import { useForm } from 'react-hook-form';
 import { changePassword } from '@/app/actions/auth';
 import { Card } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
-import { changePasswordSchema, type ChangePasswordInput } from '@/schemas/auth';
+import { changePasswordSchemaFor, type ChangePasswordInput } from '@/schemas/auth';
 
 /** Any signed-in member changes their own password. */
-export function AccountPassword() {
+export function AccountPassword({ role }: { role: 'admin' | 'user' }) {
   const t = useTranslations('account');
   const te = useTranslations('errors');
   const [pending, start] = useTransition();
   const [notice, setNotice] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<ChangePasswordInput>({ resolver: zodResolver(changePasswordSchema) });
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ChangePasswordInput>({ resolver: zodResolver(changePasswordSchemaFor(role)) });
 
   const submit = handleSubmit((values) =>
     start(async () => {
@@ -23,7 +23,7 @@ export function AccountPassword() {
       const res = await changePassword(values);
       if (!res.ok) return setNotice({ tone: 'bad', text: res.error });
       setNotice({ tone: 'good', text: t('done') });
-      reset({ password: '' });
+      reset({ currentPassword: '', password: '' });
     }),
   );
 
@@ -33,6 +33,9 @@ export function AccountPassword() {
       <p className="muted" style={{ marginTop: 0 }}>{t('hint')}</p>
       {notice && <p role={notice.tone === 'bad' ? 'alert' : 'status'} className={`alert ${notice.tone}`}>{notice.text}</p>}
       <form onSubmit={submit} noValidate>
+        <Field id="current-password" label={t('currentPassword')} error={errors.currentPassword ? te(`field.${errors.currentPassword.message}`) : undefined}>
+          <input id="current-password" type="password" autoComplete="current-password" {...register('currentPassword')} />
+        </Field>
         <Field id="new-password" label={t('newPassword')} error={errors.password ? te(`field.${errors.password.message}`) : undefined}>
           <input id="new-password" type="password" autoComplete="new-password" {...register('password')} />
         </Field>

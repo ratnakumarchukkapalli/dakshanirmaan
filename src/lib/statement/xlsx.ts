@@ -2,6 +2,7 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import { fyName, fyStartYear } from '@/lib/fy';
 import type { PartyLedger } from '@/lib/party-ledger';
+import { safeCells, stripXmlIllegal } from '@/lib/safe-text';
 
 // Party statement as an Excel workbook (exceljs; the `xlsx` package is banned). Money and dates are
 // written as numbers and dates with a number format, never as pre-formatted text, so the sheet can be
@@ -27,27 +28,27 @@ export async function buildStatementWorkbook(ledger: PartyLedger, org: Statement
 }): Promise<Buffer> {
   if (ledger.truncated) throw new Error('statement: the ledger was truncated; refusing to export a partial statement');
   const wb = new ExcelJS.Workbook();
-  wb.creator = org.legalName;
+  wb.creator = stripXmlIllegal(org.legalName);
   const ws = wb.addWorksheet(labels.title.slice(0, 31));
   const showAccount = ledger.party.type === 'both';
   const acct = (k: 'ar' | 'ap') => (k === 'ar' ? labels.receivable : labels.payable);
 
-  ws.addRow([org.legalName]).font = { bold: true, size: 14 };
-  ws.addRow([labels.title]).font = { bold: true };
-  ws.addRow([labels.party, ledger.party.name]);
-  if (ledger.party.gstin) ws.addRow([labels.gstin, ledger.party.gstin]);
-  ws.addRow([labels.period, ledger.period ? `${fyName(fyStartYear(ledger.period.from))} (${ledger.period.from} to ${ledger.period.to})` : labels.allTime]);
+  ws.addRow(safeCells([org.legalName])).font = { bold: true, size: 14 };
+  ws.addRow(safeCells([labels.title])).font = { bold: true };
+  ws.addRow(safeCells([labels.party, ledger.party.name]));
+  if (ledger.party.gstin) ws.addRow(safeCells([labels.gstin, ledger.party.gstin]));
+  ws.addRow(safeCells([labels.period, ledger.period ? `${fyName(fyStartYear(ledger.period.from))} (${ledger.period.from} to ${ledger.period.to})` : labels.allTime]));
   ws.addRow([]);
 
   const header = [labels.date, labels.document, ...(showAccount ? [labels.account] : []), labels.details, labels.debit, labels.credit, labels.balance];
-  const head = ws.addRow(header);
+  const head = ws.addRow(safeCells(header));
   head.font = { bold: true };
   const first = head.number;
   const cols = header.length;
   const moneyCols = [cols - 2, cols - 1, cols];
 
   const push = (cells: (string | number | Date | null)[]) => {
-    const row = ws.addRow(cells);
+    const row = ws.addRow(safeCells(cells));
     row.getCell(1).numFmt = DATE;
     for (const c of moneyCols) row.getCell(c).numFmt = MONEY;
     return row;

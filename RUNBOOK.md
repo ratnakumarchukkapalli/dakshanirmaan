@@ -2,11 +2,13 @@
 
 For whoever keeps the app running: Ratna, or a family member following the steps. Nothing here needs the code to be understood; where a command is needed it is copy-and-paste. If a step surprises you, stop and ask before changing anything on the hosted database.
 
+> **Repository visibility.** The GitHub repository is **PUBLIC** (checked 2026-10-02) until the owner switches it to Private. Treat everything committed as already copied by strangers (it holds no hosted keys; the secret scan guards that). Switching it is go-live checklist item 1 (section 12); this paragraph and the table row below may only be changed to say "private" after that item is ticked.
+
 **Where things live**
 | What | Where |
 |---|---|
 | The books (database, sign-in) | Supabase project `daksha-nirmaan` (Mumbai, Free plan) |
-| The code | GitHub `ratnakumarchukkapalli/dakshanirmaan` (private) |
+| The code | GitHub `ratnakumarchukkapalli/dakshanirmaan`: **public today**; must be switched to private by the owner (section 12, item 1) |
 | The website | Not deployed yet (Vercel is set up at go-live, change 17) |
 | Daily backup | GitHub Actions workflow **Backup** (encrypted file, kept 30 days) |
 | The key that opens backups | The family's `age` private key file. **Not in GitHub, not on the server.** |
@@ -15,7 +17,7 @@ For whoever keeps the app running: Ratna, or a family member following the steps
 
 ## 1. What CI checks, and how to read a red run
 
-Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.yml`). Three jobs; all must be green before merging. (The repository is private, and GitHub only *enforces* "must be green" through branch protection on a paid plan, so on the current plan it is a rule we follow, not one GitHub forces: never merge or deploy on red.)
+Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.yml`). Three jobs; all must be green before merging. (GitHub only *enforces* "must be green" through branch protection, which a private repository needs a paid plan for, so on the current plan it is a rule we follow, not one GitHub forces: never merge or deploy on red.)
 
 | Step | What it catches | Same thing on a laptop |
 |---|---|---|
@@ -37,7 +39,7 @@ Every push to `main` and every pull request runs **CI** (`.github/workflows/ci.y
 ## 2. Backups
 
 **How it works.** Every day at 02:00 India time the **Backup** workflow (`.github/workflows/backup.yml`) runs `scripts/backup/dump.sh`:
-1. dumps the data of every table in `public` plus the sign-in accounts (`auth.users`, `auth.identities`);
+1. dumps the data of every table in `public` plus the sign-in accounts (`auth.users`, `auth.identities`) and the owners' authenticator enrolments (`auth.mfa_factors`);
 2. checks the dump is readable and lists at least 20 tables of data;
 3. writes a `manifest.json` (migration version, row count of every table, total debits and credits);
 4. encrypts both into `dn-backup-<date>.tar.age` with the family's **public** key and uploads it as a private workflow artifact kept for 30 days.
@@ -46,7 +48,9 @@ Anyone with the private key can read the books, so the private key is never in G
 
 The dump prints `circular foreign-key constraints` warnings; they are normal and harmless (the restore loads with checks off and then verifies the books).
 
-*Known gap:* multi-factor enrolments (`auth.mfa_factors`) are not in the dump. After a restore, owners set up their authenticator app again. Change 19 will add that table to the dump if it needs to be kept.
+*Authenticator enrolments are in the backup.* `auth.mfa_factors` holds the owners' TOTP secrets. They are dumped, but only ever inside the age-encrypted archive (the dump is never stored unencrypted), so whoever can open the books can also read them: that is one more reason the private key stays with the family. A restore brings the owners' authenticator apps back, and the drill reports it (`authenticator enrolments restored`). *If a restore does not include them (an older backup, or the table was not loaded), every owner must set up the authenticator app again **in person**:* an owner who signs in with a password alone can enrol a new authenticator, so the person who restored hands the password over face to face and watches the enrolment, as in go-live item 4. Until then treat that owner account as not secure.
+
+*Known gap:* the bill photos in the private `docs` bucket are **not** in the database dump (the bucket is empty today). Switch the opt-in copy on once photos exist (2.5).
 
 ### 2.1 Setting it up (once)
 1. **Make the key pair** on a trusted computer (`brew install age` on a Mac, `apt install age` on Linux):
@@ -59,7 +63,7 @@ The dump prints `circular foreign-key constraints` warnings; they are normal and
 4. *(Recommended, optional.)* Guard against a wrong-but-valid key (a typo that is still a well-formed `age1…` key would encrypt every backup so nobody can open it). Compute the fingerprint of the **correct** public key on your computer:
    `printf '%s' 'age1…paste the public key…' | shasum -a 256` (Mac) or `… | sha256sum` (Linux); take the 64 hex characters.
    Then GitHub → **Settings → Secrets and variables → Actions → Variables** tab (not Secrets) → **New repository variable**: name `EXPECTED_AGE_RECIPIENT_SHA256`, value = those 64 characters. The Backup run then fails before encrypting if `AGE_PUBLIC_KEY` differs. It is a fingerprint of a public key, safe to keep as a variable. Skip it and nothing else changes. **It only catches typos in the secret: the monthly decrypt check (section 5) is what proves a backup opens with the private key.**
-   **Before the opening balances are posted (go-live, section 8) the hosted books are empty, and the Backup run refuses an empty-books dump on purpose.** Until then add one more repository variable, `ALLOW_EMPTY_BACKUP` = `1`, so the runs stay green; **delete it as soon as the opening balances are posted**, so an emptied database can never pass as a good backup.
+   **Before the opening balances are posted (go-live, section 8) the hosted books are empty, and the Backup run refuses an empty-books dump on purpose.** Until then add one more repository variable, `ALLOW_EMPTY_BACKUP` = `1`, so the runs stay green; **delete it as soon as the opening balances are posted**, so an emptied database can never pass as a good backup (the full lifecycle is 2.6).
 5. **Actions → Backup → Run workflow.** When it is green, download the artifact from the run page (GitHub gives a **.zip**; unzip it to get the `dn-backup-….tar.age` file) and do the restore drill (2.3) once with it. Also keep a copy of that file somewhere the family owns: GitHub deletes artifacts after 30 days.
 
 ### 2.2 Keeping and pruning
@@ -114,9 +118,19 @@ It passes only when: the backup is for the same migration version as the checkou
      | psql "$NEW_URL" -v ON_ERROR_STOP=1 --single-transaction
    ```
    Then run the drill's checks (the `checks` SQL near the end of `restore-drill.sh`: row counts against `manifest.json`, sign-in accounts, debits = credits, every entry balances, no orphan lines).
+   `auth.mfa_factors` is part of the same load, so the owners' authenticator apps work again after it. If the backup you restore predates that table (a manifest without `auth_mfa_factors`), or the load of it was skipped, **each owner must enrol the authenticator again in person** (section 10): hand them a new password face to face and watch the enrolment.
    **This whole hosted path is UNTESTED.** Only the same commands against the local database have been rehearsed. On a hosted project the pooler login may not be allowed to set `session_replication_role` or to truncate `auth.users`; if psql refuses, stop and ask Ratna rather than working around it.
 4. Check the manifest numbers the same way the drill does, sign in as an owner, open the trial balance on Reports (or ask Ratna), and only then point the app at the new project (`NEXT_PUBLIC_SUPABASE_URL`, both keys, in the app's environment).
 Restoring into a *hosted* project follows the tested local path but has **not been rehearsed** against a hosted target. Do the local drill first; if time allows, rehearse steps 1–4 on a throwaway second project before you ever need it.
+
+### 2.5 Bill photos (opt-in, off by default)
+`scripts/backup/storage-copy.sh` copies the private `docs` bucket with the Supabase CLI (`supabase storage ls|cp`) into `dn-storage-<date>.tar.age`, encrypted with the same public key (inside: the `docs/` folder and a `manifest.json` with a sha256 of every file). In the Backup workflow it is a second step, run **only when the repository variable `BACKUP_STORAGE` is `1`** (default off, because there are no photos yet). To switch it on: Variables → `BACKUP_STORAGE` = `1` and `SUPABASE_PROJECT_REF` = the project ref (the letters in the dashboard address); Secrets → `SUPABASE_ACCESS_TOKEN` = a personal access token from Supabase dashboard → Account → Access Tokens (give it a name like "dn-backup"; delete it if the person who made it leaves). Then run the workflow once and open the file: `age -d -i ~/family-age-key.txt dn-storage-<date>.tar.age | tar -t`. An **empty bucket fails the run** unless `ALLOW_EMPTY_BACKUP` is `1` (same rule as the database dump, 2.6). Restoring photos: unpack the archive and upload the files back to the bucket `docs` under the same paths (dashboard → Storage, or `supabase storage cp -r`); the `attachments` rows in the database dump already point at those paths. The photo copy is not part of `restore-drill.sh`; check the manifest's file count against the bucket by eye.
+
+### 2.6 The `ALLOW_EMPTY_BACKUP` switch (a lifecycle, not a setting)
+1. **Before go-live** the hosted books and the photo bucket are empty, so the backup *refuses* to keep an empty copy. Set the repository variable `ALLOW_EMPTY_BACKUP` = `1` so the trial runs stay green (step 2.1.4).
+2. **The day the opening balances are posted** (section 8) **delete the variable.** From then on an empty or emptied database makes the run red instead of silently producing a "good" empty backup that pushes real ones out.
+3. If the bucket copy is on (2.5) and no photo has been uploaded yet, the same variable lets it pass; delete it once, not twice: the books are what matter, so do not leave it set just because the bucket is still empty. Turn `BACKUP_STORAGE` off again instead of keeping `ALLOW_EMPTY_BACKUP` on.
+4. Never set it on a scheduled production run "to make it green". A red run is the alarm doing its job.
 
 ---
 
@@ -126,14 +140,15 @@ Restoring into a *hosted* project follows the tested local path but has **not be
 |---|---|---|---|
 | Supabase **secret key** (`SUPABASE_SECRET_KEY`) | server-only admin access to the database | the app's server environment; your `.env.local` | anyone with access leaves, a device holding it is lost, or the secret scan ever prints `LEAK` |
 | Supabase **publishable key** | what the browser uses (no power on its own) | shipped to the browser by design | never needed |
-| **Invoice-link secret** (`INVOICE_LINK_SECRET`) | signs the 24-hour WhatsApp invoice links | server environment | leaked, or you want every shared link to stop working |
+| **Invoice-link secret** (`INVOICE_LINK_SECRET`) | signs the 24-hour WhatsApp invoice links. **Rotating it revokes every link already sent**; there is no other way to cancel one link | server environment | leaked, or you want every shared link to stop working |
 | **age private key** | opens the backups | the family's safe places only | a holder leaves or a copy is lost |
+| Supabase access token (`SUPABASE_ACCESS_TOKEN`, only if the bill-photo copy is on) | lets the Backup workflow read the `docs` bucket through the Supabase CLI | GitHub secret | the person who made it leaves; delete it in Supabase → Account → Access Tokens |
 | Database password | direct database access (used by the Backup workflow and `supabase db push`) | GitHub secret `DATABASE_URL`; Supabase dashboard | anyone with it leaves |
 | Resend key (optional) | sending email, only if a "forgot password" email is added later | not used now | anyone with it leaves |
 
 **How:**
 - *Supabase secret key:* dashboard → **Project Settings → API Keys** → create a new secret key, put it in the app's environment (and `.env.local`), redeploy, then delete the old key.
-- *Invoice-link secret:* generate a new one (`openssl rand -base64 48`), replace it in the environment, redeploy. Links already sent stop working; that is the point.
+- *Invoice-link secret:* generate a new one (`openssl rand -base64 48`), replace it in the environment, redeploy. **Every signed link already sent (WhatsApp invoice links, valid up to 24 hours) stops working at once**: that is how a link that went to the wrong person is revoked. Tell the counter to send fresh links. A cancelled invoice's link answers "410 cancelled" by itself, and each address and each invoice is limited to 30 link downloads per 10 minutes (then "429, try later").
 - *age key:* make a new pair (2.1), replace `AGE_PUBLIC_KEY`, run **Backup** once. Keep the **old private key** until the old backups have aged out, otherwise they cannot be opened. Note the reverse risk: anyone who kept the old private key can still open every old backup, so if a person with the key leaves, delete the old artifacts too.
 - *Database password:* dashboard → **Project Settings → Database → Reset database password**, then update `DATABASE_URL` in GitHub. Do this on a quiet moment: the app's own connection uses keys, but backups and `db push` use this password.
 - After **any** staff or device change, rotate everything the person could have seen.
@@ -158,6 +173,13 @@ Restoring into a *hosted* project follows the tested local path but has **not be
 - [ ] From **March**: next financial year's periods exist (the dashboard's attention list warns; Settings → period locks).
 - [ ] CI is green on `main`; no open Dependabot pull request older than two weeks.
 - [ ] Nobody has left or lost a device without section 3 being done.
+
+---
+
+## 5b. Yearly (after the financial year closes, April)
+- [ ] **Download the FY archive ZIP** (Settings → **Export & backup**, pick the year that just ended) and keep it **offline** (a USB stick or disk in the family locker, plus one copy in the family's own cloud storage), not only in GitHub or Supabase. It is the self-contained, app-independent copy of the books (README, Excel, Tally XML, JSON, PDFs, GST JSON, checksum list). GST law needs the books for about **6 years**, so keep every year's ZIP for at least that long.
+- [ ] Verify the ZIP opens and `MANIFEST.sha256` matches (the README inside says how).
+- [ ] Rehearse the full restore drill (2.3) once on the year-end backup.
 
 ---
 
@@ -217,26 +239,44 @@ Reports → **GST returns** (owner only). Pick the month.
 ## 10. Passwords
 
 - **A person forgot their password:** Settings → Users → **Reset password** (owner), type a new one (8+ characters), tell them in person; they change it from the menu.
-- **An owner forgot theirs (or lost the authenticator):** another owner resets the password. Losing the authenticator app: remove the factor in the Supabase dashboard (Authentication → Users → the person → Factors) so they can enrol again after signing in. Keep at least two owners.
+- **An owner forgot theirs (or lost the authenticator):** another owner resets the password. Losing the authenticator app: remove the factor in the Supabase dashboard (Authentication → Users → the person → Factors) so they can enrol again after signing in. Keep at least two owners. **Enrol in person:** until the authenticator is set up, a password alone is enough to enrol one, so hand the password over face to face and stay while they enrol (the same applies after a restore that did not bring `auth.mfa_factors` back, 2.4).
 - **A leaver:** Settings → Users → **Disable** (they cannot sign in at once); reset the password too if it was shared.
 - The app sends no email, so nothing arrives by mail: passwords and resets are always handed over in person.
 
 ---
 
-## 11. First deploy to Vercel (private GitHub repo, like MyExpenseTracker)
+## 11. First deploy to Vercel (GitHub repo must be private first: section 12, item 1)
 
-The Supabase project `daksha-nirmaan` (ap-south-1) is separate from `expenses-app` (each app has its own project, in the same organisation). The repo stays **private**; make it public only after the `/security-review`.
+The Supabase project `daksha-nirmaan` (ap-south-1) is separate from `expenses-app` (each app has its own project, in the same organisation). The repo must be **private** before real data and keys are anywhere near it (section 12, item 1); the final security pass (2026-10-02) found it public.
 
 1. **Once, in a terminal:** `npx vercel login` (opens the browser). Then in the repo folder: `npx vercel link` → create a new project `daksha-nirmaan` under your personal team (this writes `.vercel/`, which is git-ignored). `vercel.json` already sets the region to Mumbai (`bom1`).
 2. **Connect Git:** Vercel dashboard → the project → Settings → Git → connect `ratnakumarchukkapalli/dakshanirmaan` (private repos need the Vercel GitHub app authorised for that repo). Production branch `main`.
-3. **Environment variables** (Production; add the same to Preview only if you will use previews, and then with a *different* Supabase project, never the real books):
+3. **Environment variables** (Production only. The Preview environment must **not** hold production secrets: leave it empty, or give it values for a different, throwaway Supabase project, never the real books):
    - `NEXT_PUBLIC_SUPABASE_URL` = `https://dcmgbkugdyxsjvkirmft.supabase.co`
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = the publishable key (Supabase → Project Settings → API Keys)
    - `SUPABASE_SECRET_KEY` = the secret key (same page). **Server-only; never prefix with NEXT_PUBLIC_.**
-   - `INVOICE_LINK_SECRET` = a new value from `openssl rand -base64 48`
+   - `INVOICE_LINK_SECRET` = a new value from `openssl rand -base64 48` (changing it later revokes every link already sent, section 3)
    - `APP_ORIGIN` = the deployed address without a trailing slash (first the `https://<project>.vercel.app` one; the family domain later)
    `npx vercel env add NAME production` prompts for each value (paste it; it is not echoed).
 4. **Supabase dashboard (hosted):** Authentication → **URL configuration**: Site URL = `APP_ORIGIN`; Providers → Email: sign-ups **off**, minimum password length **8**; Multi-factor: TOTP **on**.
 5. **Deploy:** `npx vercel deploy --prod` (or push to `main`). Open the address, then on your own machine create the first owner **against hosted** with the hosted URL and secret key in the environment: `NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SECRET_KEY=… ADMIN_PASSWORD='…' npm run create-admin -- <email> "<name>"`. (Easiest, from the repo folder: `bash scripts/create-admin-hosted.sh <email> "<name>"` — it asks for the hosted secret key (from the dashboard; the CLI only shows it masked) and the password at hidden prompts.) Sign in, set up the authenticator app, add the other owners and the counter user under Settings → Users.
 6. **Vercel plan:** Hobby is "non-commercial personal use" and this is a business tool (security-deployment spec, Hosting): decide between Pro (about $20/month) and staying on Hobby knowing the risk of a pause. The app keeps working from the manual invoice book (`DNM/` series) meanwhile.
 7. **Never** load `supabase/demo/demo-data.sql` into hosted.
+
+---
+
+## 12. Go-live checklist: what only the owner can do
+
+From the final pre-go-live security pass (`docs/reviews/2026-10-final-security-pass.md`, 2026-10-02). The code fixes are done by the developer; these steps need the owner's accounts. Tick each as it is done, with the date. Do items 1 to 4 and 6 **before** real data goes in.
+
+- [ ] **1. Make the GitHub repository private.** GitHub → the repository → Settings → General → Danger Zone → Change visibility → Private. Treat the history as already copied (it holds no hosted keys). Only after this is ticked may the header of this file say "private".
+- [ ] **2. Turn on database SSL enforcement:** `supabase ssl-enforcement update --enable-db-ssl-enforcement --experimental --project-ref dcmgbkugdyxsjvkirmft`.
+- [ ] **3. Supabase dashboard settings:** Authentication → Providers → Email: **Secure password change ON**; OTP expiry **600** seconds; Site URL and the redirect allow-list set to the real domain only; Data API → exposed schemas = `public` only; confirm **Phone sign-up is OFF**.
+- [ ] **4. Create a SECOND owner and enrol the authenticator in person.** Hand the password over face to face, enrol the authenticator on the spot, keep both factors. Never send a first password by message.
+- [ ] **5. Switch the backup on** (details 2.1 and the header of `.github/workflows/backup.yml`): `age-keygen -o ~/family-age-key.txt` (two copies, outside the repository); GitHub secrets `AGE_PUBLIC_KEY` and `DATABASE_URL` (session pooler, ending `?sslmode=require`); variables `EXPECTED_AGE_RECIPIENT_SHA256` and `ALLOW_EMPTY_BACKUP=1`; uncomment the `schedule:` lines in the workflow; run it once; download the file and run `scripts/backup/restore-drill.sh`; **delete `ALLOW_EMPTY_BACKUP` when the opening balances are posted** (2.6). Optional bill-photo copy: 2.5. Every year: the FY archive ZIP (section 5b).
+- [ ] **6. Two-factor sign-in on the accounts behind the system:** the Supabase organisation login, GitHub, Vercel and the email account behind them.
+- [ ] **7. Vercel:** the Preview environment must not hold production secrets; Git Fork Protection ON; turn Deployment Protection off only at go-live; decide Hobby or Pro (section 11 step 6).
+- [ ] **8. Before Resend / any SMTP:** decide about the counter staff mailboxes (give counter accounts addresses the owners control) and make the email templates show a code, not a sign-in link (finding M1).
+- [ ] **9. Optional hardening:** Turnstile captcha on sign-in; 12-character minimum password for owners.
+- [ ] **10. Owner decisions recorded** (the developer logs them in the change notes): counter staff may post cash deposits (finding C1; the bank reconciliation is what reveals a pocketed amount, so import the statement monthly); the counter can still derive bank/cash/profit/stock-cost data through the API (findings K1-K4): still accepted?
+- [ ] **11. After items 1 to 5:** sign in as each owner on a real phone, run the monthly checklist (section 5) once, then the go-live day steps (section 8).

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Member } from '@/lib/access';
 import { isSessionExpired } from '@/lib/auth/session-age';
+import { sessionCookieOptions } from './cookie-options';
 
 export interface SessionFacts {
   /** The response to return (session cookies may have been refreshed or cleared on it). */
@@ -23,6 +24,7 @@ export async function readSession(request: NextRequest, requestHeaders: Headers)
   if (!url || !key) return nobody;
 
   const supabase = createServerClient(url, key, {
+    cookieOptions: sessionCookieOptions(),
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll(cookiesToSet) {
