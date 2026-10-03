@@ -90,7 +90,7 @@ jobs:
       # storage problem can never cost that day's database backup (it still turns the run red).
       - name: Set up the Supabase CLI (bill-photo copy only)
         if: success() && steps.cfg.outputs.ready == 'true' && vars.BACKUP_STORAGE == '1'
-        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.117.0
       - name: Copy and encrypt the bill photos
