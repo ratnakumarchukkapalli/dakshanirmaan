@@ -80,7 +80,7 @@ jobs:
         # Only after a fully successful dump; each run uploads under its own name, so a failed run
         # can never replace an earlier good artifact.
         if: success() && steps.cfg.outputs.ready == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dn-backup-${{ github.run_id }}
           path: backups/dn-backup-*.tar.age
@@ -104,7 +104,7 @@ jobs:
         run: scripts/backup/storage-copy.sh backups
       - name: Keep the encrypted bill photos
         if: success() && steps.cfg.outputs.ready == 'true' && vars.BACKUP_STORAGE == '1'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dn-storage-${{ github.run_id }}
           path: backups/dn-storage-*.tar.age
